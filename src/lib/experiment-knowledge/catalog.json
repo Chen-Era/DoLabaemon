@@ -1,0 +1,143 @@
+[
+  {
+    "id": "wb",
+    "canonicalName": "Western Blot",
+    "aliases": ["WB", "Immunoblot", "免疫印迹", "蛋白印迹"],
+    "normalizedCode": "WB",
+    "descriptionZh": "蛋白样本裂解、电泳转膜后通过抗体和底物检测目标蛋白条带。",
+    "descriptionEn": "Protein immunoblotting workflow with lysate preparation, transfer and antibody-based detection.",
+    "supportedDirections": ["AUTOPHAGY", "SECRETORY_AUTOPHAGY", "EXOSOME"],
+    "workflowStages": [
+      { "key": "sample-prep", "labelZh": "样本裂解与蛋白定量", "labelEn": "Sample preparation", "relatedExperimentTags": ["WB_LYSIS_BUFFER", "PROTEIN_QUANTIFICATION_REAGENT"] },
+      { "key": "transfer", "labelZh": "转膜与封闭", "labelEn": "Transfer and blocking", "relatedExperimentTags": ["WB_TRANSFER_REAGENT", "WB_TRANSFER_MEMBRANE", "WB_BLOCKING_BUFFER"] },
+      { "key": "detection", "labelZh": "抗体孵育与显影", "labelEn": "Antibody incubation and detection", "relatedExperimentTags": ["WB_SECONDARY_ANTIBODY", "WB_DETECTION_SUBSTRATE"] }
+    ],
+    "requiredReagentTemplates": [
+      { "nameZh": "WB 需要裂解/样本制备试剂", "nameEn": "WB needs lysis reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["WB_LYSIS_BUFFER"] },
+      { "nameZh": "WB 需要上样缓冲液", "nameEn": "WB needs loading buffer", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["WB_LOADING_BUFFER"] },
+      { "nameZh": "WB 需要目标一抗", "nameEn": "WB needs target primary antibody", "level": "MIN_REQUIRED", "matcherType": "ANTIBODY_TARGET_ANY", "matcherValues": [], "matcherAntibodyRole": "PRIMARY" },
+      { "nameZh": "WB 需要二抗", "nameEn": "WB needs secondary antibody", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["WB_SECONDARY_ANTIBODY"] },
+      { "nameZh": "WB 需要检测底物", "nameEn": "WB needs detection substrate", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["WB_DETECTION_SUBSTRATE"] }
+    ],
+    "recommendedReagentTemplates": [
+      { "nameZh": "推荐补充 WB 转印膜", "nameEn": "Recommended transfer membrane", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["WB_TRANSFER_MEMBRANE"] },
+      { "nameZh": "推荐补充蛋白定量试剂", "nameEn": "Recommended protein quantification reagent", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["PROTEIN_QUANTIFICATION_REAGENT"] }
+    ],
+    "evidenceKeywords": ["western blot", "immunoblot", "wb", "蛋白印迹", "免疫印迹"],
+    "excludedKeywords": ["elisa", "flow cytometry", "if stain"],
+    "relatedExperimentTags": ["WB_LYSIS_BUFFER", "WB_LOADING_BUFFER", "WB_SECONDARY_ANTIBODY", "WB_DETECTION_SUBSTRATE"],
+    "source": "SYSTEM"
+  },
+  {
+    "id": "qpcr",
+    "canonicalName": "qPCR",
+    "aliases": ["RT-qPCR", "Real-time PCR", "Quantitative PCR", "实时荧光定量 PCR"],
+    "normalizedCode": "QPCR",
+    "descriptionZh": "通过 RNA 提取、逆转录和实时荧光定量扩增检测基因表达。",
+    "descriptionEn": "Gene-expression quantification using RNA extraction, reverse transcription and real-time PCR amplification.",
+    "supportedDirections": ["AUTOPHAGY", "SECRETORY_AUTOPHAGY"],
+    "workflowStages": [
+      { "key": "rna", "labelZh": "RNA 提取", "labelEn": "RNA extraction", "relatedExperimentTags": ["RNA_EXTRACTION_REAGENT"] },
+      { "key": "rt", "labelZh": "逆转录", "labelEn": "Reverse transcription", "relatedExperimentTags": ["REVERSE_TRANSCRIPTION_REAGENT"] },
+      { "key": "amp", "labelZh": "实时扩增检测", "labelEn": "Real-time amplification", "relatedExperimentTags": ["QPCR_MASTER_MIX", "NUCLEASE_FREE_WATER"] }
+    ],
+    "requiredReagentTemplates": [
+      { "nameZh": "qPCR 需要 RNA 提取试剂", "nameEn": "qPCR needs RNA extraction reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["RNA_EXTRACTION_REAGENT"] },
+      { "nameZh": "qPCR 需要逆转录试剂", "nameEn": "qPCR needs reverse transcription reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["REVERSE_TRANSCRIPTION_REAGENT"] },
+      { "nameZh": "qPCR 需要 qPCR 扩增体系", "nameEn": "qPCR needs master mix", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["QPCR_MASTER_MIX"] },
+      { "nameZh": "qPCR 需要目标基因引物", "nameEn": "qPCR needs target primer", "level": "MIN_REQUIRED", "matcherType": "PRIMER_TARGET_ANY", "matcherValues": [] },
+      { "nameZh": "qPCR 需要内参引物", "nameEn": "qPCR needs reference primer", "level": "MIN_REQUIRED", "matcherType": "PRIMER_REFERENCE", "matcherValues": [] }
+    ],
+    "recommendedReagentTemplates": [
+      { "nameZh": "推荐补充 DNase", "nameEn": "Recommended DNase", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["DNASE_REAGENT"] },
+      { "nameZh": "推荐补充 RNase inhibitor", "nameEn": "Recommended RNase inhibitor", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["RNASE_INHIBITOR"] }
+    ],
+    "evidenceKeywords": ["qpcr", "rt-qpcr", "real-time pcr", "quantitative pcr", "实时荧光定量"],
+    "excludedKeywords": ["western blot", "elisa", "flow cytometry"],
+    "relatedExperimentTags": ["RNA_EXTRACTION_REAGENT", "REVERSE_TRANSCRIPTION_REAGENT", "QPCR_MASTER_MIX", "NUCLEASE_FREE_WATER"],
+    "source": "SYSTEM"
+  },
+  {
+    "id": "if",
+    "canonicalName": "Immunofluorescence",
+    "aliases": ["IF", "Immunostaining", "免疫荧光", "荧光染色"],
+    "normalizedCode": "IF",
+    "descriptionZh": "细胞或组织经固定、透化、抗体染色与封片后进行荧光成像。",
+    "descriptionEn": "Fluorescent imaging workflow with fixation, permeabilization, antibody staining and mounting.",
+    "supportedDirections": ["AUTOPHAGY", "SECRETORY_AUTOPHAGY"],
+    "workflowStages": [
+      { "key": "fix", "labelZh": "固定与透化", "labelEn": "Fixation and permeabilization", "relatedExperimentTags": ["FIXATIVE", "PERMEABILIZATION_REAGENT"] },
+      { "key": "stain", "labelZh": "抗体染色", "labelEn": "Antibody staining", "relatedExperimentTags": ["IF_PRIMARY_ANTIBODY", "IF_FLUORESCENT_SECONDARY_ANTIBODY"] },
+      { "key": "mount", "labelZh": "核染与封片", "labelEn": "Nuclear stain and mounting", "relatedExperimentTags": ["NUCLEAR_STAIN", "MOUNTING_MEDIUM"] }
+    ],
+    "requiredReagentTemplates": [
+      { "nameZh": "IF 需要固定液", "nameEn": "IF needs fixative", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["FIXATIVE"] },
+      { "nameZh": "IF 需要透化试剂", "nameEn": "IF needs permeabilization reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["PERMEABILIZATION_REAGENT"] },
+      { "nameZh": "IF 需要封闭液", "nameEn": "IF needs blocking reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["BLOCKING_REAGENT"] },
+      { "nameZh": "IF 需要目标一抗", "nameEn": "IF needs target primary antibody", "level": "MIN_REQUIRED", "matcherType": "ANTIBODY_TARGET_ANY", "matcherValues": [], "matcherAntibodyRole": "PRIMARY" },
+      { "nameZh": "IF 需要荧光二抗", "nameEn": "IF needs fluorescent secondary antibody", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["IF_FLUORESCENT_SECONDARY_ANTIBODY"] }
+    ],
+    "recommendedReagentTemplates": [
+      { "nameZh": "推荐补充核染", "nameEn": "Recommended nuclear stain", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["NUCLEAR_STAIN"] },
+      { "nameZh": "推荐补充封片介质", "nameEn": "Recommended mounting medium", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["MOUNTING_MEDIUM"] }
+    ],
+    "evidenceKeywords": ["immunofluorescence", "if", "immunostaining", "免疫荧光", "荧光染色"],
+    "excludedKeywords": ["western blot", "elisa", "flow cytometry"],
+    "relatedExperimentTags": ["FIXATIVE", "PERMEABILIZATION_REAGENT", "IF_FLUORESCENT_SECONDARY_ANTIBODY", "NUCLEAR_STAIN", "MOUNTING_MEDIUM"],
+    "source": "SYSTEM"
+  },
+  {
+    "id": "elisa",
+    "canonicalName": "ELISA",
+    "aliases": ["Enzyme-linked immunosorbent assay", "酶联免疫吸附实验", "酶联免疫吸附测定"],
+    "normalizedCode": "ELISA",
+    "descriptionZh": "通过包被、封闭、检测抗体与显色底物定量分析蛋白或细胞因子。",
+    "descriptionEn": "Plate-based assay for proteins or cytokines using coating, blocking, detection antibody and substrate.",
+    "supportedDirections": [],
+    "workflowStages": [
+      { "key": "coat", "labelZh": "包被与封闭", "labelEn": "Coating and blocking", "relatedExperimentTags": ["ELISA_COATING_REAGENT", "ELISA_BLOCKING_REAGENT"] },
+      { "key": "wash", "labelZh": "洗板", "labelEn": "Plate wash", "relatedExperimentTags": ["ELISA_WASH_BUFFER"] },
+      { "key": "detect", "labelZh": "检测与显色", "labelEn": "Detection and substrate reaction", "relatedExperimentTags": ["ELISA_DETECTION_ANTIBODY", "ELISA_SUBSTRATE"] }
+    ],
+    "requiredReagentTemplates": [
+      { "nameZh": "ELISA 需要包被相关试剂", "nameEn": "ELISA needs coating reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["ELISA_COATING_REAGENT"] },
+      { "nameZh": "ELISA 需要封闭液", "nameEn": "ELISA needs blocking reagent", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["ELISA_BLOCKING_REAGENT"] },
+      { "nameZh": "ELISA 需要洗板缓冲液", "nameEn": "ELISA needs wash buffer", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["ELISA_WASH_BUFFER"] },
+      { "nameZh": "ELISA 需要检测抗体", "nameEn": "ELISA needs detection antibody", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["ELISA_DETECTION_ANTIBODY"] },
+      { "nameZh": "ELISA 需要显色底物", "nameEn": "ELISA needs substrate", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["ELISA_SUBSTRATE"] }
+    ],
+    "recommendedReagentTemplates": [
+      { "nameZh": "推荐补充刺激或处理试剂", "nameEn": "Recommended stimulation or treatment reagent", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["CELL_STIMULATION_REAGENT", "SIGNALING_MODULATOR"] }
+    ],
+    "evidenceKeywords": ["elisa", "enzyme-linked immunosorbent", "cytokine assay", "secreted protein", "酶联免疫吸附"],
+    "excludedKeywords": ["western blot", "flow cytometry", "immunofluorescence"],
+    "relatedExperimentTags": ["ELISA_COATING_REAGENT", "ELISA_BLOCKING_REAGENT", "ELISA_WASH_BUFFER", "ELISA_DETECTION_ANTIBODY", "ELISA_SUBSTRATE"],
+    "source": "SYSTEM"
+  },
+  {
+    "id": "flow",
+    "canonicalName": "Flow Cytometry",
+    "aliases": ["FLOW", "FACS", "流式细胞术", "流式检测"],
+    "normalizedCode": "FLOW",
+    "descriptionZh": "通过荧光抗体、染色缓冲液与活死染进行细胞群体表型分析。",
+    "descriptionEn": "Cell phenotyping workflow using fluorescent antibodies, stain buffer and optional viability dye.",
+    "supportedDirections": [],
+    "workflowStages": [
+      { "key": "prep", "labelZh": "细胞制备与染色缓冲", "labelEn": "Cell preparation and stain buffer", "relatedExperimentTags": ["FLOW_STAIN_BUFFER"] },
+      { "key": "antibody", "labelZh": "荧光抗体染色", "labelEn": "Fluorescent antibody staining", "relatedExperimentTags": ["FLOW_FLUORESCENT_ANTIBODY", "FLOW_PRIMARY_ANTIBODY"] },
+      { "key": "quality", "labelZh": "活死染与质控", "labelEn": "Viability dye and QC", "relatedExperimentTags": ["FLOW_VIABILITY_DYE"] }
+    ],
+    "requiredReagentTemplates": [
+      { "nameZh": "流式需要荧光抗体", "nameEn": "Flow cytometry needs fluorescent antibody", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["FLOW_FLUORESCENT_ANTIBODY"] },
+      { "nameZh": "流式需要染色缓冲液", "nameEn": "Flow cytometry needs stain buffer", "level": "MIN_REQUIRED", "matcherType": "TAG_ANY", "matcherValues": ["FLOW_STAIN_BUFFER"] }
+    ],
+    "recommendedReagentTemplates": [
+      { "nameZh": "推荐补充活死染", "nameEn": "Recommended viability dye", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["FLOW_VIABILITY_DYE"] },
+      { "nameZh": "推荐补充 marker 一抗", "nameEn": "Recommended marker antibody", "level": "RECOMMENDED", "matcherType": "TAG_ANY", "matcherValues": ["FLOW_PRIMARY_ANTIBODY"] }
+    ],
+    "evidenceKeywords": ["flow cytometry", "facs", "cell sorting", "cell marker", "流式细胞术"],
+    "excludedKeywords": ["western blot", "elisa", "immunofluorescence"],
+    "relatedExperimentTags": ["FLOW_FLUORESCENT_ANTIBODY", "FLOW_STAIN_BUFFER", "FLOW_VIABILITY_DYE"],
+    "source": "SYSTEM"
+  }
+]

@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LabRole {
+  PI
+  ADMIN
+  MEMBER
+}
+
+enum ReagentCategory {
+  ANTIBODY
+  BUFFER
+  KIT
+  PRIMER
+  BIOLOGICAL
+  CHEMICAL
+  CONSUMABLE
+  OTHER
+}
+
+enum AntibodyRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum RuleLevel {
+  MIN_REQUIRED
+  RECOMMENDED
+}
+
+enum RuleMatcherType {
+  TAG_ANY
+  NAME_ANY
+  ANTIBODY_TARGET_ANY
+  PRIMER_TARGET_ANY
+  PRIMER_REFERENCE
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  passwordHash String
+  displayName  String?
+  createdAt    DateTime    @default(now())
+  memberships  LabMember[]
+  llmConfig    UserLlmConfig?
+}
+
+model UserLlmConfig {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  openaiApiKey      String?
+  openaiBaseUrl     String?
+  openaiModel       String?
+  openaiVisionModel String?
+  searchEnabled     Boolean  @default(true)
+  searchProvider    String?
+  searchApiKey      String?
+  searchBaseUrl     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Lab {
+  id          String              @id @default(cuid())
+  name        String
+  members     LabMember[]
+  reagents    Reagent[]
+  checks      ExperimentCheckRun[]
+  invitations Invitation[]
+}
+
+model LabMember {
+  id     String  @id @default(cuid())
+  userId String
+  labId  String
+  role   LabRole @default(MEMBER)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lab    Lab     @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, labId])
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  labId       String
+  email       String
+  role        LabRole  @default(MEMBER)
+  invitedById String
+  expiresAt   DateTime
+  lab         Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+}
+
+model Reagent {
+  id               String          @id @default(cuid())
+  labId            String
+  name             String
+  catalogNo        String
+  vendor           String?
+  category         ReagentCategory
+  subCategory      String?
+  storageCondition String?
+  expiryDate       DateTime?
+  quantity         Float?
+  unit             String?
+  arrivalDate      DateTime?
+  note             String?
+  experimentTags   String[]        @default([])
+  createdAt        DateTime        @default(now())
+  lab              Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  antibodyMeta     AntibodyMeta?
+  primerMeta       PrimerMeta?
+
+  @@unique([labId, catalogNo])
+}
+
+model AntibodyMeta {
+  id            String       @id @default(cuid())
+  reagentId     String       @unique
+  role          AntibodyRole
+  hostSpecies   String?
+  targetSpecies String?
+  targetName    String?
+  reagent       Reagent      @relation(fields: [reagentId], references: [id], onDelete: Cascade)
+}
+
+model PrimerMeta {
+  id              String   @id @default(cuid())
+  reagentId        String   @unique
+  targetName       String?
+  isReferenceGene  Boolean  @default(false)
+  reagent          Reagent  @relation(fields: [reagentId], references: [id], onDelete: Cascade)
+}
+
+model ExperimentType {
+  id     String           @id @default(cuid())
+  code   String           @unique
+  nameZh String
+  nameEn String
+  rules  ExperimentRule[]
+}
+
+model ResearchDirection {
+  id     String           @id @default(cuid())
+  code   String           @unique
+  nameZh String
+  nameEn String
+  rules  ExperimentRule[]
+}
+
+model ExperimentRule {
+  id                  String             @id @default(cuid())
+  experimentTypeId    String
+  researchDirectionId String?
+  level               RuleLevel
+  displayNameZh       String
+  displayNameEn       String
+  requiredKeywords    String[]
+  matcherType         RuleMatcherType    @default(NAME_ANY)
+  matcherValues       String[]           @default([])
+  matcherAntibodyRole AntibodyRole?
+  experimentType      ExperimentType     @relation(fields: [experimentTypeId], references: [id], onDelete: Cascade)
+  researchDirection   ResearchDirection? @relation(fields: [researchDirectionId], references: [id], onDelete: SetNull)
+}
+
+model ReagentParseDraft {
+  id           String   @id @default(cuid())
+  labId        String
+  userId       String
+  rawInput     Json
+  parsedOutput Json
+  confidence   Float?
+  warnings     String[]
+  isConfirmed  Boolean  @default(false)
+}
+
+model ExperimentResolveDraft {
+  id               String   @id @default(cuid())
+  labId            String
+  userId           String
+  rawInput         Json
+  resolvedOutput   Json
+  resolutionSource String
+  confidence       Float?
+  warnings         String[]
+  isConfirmed      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model ExperimentCheckRun {
+  id                  String                @id @default(cuid())
+  labId               String
+  userId              String
+  experimentCode      String
+  directionCode       String?
+  prerequisite        String?
+  confidenceLabel     String
+  status              String
+  warnings            String[]
+  compatibilityIssues String[]
+  createdAt           DateTime              @default(now())
+  lab                 Lab                   @relation(fields: [labId], references: [id], onDelete: Cascade)
+  items               ExperimentCheckItem[]
+}
+
+model ExperimentCheckItem {
+  id          String             @id @default(cuid())
+  checkRunId  String
+  level       RuleLevel
+  displayName String
+  isMissing   Boolean
+  matchedName String?
+  checkRun    ExperimentCheckRun @relation(fields: [checkRunId], references: [id], onDelete: Cascade)
+}

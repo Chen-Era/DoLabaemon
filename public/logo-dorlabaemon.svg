@@ -1,0 +1,33 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="96" y1="72" x2="420" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#091525"/>
+      <stop offset="1" stop-color="#111C39"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="132" y1="112" x2="384" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#70F3FF"/>
+      <stop offset="0.52" stop-color="#6DA1FF"/>
+      <stop offset="1" stop-color="#8D63FF"/>
+    </linearGradient>
+    <linearGradient id="flask" x1="222" y1="168" x2="314" y2="316" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#78F1FF"/>
+      <stop offset="1" stop-color="#4A79FF"/>
+    </linearGradient>
+    <filter id="glow" x="72" y="48" width="368" height="416" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="12" result="effect1_foregroundBlur"/>
+    </filter>
+  </defs>
+  <rect x="88" y="64" width="336" height="384" rx="96" fill="url(#bg)"/>
+  <g filter="url(#glow)">
+    <path d="M174 122H298C351.019 122 394 164.981 394 218V294C394 347.019 351.019 390 298 390H174V122Z" stroke="url(#stroke)" stroke-width="28"/>
+    <path d="M183 166H279C319.869 166 353 199.131 353 240V272C353 312.869 319.869 346 279 346H183V166Z" fill="url(#bg)" stroke="url(#stroke)" stroke-opacity="0.42" stroke-width="12"/>
+    <path d="M246 174V214L214 272C210.433 278.461 215.103 286.5 222.48 286.5H307.52C314.897 286.5 319.567 278.461 316 272L284 214V174" fill="url(#flask)" fill-opacity="0.16" stroke="url(#flask)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M224 253C241.777 244.943 262.315 246.182 279 256C290.639 262.851 303.357 266.521 316 266.693" stroke="#77F7FF" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="343" cy="162" r="16" fill="#6E98FF"/>
+    <circle cx="374" cy="128" r="10" fill="#7CF8FF"/>
+    <path d="M330 176L359 145" stroke="url(#stroke)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M359 145L374 128" stroke="url(#stroke)" stroke-width="8" stroke-linecap="round" stroke-opacity="0.75"/>
+  </g>
+</svg>
