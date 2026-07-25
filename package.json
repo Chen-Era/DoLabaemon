@@ -11,6 +11,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "test": "node --test --import tsx \"src/**/*.test.ts\"",
     "desktop:dev": "electron .",
+    "desktop:test": "node --test desktop/url-policy.test.cjs",
     "desktop:verify": "node desktop/verify-desktop-build.cjs",
     "desktop:dist:mac": "node desktop/prepare-build-assets.cjs --mac && npm run desktop:verify -- --mac && electron-builder --config electron-builder.yml --mac",
     "desktop:dist:win": "node desktop/prepare-build-assets.cjs --win && npm run desktop:verify -- --win && electron-builder --config electron-builder.yml --win"

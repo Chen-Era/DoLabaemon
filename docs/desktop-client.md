@@ -82,6 +82,7 @@ DORLABAEMON_DEV_URL=http://127.0.0.1:3001 npm run desktop:dev
 npm ci
 npm run lint
 npm run test
+npm run desktop:test
 ```
 
 然后在对应操作系统上构建：

@@ -7415,6 +7415,145 @@
       "antibodyMeta": null,
       "primerMeta": null,
       "createdAt": "2026-07-25T20:34:51.078Z"
+    },
+    {
+      "id": "reagent-zgialce9",
+      "labId": "demo-lab-1785012838279",
+      "name": "RIPA lysis buffer",
+      "catalogNo": "RIPA lysis buffer-cat",
+      "category": "BUFFER",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_LYSIS_BUFFER"
+      ],
+      "antibodyMeta": null,
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:53:58.744Z"
+    },
+    {
+      "id": "reagent-yklw9kaq",
+      "labId": "demo-lab-1785012838279",
+      "name": "Laemmli sample buffer",
+      "catalogNo": "Laemmli sample buffer-cat",
+      "category": "BUFFER",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_LOADING_BUFFER"
+      ],
+      "antibodyMeta": null,
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:53:59.201Z"
+    },
+    {
+      "id": "reagent-rk6non6e",
+      "labId": "demo-lab-1785012838279",
+      "name": "Anti-CD63 rabbit primary antibody",
+      "catalogNo": "Anti-CD63 rabbit primary antibody-cat",
+      "category": "ANTIBODY",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_PRIMARY_ANTIBODY",
+        "IF_PRIMARY_ANTIBODY",
+        "FLOW_PRIMARY_ANTIBODY"
+      ],
+      "antibodyMeta": {
+        "role": "PRIMARY",
+        "hostSpecies": "Rabbit",
+        "targetSpecies": null,
+        "targetName": "CD63"
+      },
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:53:59.658Z"
+    },
+    {
+      "id": "reagent-7847q7pi",
+      "labId": "demo-lab-1785012838279",
+      "name": "Anti-TSG101 rabbit primary antibody",
+      "catalogNo": "Anti-TSG101 rabbit primary antibody-cat",
+      "category": "ANTIBODY",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_PRIMARY_ANTIBODY",
+        "IF_PRIMARY_ANTIBODY",
+        "FLOW_PRIMARY_ANTIBODY"
+      ],
+      "antibodyMeta": {
+        "role": "PRIMARY",
+        "hostSpecies": "Rabbit",
+        "targetSpecies": null,
+        "targetName": "TSG101"
+      },
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:54:00.113Z"
+    },
+    {
+      "id": "reagent-15ac1t5t",
+      "labId": "demo-lab-1785012838279",
+      "name": "Goat anti-rabbit HRP secondary antibody",
+      "catalogNo": "Goat anti-rabbit HRP secondary antibody-cat",
+      "category": "ANTIBODY",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_SECONDARY_ANTIBODY",
+        "ELISA_DETECTION_ANTIBODY"
+      ],
+      "antibodyMeta": {
+        "role": "SECONDARY",
+        "hostSpecies": "Rabbit",
+        "targetSpecies": "rabbit",
+        "targetName": null
+      },
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:54:00.570Z"
+    },
+    {
+      "id": "reagent-8tynlyt1",
+      "labId": "demo-lab-1785012838279",
+      "name": "GAPDH antibody",
+      "catalogNo": "GAPDH antibody-cat",
+      "category": "ANTIBODY",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_PRIMARY_ANTIBODY",
+        "IF_PRIMARY_ANTIBODY",
+        "FLOW_PRIMARY_ANTIBODY"
+      ],
+      "antibodyMeta": {
+        "role": "PRIMARY",
+        "hostSpecies": null,
+        "targetSpecies": null,
+        "targetName": "GAPDH"
+      },
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:54:01.013Z"
+    },
+    {
+      "id": "reagent-et2guohz",
+      "labId": "demo-lab-1785012838279",
+      "name": "SuperSignal ECL substrate",
+      "catalogNo": "SuperSignal ECL substrate-cat",
+      "category": "OTHER",
+      "subCategory": null,
+      "vendor": null,
+      "quantity": 1,
+      "experimentTags": [
+        "WB_DETECTION_SUBSTRATE"
+      ],
+      "antibodyMeta": null,
+      "primerMeta": null,
+      "createdAt": "2026-07-25T20:54:01.442Z"
     }
   ],
   "drafts": [
@@ -17420,6 +17559,194 @@
     {
       "id": "draft-9f83p4i2",
       "labId": "demo-lab-lipo-1785011691284",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "CHEMICAL",
+        "subCategory": "Transfection Reagent",
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic lipo3000"
+        ],
+        "experimentTags": [
+          "GENE_DELIVERY_REAGENT",
+          "TRANSFECTION_REAGENT"
+        ],
+        "antibodyMeta": null,
+        "primerMeta": null
+      },
+      "isConfirmed": false
+    },
+    {
+      "id": "draft-ar0jy5p3",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "BUFFER",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic RIPA lysis buffer"
+        ],
+        "experimentTags": [
+          "WB_LYSIS_BUFFER"
+        ],
+        "antibodyMeta": null,
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-wj0wdzg6",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "BUFFER",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic Laemmli sample buffer"
+        ],
+        "experimentTags": [
+          "WB_LOADING_BUFFER"
+        ],
+        "antibodyMeta": null,
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-tsflcuqq",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "ANTIBODY",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic Anti-CD63 rabbit primary antibody"
+        ],
+        "experimentTags": [
+          "WB_PRIMARY_ANTIBODY",
+          "IF_PRIMARY_ANTIBODY",
+          "FLOW_PRIMARY_ANTIBODY"
+        ],
+        "antibodyMeta": {
+          "role": "PRIMARY",
+          "hostSpecies": "Rabbit",
+          "targetSpecies": null,
+          "targetName": "CD63"
+        },
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-h25ht1jb",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "ANTIBODY",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic Anti-TSG101 rabbit primary antibody"
+        ],
+        "experimentTags": [
+          "WB_PRIMARY_ANTIBODY",
+          "IF_PRIMARY_ANTIBODY",
+          "FLOW_PRIMARY_ANTIBODY"
+        ],
+        "antibodyMeta": {
+          "role": "PRIMARY",
+          "hostSpecies": "Rabbit",
+          "targetSpecies": null,
+          "targetName": "TSG101"
+        },
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-9p92bmdq",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "ANTIBODY",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic Goat anti-rabbit HRP secondary antibody"
+        ],
+        "experimentTags": [
+          "WB_SECONDARY_ANTIBODY",
+          "ELISA_DETECTION_ANTIBODY"
+        ],
+        "antibodyMeta": {
+          "role": "SECONDARY",
+          "hostSpecies": "Rabbit",
+          "targetSpecies": "rabbit",
+          "targetName": null
+        },
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-3o0b10sd",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "ANTIBODY",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic GAPDH antibody"
+        ],
+        "experimentTags": [
+          "WB_PRIMARY_ANTIBODY",
+          "IF_PRIMARY_ANTIBODY",
+          "FLOW_PRIMARY_ANTIBODY"
+        ],
+        "antibodyMeta": {
+          "role": "PRIMARY",
+          "hostSpecies": null,
+          "targetSpecies": null,
+          "targetName": "GAPDH"
+        },
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-35x65tbz",
+      "labId": "demo-lab-1785012838279",
+      "userId": "demo-user",
+      "parsedOutput": {
+        "category": "OTHER",
+        "subCategory": null,
+        "vendor": null,
+        "confidence": 0.84,
+        "warnings": [
+          "DEMO_MODE: parsed by local heuristic SuperSignal ECL substrate"
+        ],
+        "experimentTags": [
+          "WB_DETECTION_SUBSTRATE"
+        ],
+        "antibodyMeta": null,
+        "primerMeta": null
+      },
+      "isConfirmed": true
+    },
+    {
+      "id": "draft-xr4wwj5e",
+      "labId": "demo-lab-lipo-1785012841659",
       "userId": "demo-user",
       "parsedOutput": {
         "category": "CHEMICAL",
