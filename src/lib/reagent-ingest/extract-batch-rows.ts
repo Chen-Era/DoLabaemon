@@ -1,11 +1,12 @@
 import { generateLlmText, getLlmClient } from "@/lib/llm/client";
 import { parseLlmJson } from "@/lib/llm/json-output";
-import { normalizeLlmParsedPayload } from "@/lib/llm/normalize";
+import { coerceReagentBatchExtractRows, normalizeLlmParsedPayload } from "@/lib/llm/normalize";
 import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { buildReagentBatchExtractPrompt } from "@/lib/llm/prompts/reagent-batch-extract";
 import { reagentBatchExtractSchema } from "@/lib/llm/schemas";
 import { cleanUrlText } from "@/lib/url/clean-url";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
+import { withTimeout } from "@/lib/async/with-timeout";
 import { fetchVerificationPages, type VerificationPage } from "@/lib/reagent-ingest/fetch-verification-pages";
 import { searchReagentWeb } from "@/lib/reagent-ingest/web-search";
 
@@ -46,6 +47,7 @@ const headerFieldAliases = {
 type HeaderField = keyof typeof headerFieldAliases;
 type HeaderMapping = Partial<Record<HeaderField, number>>;
 const BATCH_ROW_SUPPLEMENT_CONCURRENCY = 3;
+const BATCH_EXTRACT_TIMEOUT_MS = 45000;
 
 function cleanCell(value: string) {
   const trimmed = value.trim();
@@ -291,7 +293,7 @@ async function supplementRowsWithSearch(
 async function parseWithLlm(rawText: string, lang: "zh" | "en", llmConfig?: RuntimeLlmConfig) {
   const client = getLlmClient({ apiKey: llmConfig?.apiKey, baseURL: llmConfig?.baseURL });
   const model = llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-  const result = await generateLlmText(client, { baseURL: cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
+  const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
     model,
     input: [
       {
@@ -304,10 +306,10 @@ async function parseWithLlm(rawText: string, lang: "zh" | "en", llmConfig?: Runt
       },
     ],
     temperature: 0,
-  });
+  }), BATCH_EXTRACT_TIMEOUT_MS, "BATCH_EXTRACT");
 
   const rawOutput = result.text || "[]";
-  return reagentBatchExtractSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput))).map((row) => ({
+  return reagentBatchExtractSchema.parse(coerceReagentBatchExtractRows(normalizeLlmParsedPayload(parseLlmJson(rawOutput)))).map((row) => ({
     sourceText: row.sourceText,
     name: row.name,
     vendor: row.vendor ?? null,

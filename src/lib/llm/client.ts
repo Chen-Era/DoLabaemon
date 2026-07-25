@@ -60,6 +60,33 @@ function extractTextFromChat(response: unknown) {
   return "";
 }
 
+// OpenAI-compatible providers reject request params they do not support
+// (e.g. temperature=0 on some platforms, reasoning_split on others, custom
+// temperature on OpenAI reasoning models). When the error message names the
+// offending parameter, drop it and retry once per parameter instead of
+// failing the whole parse.
+function namesUnsupportedParam(error: unknown, param: string) {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return message.includes(param.toLowerCase());
+}
+
+async function createWithParamFallback<T>(
+  create: (body: Record<string, unknown>) => Promise<T>,
+  body: Record<string, unknown>,
+  droppableParams: string[],
+): Promise<T> {
+  const params = { ...body };
+  for (;;) {
+    try {
+      return await create(params);
+    } catch (error) {
+      const offending = droppableParams.find((param) => param in params && namesUnsupportedParam(error, param));
+      if (!offending) throw error;
+      delete params[offending];
+    }
+  }
+}
+
 export function getLlmClient(config?: Pick<RuntimeLlmConfig, "apiKey" | "baseURL">) {
   const apiKey = config?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -80,13 +107,22 @@ export async function generateLlmText(
   const provider = getProvider(config?.baseURL);
 
   if (provider === "openai") {
-    const response = await client.responses.create({
+    const requestBody = {
       model: options.model,
       input: formatInputForResponses(options.input),
       temperature: options.temperature ?? 0,
-      include: options.includeSources ? ["web_search_call.action.sources"] : undefined,
-    });
-    const output = (response as { output?: Array<{ type?: string; action?: { sources?: Array<{ url?: string }> } }> }).output ?? [];
+      // includeSources implies the caller enabled native web search; the tool
+      // must be declared or the API errors out / never returns sources.
+      ...(options.includeSources
+        ? { tools: [{ type: "web_search_preview" }], include: ["web_search_call.action.sources"] }
+        : {}),
+    };
+    const response = (await createWithParamFallback(
+      (body) => client.responses.create(body as Parameters<typeof client.responses.create>[0]),
+      requestBody,
+      ["temperature", "include", "tools"],
+    )) as { output_text?: string; output?: Array<{ type?: string; action?: { sources?: Array<{ url?: string }> } }> };
+    const output = response.output ?? [];
     const sources = options.includeSources
       ? output.flatMap((item) => (item.type === "web_search_call" ? item.action?.sources ?? [] : [])).map((item) => item.url).filter(Boolean) as string[]
       : [];
@@ -103,8 +139,12 @@ export async function generateLlmText(
     messages: formatInputForChat(options.input),
     temperature: options.temperature ?? 0,
     ...(provider === "minimax" ? { reasoning_split: true } : {}),
-  } as Parameters<typeof client.chat.completions.create>[0];
-  const response = await client.chat.completions.create(requestBody);
+  };
+  const response = await createWithParamFallback(
+    (body) => client.chat.completions.create(body as unknown as Parameters<typeof client.chat.completions.create>[0]),
+    requestBody,
+    ["reasoning_split", "temperature"],
+  );
   return {
     text: extractTextFromChat(response),
     sources: [],

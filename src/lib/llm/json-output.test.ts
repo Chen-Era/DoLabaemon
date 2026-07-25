@@ -65,3 +65,35 @@ test("parseLlmJson throws a descriptive error for non-JSON output", () => {
   assert.throws(() => parseLlmJson("I cannot parse this reagent."), /LLM_OUTPUT_NOT_JSON/);
   assert.throws(() => parseLlmJson(""), /LLM_OUTPUT_NOT_JSON/);
 });
+
+test("parseLlmJson salvages output truncated right after a key colon", () => {
+  const raw = '{"category":"BIOLOGICAL","subCategory":"Recombinant Protein","confidence":0.9,"warnings":[],"experimentTags":';
+  assert.deepEqual(parseLlmJson(raw), {
+    category: "BIOLOGICAL",
+    subCategory: "Recombinant Protein",
+    confidence: 0.9,
+    warnings: [],
+  });
+});
+
+test("parseLlmJson salvages output truncated mid-string", () => {
+  const raw = '{"category":"ANTIBODY","vendor":"Abcam Li';
+  assert.deepEqual(parseLlmJson(raw), { category: "ANTIBODY", vendor: "Abcam Li" });
+});
+
+test("parseLlmJson salvages output truncated inside a nested array", () => {
+  const raw = '{"category":"PRIMER","experimentTags":["QPCR_MASTER_MIX","NUCLE';
+  assert.deepEqual(parseLlmJson(raw), { category: "PRIMER", experimentTags: ["QPCR_MASTER_MIX", "NUCLE"] });
+});
+
+test("parseLlmJson prefers the complete balanced span over a truncated repair", () => {
+  const raw = '{"category":"KIT","vendor":"Thermo","note":"a,b"} 以上供参考';
+  assert.deepEqual(parseLlmJson(raw), { category: "KIT", vendor: "Thermo", note: "a,b" });
+});
+
+test("parseLlmJson does not let a tiny inner span beat a truncated outer object", () => {
+  const raw = '{"category":"BIOLOGICAL","warnings":[],"experimentTags":["CELL_STIMUL';
+  const parsed = parseLlmJson(raw) as Record<string, unknown>;
+  assert.equal(parsed.category, "BIOLOGICAL");
+  assert.deepEqual(parsed.warnings, []);
+});

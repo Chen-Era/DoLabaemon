@@ -1,0 +1,270 @@
+.dashboard {
+  overflow: hidden;
+  border: 1px solid rgba(191, 219, 254, 0.86);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 42px rgba(30, 64, 175, 0.12), 0 2px 7px rgba(30, 64, 175, 0.06);
+}
+
+.windowBar {
+  display: flex;
+  min-height: 2.7rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.windowTitle {
+  color: #64748b;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.syncState {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #047857;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.syncState::before {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 6.2rem minmax(0, 1fr);
+  min-height: 20.5rem;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.8rem 0.5rem;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.productMark {
+  display: grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  margin: 0.05rem 0.18rem 0.85rem;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  border-radius: 0.45rem;
+  padding: 0.48rem 0.4rem;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.navItem svg {
+  width: 0.86rem;
+  height: 0.86rem;
+  flex: 0 0 auto;
+}
+
+.navItemActive {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.workspace {
+  min-width: 0;
+  padding: 1.1rem;
+}
+
+.workspaceHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workspaceHeader p {
+  margin: 0;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 0.53rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.workspaceHeader h3 {
+  margin: 0.28rem 0 0;
+  color: #1e3a8a;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.workspaceHeader > span {
+  color: #94a3b8;
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.3rem;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.metrics > div {
+  min-width: 0;
+  padding: 0.7rem 0.7rem 0.7rem 0;
+}
+
+.metrics > div + div {
+  padding-left: 0.7rem;
+  border-left: 1px solid #e2e8f0;
+}
+
+.metrics span,
+.metrics strong {
+  display: block;
+}
+
+.metrics span {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 0.56rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics strong {
+  margin-top: 0.24rem;
+  color: #1e3a8a;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+
+.table {
+  margin-top: 1.1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.tableHeader,
+.tableRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(3.7rem, 0.8fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tableHeader {
+  padding: 0.55rem 0;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tableRow {
+  min-height: 2.65rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.reagentName,
+.catalog {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reagentName {
+  color: #334155;
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+
+.catalog {
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+}
+
+.rowState {
+  color: #047857;
+  font-size: 0.55rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rowWarning {
+  color: #b45309;
+}
+
+@media (max-width: 430px) {
+  .shell {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .sidebar {
+    align-items: center;
+    padding-right: 0.36rem;
+    padding-left: 0.36rem;
+  }
+
+  .productMark {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .navItem {
+    padding: 0.48rem;
+  }
+
+  .navItem span {
+    display: none;
+  }
+
+  .workspace {
+    padding: 0.88rem;
+  }
+}
+
+@media (max-width: 350px) {
+  .tableHeader,
+  .tableRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tableHeader span:nth-child(2),
+  .catalog {
+    display: none;
+  }
+}

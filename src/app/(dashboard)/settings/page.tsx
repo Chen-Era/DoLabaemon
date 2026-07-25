@@ -90,15 +90,17 @@ const initialForm: FormState = {
 };
 
 const skillOptions = [
-  { id: "reagent-classification-curator", label: "试剂分类 skill" },
-  { id: "experiment-type-curator", label: "实验类型 skill" },
+  { id: "reagent-classification-curator", label: "试剂分类" },
+  { id: "experiment-type-curator", label: "实验类型" },
 ];
 
 const mcpOptions = [
-  { id: "search", label: "Search MCP" },
-  { id: "fetch", label: "Fetch MCP" },
-  { id: "self-check", label: "Self Check MCP" },
+  { id: "search", label: "联网检索" },
+  { id: "fetch", label: "网页读取" },
+  { id: "self-check", label: "结果自检" },
 ];
+
+const checkboxClass = "h-4 w-4 shrink-0 accent-blue-600";
 
 function formatSaveConfigError(error?: string, code?: string) {
   switch (code) {
@@ -113,6 +115,16 @@ function formatSaveConfigError(error?: string, code?: string) {
     default:
       return error ?? "保存失败";
   }
+}
+
+function isErrorMessage(msg: string) {
+  return msg.includes("失败") || msg.includes("异常") || msg.includes("未通过");
+}
+
+function roleLabel(role: "PI" | "ADMIN" | "MEMBER") {
+  if (role === "PI") return "负责人";
+  if (role === "ADMIN") return "管理员";
+  return "成员";
 }
 
 export default function SettingsPage() {
@@ -299,27 +311,57 @@ export default function SettingsPage() {
     }
   }
 
+  const runtime = config?.runtime;
+
   return (
     <div className="space-y-6">
-      <section className="app-panel-strong px-6 py-6 md:px-8">
-        <p className="section-kicker">Model Settings</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">模型与联网搜索配置</h1>
-        <p className="section-copy mt-3 max-w-3xl text-sm md:text-base">
-          在页面中维护你自己的 API Key、模型名、视觉模型和联网搜索配置。保存后，试剂解析、批量拆行、图片识别和实验类型解析都会优先使用这里的设置。
-        </p>
+      <section className="page-header">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">模型与联网配置</h1>
+        <p className="section-copy mt-1.5 max-w-3xl text-sm">保存后，试剂识别和实验解析会优先使用这里的设置。</p>
+      </section>
+
+      <section className="app-panel px-4 py-3">
+        {loading ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="skeleton h-5 w-40" />
+            <div className="skeleton h-5 w-56" />
+            <div className="skeleton h-5 w-24" />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <span className="text-slate-700">
+              <span className="text-slate-400">文本模型</span>{" "}
+              <span className="font-medium">{runtime?.model || "未设置"}</span>
+            </span>
+            <span className="max-w-full truncate text-slate-700 [overflow-wrap:anywhere]">
+              <span className="text-slate-400">服务地址</span>{" "}
+              <span className="font-medium">{runtime?.baseURL || "未设置"}</span>
+            </span>
+            <span className={runtime?.hasApiKey ? "status-pill success" : "status-pill warning"}>
+              {runtime?.hasApiKey ? "模型密钥已就绪" : "模型密钥未配置"}
+            </span>
+            {runtime?.searchEnabled ? (
+              <span className={runtime?.hasSearchApiKey ? "status-pill" : "status-pill warning"}>
+                已启用联网搜索 / {runtime?.searchProvider || "未指定服务商"}{runtime?.hasSearchApiKey ? "" : "（缺少密钥）"}
+              </span>
+            ) : (
+              <span className="glass-badge">联网搜索未启用</span>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="data-grid cols-2">
-        <section className="app-panel px-6 py-6">
-          <div className="mb-5">
-            <p className="section-kicker">Credentials</p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900">模型配置</h2>
-            <p className="section-copy mt-2 text-sm">密钥字段留空时保持已保存值不变；Base URL / 模型名留空时回退到环境变量。</p>
+        <section className="app-panel px-5 py-5">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">模型配置</h2>
+            <p className="section-copy mt-1 text-sm">密钥留空会保留已保存的值；服务地址和模型名留空则使用环境变量。</p>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="field-label">服务商模板</label>
+              <label className="field-label" htmlFor="provider-preset">服务商模板</label>
               <select
+                id="provider-preset"
                 className="input-base"
                 value={providerPresetId}
                 onChange={(e) => applyProviderPreset(e.target.value)}
@@ -331,69 +373,76 @@ export default function SettingsPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="field-hint">
                 {llmProviderPresets.find((item) => item.id === providerPresetId)?.note
-                  ?? "选择常见服务商会自动填充 Base URL 与推荐模型名，仍可手动修改。"}
+                  ?? "选择常见服务商会自动填充服务地址与推荐模型名，仍可手动修改。"}
               </p>
             </div>
             <div>
-              <label className="field-label">OpenAI 兼容 API Key</label>
+              <label className="field-label" htmlFor="openai-api-key">模型 API 密钥</label>
               <input
+                id="openai-api-key"
                 className="input-base"
                 type="password"
-                placeholder={config?.saved?.hasOpenaiApiKey ? "已保存，留空则保持不变" : "输入模型 API Key"}
+                placeholder={config?.saved?.hasOpenaiApiKey ? "已保存，留空则保持不变" : "输入模型 API 密钥"}
                 value={form.openaiApiKey}
                 onChange={(e) => setForm((prev) => ({ ...prev, openaiApiKey: e.target.value }))}
               />
             </div>
             <div>
-              <label className="field-label">Base URL</label>
+              <label className="field-label" htmlFor="openai-base-url">服务地址</label>
               <input
+                id="openai-base-url"
                 className="input-base"
                 placeholder="选择模板自动填充，或手动输入"
                 value={form.openaiBaseUrl}
                 onChange={(e) => onBaseUrlChange(e.target.value)}
               />
             </div>
-            <div>
-              <label className="field-label">文本模型名</label>
-              <input
-                className="input-base"
-                placeholder="例如：gpt-4.1-mini、glm-4.6"
-                value={form.openaiModel}
-                onChange={(e) => setForm((prev) => ({ ...prev, openaiModel: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="field-label">视觉模型名</label>
-              <input
-                className="input-base"
-                placeholder="例如：gpt-4.1-mini、qwen-vl-plus"
-                value={form.openaiVisionModel}
-                onChange={(e) => setForm((prev) => ({ ...prev, openaiVisionModel: e.target.value }))}
-              />
+            <div className="data-grid cols-2">
+              <div>
+                <label className="field-label" htmlFor="openai-model">文本模型名</label>
+                <input
+                  id="openai-model"
+                  className="input-base"
+                  placeholder="例如：gpt-4.1-mini、glm-4.6"
+                  value={form.openaiModel}
+                  onChange={(e) => setForm((prev) => ({ ...prev, openaiModel: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="openai-vision-model">视觉模型名</label>
+                <input
+                  id="openai-vision-model"
+                  className="input-base"
+                  placeholder="例如：gpt-4.1-mini、qwen-vl-plus"
+                  value={form.openaiVisionModel}
+                  onChange={(e) => setForm((prev) => ({ ...prev, openaiVisionModel: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="app-panel px-6 py-6">
-          <div className="mb-5">
-            <p className="section-kicker">Web Search</p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900">联网搜索配置</h2>
-            <p className="section-copy mt-2 text-sm">当前模型不支持原生联网时，试剂纠错会自动退回到这里配置的外部搜索服务。</p>
+        <section className="app-panel px-5 py-5">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">联网搜索配置</h2>
+            <p className="section-copy mt-1 text-sm">模型不支持原生联网时，试剂纠错会自动退回这里配置的外部搜索服务。</p>
           </div>
           <div className="space-y-4">
-            <label className="flex items-center gap-3 text-sm text-slate-700">
+            <label className="flex items-center gap-2.5 text-sm text-slate-700">
               <input
                 type="checkbox"
+                className={checkboxClass}
                 checked={form.searchEnabled}
                 onChange={(e) => setForm((prev) => ({ ...prev, searchEnabled: e.target.checked }))}
               />
               启用联网搜索纠错
             </label>
             <div>
-              <label className="field-label">搜索提供方</label>
+              <label className="field-label" htmlFor="search-provider">搜索提供方</label>
               <select
+                id="search-provider"
                 className="input-base"
                 value={form.searchProvider}
                 onChange={(e) => setForm((prev) => ({ ...prev, searchProvider: e.target.value }))}
@@ -403,18 +452,20 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="field-label">搜索 API Key</label>
+              <label className="field-label" htmlFor="search-api-key">搜索 API 密钥</label>
               <input
+                id="search-api-key"
                 className="input-base"
                 type="password"
-                placeholder={config?.saved?.hasSearchApiKey ? "已保存，留空则保持不变" : "输入搜索 API Key"}
+                placeholder={config?.saved?.hasSearchApiKey ? "已保存，留空则保持不变" : "输入搜索 API 密钥"}
                 value={form.searchApiKey}
                 onChange={(e) => setForm((prev) => ({ ...prev, searchApiKey: e.target.value }))}
               />
             </div>
             <div>
-              <label className="field-label">搜索 Base URL</label>
+              <label className="field-label" htmlFor="search-base-url">搜索服务地址</label>
               <input
+                id="search-base-url"
                 className="input-base"
                 placeholder="可选，不填则使用默认地址"
                 value={form.searchBaseUrl}
@@ -425,18 +476,19 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      <div className="data-grid cols-2">
-        <section className="app-panel px-6 py-6">
-          <div className="mb-5">
-            <p className="section-kicker">Skills</p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900">运行时 Skill</h2>
-            <p className="section-copy mt-2 text-sm">这些 skill 由服务器统一发布，网页端只控制本账号是否启用。</p>
-          </div>
-          <div className="space-y-3">
+      <section className="app-panel px-5 py-5">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-slate-900">可用能力</h2>
+          <p className="section-copy mt-1 text-sm">这里仅控制当前账号是否启用服务器提供的能力。</p>
+        </div>
+        <div className="data-grid cols-2">
+          <div className="space-y-2.5">
+            <p className="field-label">解析能力</p>
             {skillOptions.map((skill) => (
-              <label key={skill.id} className="flex items-center gap-3 text-sm text-slate-700">
+              <label key={skill.id} className="flex items-center gap-2.5 text-sm text-slate-700">
                 <input
                   type="checkbox"
+                  className={checkboxClass}
                   checked={form.enabledSkills.includes(skill.id)}
                   onChange={() => toggleListValue("enabledSkills", skill.id)}
                 />
@@ -444,171 +496,150 @@ export default function SettingsPage() {
               </label>
             ))}
           </div>
-        </section>
-
-        <section className="app-panel px-6 py-6">
-          <div className="mb-5">
-            <p className="section-kicker">MCP</p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900">运行时 MCP</h2>
-            <p className="section-copy mt-2 text-sm">统一启用搜索、抓取与自检服务器能力。</p>
-          </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
+            <p className="field-label">联网与自检</p>
             {mcpOptions.map((server) => (
-              <label key={server.id} className="flex items-center gap-3 text-sm text-slate-700">
+              <label key={server.id} className="flex items-center gap-2.5 text-sm text-slate-700">
                 <input
                   type="checkbox"
+                  className={checkboxClass}
                   checked={form.enabledMcpServers.includes(server.id)}
                   onChange={() => toggleListValue("enabledMcpServers", server.id)}
                 />
                 {server.label}
               </label>
             ))}
-            <label className="mt-4 flex items-center gap-3 text-sm text-slate-700">
+            <label className="flex items-center gap-2.5 text-sm text-slate-700">
               <input
                 type="checkbox"
+                className={checkboxClass}
                 checked={form.selfCheckEnabled}
                 onChange={(e) => setForm((prev) => ({ ...prev, selfCheckEnabled: e.target.checked }))}
               />
               启用自检
             </label>
-            <label className="flex items-center gap-3 text-sm text-slate-700">
+            <label className="flex items-center gap-2.5 text-sm text-slate-700">
               <input
                 type="checkbox"
+                className={checkboxClass}
                 checked={form.autoLearnEnabled}
                 onChange={(e) => setForm((prev) => ({ ...prev, autoLearnEnabled: e.target.checked }))}
               />
               申请自动学习写回
             </label>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
-      <section className="app-panel px-6 py-6">
-        <div className="mb-5">
-          <p className="section-kicker">Lab Policy</p>
-          <h2 className="mt-3 text-2xl font-semibold text-slate-900">实验室 AI 策略</h2>
-          <p className="section-copy mt-2 text-sm">是否允许自动写回正式知识由实验室策略决定，可调用不等于可写回。</p>
+      <section className="app-panel px-5 py-5">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-slate-900">实验室 AI 策略</h2>
+          <p className="section-copy mt-1 text-sm">是否允许自动写回正式知识由实验室策略决定，可调用不等于可写回。</p>
         </div>
         <div className="space-y-4">
-          <div>
-            <label className="field-label">实验室</label>
-            <select className="input-base" value={selectedLabId} onChange={(e) => setSelectedLabId(e.target.value)}>
+          <div className="max-w-sm">
+            <label className="field-label" htmlFor="policy-lab">实验室</label>
+            <select id="policy-lab" className="input-base" value={selectedLabId} onChange={(e) => setSelectedLabId(e.target.value)}>
               {labs.map((item) => (
                 <option key={item.lab.id} value={item.lab.id}>
-                  {item.lab.name} / {item.role}
+                  {item.lab.name} / {roleLabel(item.role)}
                 </option>
               ))}
             </select>
           </div>
-          <label className="flex items-center gap-3 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={policy?.policy.allowAutoLearn ?? false}
-              disabled={!policy?.canManage}
-              onChange={(e) =>
-                setPolicy((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        policy: {
-                          ...prev.policy,
-                          allowAutoLearn: e.target.checked,
-                        },
+          <div className="data-grid cols-2">
+            <div className="space-y-2.5">
+              <p className="field-label">写回开关</p>
+              <label className="flex items-center gap-2.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className={checkboxClass}
+                  checked={policy?.policy.allowAutoLearn ?? false}
+                  disabled={!policy?.canManage}
+                  onChange={(e) =>
+                    setPolicy((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            policy: {
+                              ...prev.policy,
+                              allowAutoLearn: e.target.checked,
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                />
+                允许自动学习写回正式知识
+              </label>
+            </div>
+            <div className="space-y-2.5">
+              <p className="field-label">允许写回角色</p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {(["PI", "ADMIN", "MEMBER"] as const).map((role) => (
+                  <label key={role} className="flex items-center gap-2.5 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className={checkboxClass}
+                      checked={policy?.policy.allowedRoles.includes(role) ?? false}
+                      disabled={!policy?.canManage}
+                      onChange={(e) =>
+                        setPolicy((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                policy: {
+                                  ...prev.policy,
+                                  allowedRoles: e.target.checked
+                                    ? [...prev.policy.allowedRoles, role]
+                                    : prev.policy.allowedRoles.filter((item) => item !== role),
+                                },
+                              }
+                            : prev,
+                        )
                       }
-                    : prev,
-                )
-              }
-            />
-            允许自动学习写回正式知识
-          </label>
-          <div>
-            <p className="field-label">允许写回角色</p>
-            <div className="space-y-2 pt-2">
-              {(["PI", "ADMIN", "MEMBER"] as const).map((role) => (
-                <label key={role} className="flex items-center gap-3 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={policy?.policy.allowedRoles.includes(role) ?? false}
-                    disabled={!policy?.canManage}
-                    onChange={(e) =>
-                      setPolicy((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              policy: {
-                                ...prev.policy,
-                                allowedRoles: e.target.checked
-                                  ? [...prev.policy.allowedRoles, role]
-                                  : prev.policy.allowedRoles.filter((item) => item !== role),
-                              },
-                            }
-                          : prev,
-                      )
-                    }
-                  />
-                  {role}
-                </label>
-              ))}
+                    />
+                    {roleLabel(role)}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
-          <button type="button" onClick={onSavePolicy} className="button-secondary" disabled={!policy?.canManage || policySaving}>
-            {policySaving ? "保存中..." : "保存实验室策略"}
-          </button>
+          <div>
+            <button type="button" onClick={onSavePolicy} className="button-secondary" disabled={!policy?.canManage || policySaving}>
+              {policySaving ? "保存中..." : "保存实验室策略"}
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="app-panel px-6 py-6">
-        <div className="mb-5">
-          <p className="section-kicker">Runtime</p>
-          <h2 className="mt-3 text-2xl font-semibold text-slate-900">当前生效配置</h2>
-        </div>
+      <section className="app-panel px-5 py-5">
+        <h2 className="text-base font-semibold text-slate-900">当前生效配置</h2>
         {loading ? (
-          <p className="text-sm text-slate-500">加载中...</p>
-        ) : (
-          <div className="data-grid">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">生效 Base URL</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.baseURL || "未设置"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">生效文本模型</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.model || "未设置"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">生效视觉模型</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.visionModel || "未设置"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">联网搜索</p>
-              <p className="mt-2 text-sm text-slate-900">
-                {config?.runtime?.searchEnabled ? `启用 / ${config.runtime.searchProvider || "未指定 provider"}` : "未启用"}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">运行时 Skill</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.enabledSkills?.join(", ") || "未启用"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">运行时 MCP</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.enabledMcpServers?.join(", ") || "未启用"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">模型 Key</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.hasApiKey ? "已就绪" : "未配置"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">搜索 Key</p>
-              <p className="mt-2 text-sm text-slate-900">{config?.runtime?.hasSearchApiKey ? "已就绪" : "未配置"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-sm text-slate-500">自检与学习</p>
-              <p className="mt-2 text-sm text-slate-900">
-                {config?.runtime?.selfCheckEnabled ? "自检开启" : "自检关闭"} / {config?.runtime?.autoLearnEnabled ? "申请自动学习" : "不自动学习"}
-              </p>
-            </div>
+          <div className="data-grid cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="skeleton h-14" />
+            ))}
           </div>
+        ) : (
+          <dl className="data-grid cols-2 mt-4">
+            {[
+              ["生效文本模型", runtime?.model || "未设置"],
+              ["生效视觉模型", runtime?.visionModel || "未设置"],
+              ["联网搜索", runtime?.searchEnabled ? `启用 / ${runtime.searchProvider || "未指定服务商"}` : "未启用"],
+              ["已启用能力", `${runtime?.enabledSkills?.length ?? 0} 项解析能力，${runtime?.enabledMcpServers?.length ?? 0} 项工具能力`],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <dt className="text-xs text-slate-400">{label}</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-800 [overflow-wrap:anywhere]">{value}</dd>
+              </div>
+            ))}
+          </dl>
         )}
-        <div className="mt-6 flex flex-wrap gap-3">
+      </section>
+
+      <section className="app-panel px-5 py-5">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onSave} className="button-primary" disabled={saving}>
             {saving ? "保存中..." : "保存配置"}
           </button>
@@ -617,16 +648,18 @@ export default function SettingsPage() {
           </button>
         </div>
         {testResult ? (
-          <div className="mt-4 space-y-3">
-            <div className={`rounded-2xl px-4 py-3 text-sm ${testResult.model?.ok ? "success-panel" : "warning-panel"}`}>
+          <div className="mt-4 space-y-2">
+            <div className={`px-3 py-2.5 text-sm ${testResult.model?.ok ? "success-panel" : "warning-panel"}`}>
               模型接口：{testResult.model?.message ?? "未测试"}
             </div>
-            <div className={`rounded-2xl px-4 py-3 text-sm ${testResult.search?.ok ? "success-panel" : "warning-panel"}`}>
+            <div className={`px-3 py-2.5 text-sm ${testResult.search?.ok ? "success-panel" : "warning-panel"}`}>
               搜索接口：{testResult.search?.message ?? "未测试"}
             </div>
           </div>
         ) : null}
-        {msg ? <p className={`mt-4 text-sm ${msg.includes("失败") || msg.includes("异常") ? "danger-panel" : "success-panel"}`}>{msg}</p> : null}
+        {msg ? (
+          <p className={`mt-4 px-3 py-2.5 text-sm ${isErrorMessage(msg) ? "danger-panel" : "success-panel"}`}>{msg}</p>
+        ) : null}
       </section>
     </div>
   );

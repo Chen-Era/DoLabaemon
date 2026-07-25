@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { generateLlmText, getLlmClient } from "@/lib/llm/client";
 import { parseLlmJson } from "@/lib/llm/json-output";
-import { normalizeLlmParsedPayload } from "@/lib/llm/normalize";
+import { coerceReagentParsedPayload, coerceVerifiedReagentPayload, normalizeLlmParsedPayload } from "@/lib/llm/normalize";
 import { buildReagentParsePrompt } from "@/lib/llm/prompts/reagent-parse";
 import { buildReagentVerifyPrompt } from "@/lib/llm/prompts/reagent-verify";
 import { getNativeWebSearchToolType } from "@/lib/llm/model-capabilities";
@@ -12,6 +12,7 @@ import type { ReagentKnowledgeRetrievalResult } from "@/lib/reagent-knowledge/ty
 import { buildHeuristicParse } from "@/lib/reagent-tagging";
 import { fetchVerificationPages, type VerificationPage } from "@/lib/reagent-ingest/fetch-verification-pages";
 import { isExternalSearchConfigured, searchReagentWeb } from "@/lib/reagent-ingest/web-search";
+import { withTimeout } from "@/lib/async/with-timeout";
 import { finalizeAiFlow, prepareAiFlow } from "@/lib/ai-orchestrator/run-flow";
 import type { AiFlowContext, AiFlowExecution } from "@/lib/ai-orchestrator/types";
 import { invokeMcpTool } from "@/lib/mcp/client";
@@ -58,10 +59,24 @@ type ParseReagentDependencies = {
   flowContext?: AiFlowContext;
 };
 
-const INITIAL_DRAFT_TIMEOUT_MS = 18000;
-const NATIVE_VERIFY_TIMEOUT_MS = 25000;
-const EXTERNAL_VERIFY_TIMEOUT_MS = 18000;
+// Reasoning models (MiniMax-M1, MiMo, DeepSeek-R1, o-series) routinely need
+// 20-60s per call; tighter budgets used to push good drafts into fallback.
+const INITIAL_DRAFT_TIMEOUT_MS = 45000;
+const NATIVE_VERIFY_TIMEOUT_MS = 45000;
+const EXTERNAL_VERIFY_TIMEOUT_MS = 30000;
 const FINALIZE_FLOW_TIMEOUT_MS = 5000;
+
+function parseDraftFromRawOutput(rawOutput: string) {
+  const coerced = coerceReagentParsedPayload(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  const parsed = reagentParsedSchema.parse(coerced.payload);
+  return { ...parsed, warnings: [...parsed.warnings, ...coerced.warnings] };
+}
+
+function parseVerifiedFromRawOutput(rawOutput: string) {
+  const coerced = coerceVerifiedReagentPayload(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  const parsed = verifiedReagentParsedSchema.parse(coerced.payload);
+  return { ...parsed, warnings: [...parsed.warnings, ...coerced.warnings] };
+}
 
 function previewText(text: string, limit = 600) {
   return text.length <= limit ? text : `${text.slice(0, limit)}...(truncated)`;
@@ -91,20 +106,6 @@ function buildVerificationPayload(
   payload: z.infer<typeof verifiedReagentParsedSchema>["verification"],
 ) {
   return withVerification(parsed, payload);
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  let timerId: ReturnType<typeof setTimeout> | null = null;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timerId = setTimeout(() => reject(new Error(`${label}_TIMEOUT`)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timerId) clearTimeout(timerId);
-  }
 }
 
 function buildVerificationWarnings(reason: ParseReagentResult["verificationReason"]) {
@@ -153,7 +154,7 @@ async function generateInitialDraft(
   }), INITIAL_DRAFT_TIMEOUT_MS, "INITIAL_DRAFT");
 
   const rawOutput = result.text || "";
-  const parsed = reagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  const parsed = parseDraftFromRawOutput(rawOutput);
   return { rawOutput, parsed };
 }
 
@@ -190,7 +191,7 @@ async function verifyWithNativeWebSearch(
   }), NATIVE_VERIFY_TIMEOUT_MS, "NATIVE_VERIFY");
 
   const rawOutput = result.text || "";
-  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  const parsed = parseVerifiedFromRawOutput(rawOutput);
   return { rawOutput, parsed, sourceCount: result.sources.length };
 }
 
@@ -226,7 +227,7 @@ async function verifyWithExternalEvidence(
   }), EXTERNAL_VERIFY_TIMEOUT_MS, "EXTERNAL_VERIFY");
 
   const rawOutput = result.text || "";
-  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  const parsed = parseVerifiedFromRawOutput(rawOutput);
   return { rawOutput, parsed };
 }
 

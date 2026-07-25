@@ -1,0 +1,63 @@
+appId: cn.era.dorlabaemon
+productName: Dorlabaemon
+copyright: Copyright © 2026 Era
+
+directories:
+  output: dist/desktop
+  buildResources: build
+
+# This desktop client opens the hosted application. Deliberately exclude the
+# Next.js server, database files, environment files, and web build output.
+files:
+  - desktop/**
+  - package.json
+  - "!desktop/**/*.ts"
+  - "!desktop/**/*.map"
+  - "!desktop/**/*.test.*"
+  - "!desktop/**/__tests__/**"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+compression: normal
+publish: never
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icons/dorlabaemon.icns
+  target:
+    - target: dmg
+      arch:
+        - universal
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+  hardenedRuntime: true
+
+dmg:
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 150
+      y: 220
+      type: file
+    - x: 390
+      y: 220
+      type: link
+      path: /Applications
+
+win:
+  icon: build/icons/dorlabaemon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "${productName}-${version}-win-${arch}-setup.${ext}"
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Dorlabaemon

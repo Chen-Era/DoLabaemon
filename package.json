@@ -2,13 +2,18 @@
   "name": "lab-reagent-system",
   "version": "0.1.0",
   "private": true,
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "node --test --import tsx \"src/**/*.test.ts\""
+    "test": "node --test --import tsx \"src/**/*.test.ts\"",
+    "desktop:dev": "electron .",
+    "desktop:verify": "node desktop/verify-desktop-build.cjs",
+    "desktop:dist:mac": "node desktop/prepare-build-assets.cjs --mac && npm run desktop:verify -- --mac && electron-builder --config electron-builder.yml --mac",
+    "desktop:dist:win": "node desktop/prepare-build-assets.cjs --win && npm run desktop:verify -- --win && electron-builder --config electron-builder.yml --win"
   },
   "dependencies": {
     "@prisma/client": "^6.10.1",
@@ -28,6 +33,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

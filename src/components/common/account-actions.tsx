@@ -24,10 +24,10 @@ export function AccountActions() {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="account-actions" aria-label="账户操作" aria-busy={busy !== null}>
       <button
         type="button"
-        className="rounded-lg border border-white/12 bg-white/6 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+        className="button-secondary"
         disabled={busy !== null}
         onClick={() => handleAction("switch")}
       >
@@ -35,7 +35,7 @@ export function AccountActions() {
       </button>
       <button
         type="button"
-        className="rounded-lg border border-white/12 bg-transparent px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50"
+        className="button-ghost"
         disabled={busy !== null}
         onClick={() => handleAction("logout")}
       >

@@ -13,6 +13,10 @@ const schema = z.object({
   lang: z.enum(["zh", "en"]).default("zh"),
 });
 
+// Bound the vision call server-side so a slow provider fails with a clean
+// error instead of hanging until the frontend aborts.
+const VISION_REQUEST_TIMEOUT_MS = 60000;
+
 function buildImagePrompt(lang: "zh" | "en") {
   if (lang === "en") {
     return "Convert the reagent list image into editable plain text. Preserve row order. Keep vendor, catalog number, host/species compatibility and note-like details when visible. Do not summarize.";
@@ -52,27 +56,30 @@ export async function POST(req: Request) {
     const llmConfig = await getRuntimeLlmConfigForUser(user.id);
     const client = getLlmClient({ apiKey: llmConfig.apiKey, baseURL: llmConfig.baseURL });
     const model = getVisionModel({ visionModel: llmConfig.visionModel, model: llmConfig.model });
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: buildImagePrompt(parsed.data.lang),
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${parsed.data.mimeType};base64,${parsed.data.imageBase64}`,
+    const response = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: buildImagePrompt(parsed.data.lang),
               },
-            },
-          ],
-        },
-      ],
-      temperature: 0,
-    });
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${parsed.data.mimeType};base64,${parsed.data.imageBase64}`,
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0,
+      },
+      { timeout: VISION_REQUEST_TIMEOUT_MS },
+    );
 
     const text = response.choices[0]?.message?.content?.trim() || "";
 

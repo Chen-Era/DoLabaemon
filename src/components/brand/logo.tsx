@@ -1,41 +1,50 @@
-"use client";
-
 import Image from "next/image";
 
 type BrandLogoProps = {
   mode?: "full" | "icon";
   className?: string;
-  titleClassName?: string;
-  subtitleClassName?: string;
   imageClassName?: string;
+  priority?: boolean;
 };
 
 export function BrandLogo({
   mode = "full",
   className = "",
-  titleClassName = "",
-  subtitleClassName = "",
   imageClassName = "",
+  priority = false,
 }: BrandLogoProps) {
   const iconOnly = mode === "icon";
+  const iconSizeClass = imageClassName || "h-10 w-10";
+  const iconWidthClass = /(?:^|\s)w-/.test(iconSizeClass) ? "" : "w-10";
 
   return (
-    <div className={`flex items-center gap-3 ${className}`.trim()}>
-      <Image
-        src="/logo.png"
-        alt="Dorlabaemon logo"
-        width={860}
-        height={263}
-        className={`h-11 w-auto shrink-0 object-contain ${imageClassName}`.trim()}
-        priority
-      />
-      {iconOnly ? null : (
-        <div className="min-w-0">
-          <p className={`text-base font-semibold tracking-[0.08em] text-slate-900 ${titleClassName}`.trim()}>
-            Dorlabaemon
-          </p>
-          <p className={`text-xs text-slate-500 ${subtitleClassName}`.trim()}>试剂管理系统</p>
-        </div>
+    <div className={`brand-logo flex min-w-0 items-center ${className}`.trim()}>
+      {iconOnly ? (
+        <span className={`brand-logo-icon block shrink-0 overflow-hidden ${iconSizeClass} ${iconWidthClass}`.trim()}>
+          <Image
+            src="/logo.png"
+            alt="Dorlabaemon"
+            width={859}
+            height={263}
+            className="h-full w-auto max-w-none object-contain object-left"
+            priority={priority}
+          />
+        </span>
+      ) : (
+        <span
+          className={`brand-logo-full relative block w-44 shrink-0 overflow-hidden ${imageClassName}`.trim()}
+          style={{ aspectRatio: "820 / 197" }}
+        >
+          <Image
+            src="/logo.png"
+            alt="Dorlabaemon"
+            width={859}
+            height={263}
+            className="absolute h-auto max-w-none"
+            style={{ left: "-3.05%", top: "-19.29%", width: "104.76%" }}
+            priority={priority}
+          />
+        </span>
       )}
     </div>
   );

@@ -94,3 +94,76 @@ export function SortIcon({ className = "h-3.5 w-3.5" }: IconProps) {
     </BaseIcon>
   );
 }
+
+export function MenuIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </BaseIcon>
+  );
+}
+
+export function CloseIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="m6 6 12 12" />
+      <path d="m18 6-12 12" />
+    </BaseIcon>
+  );
+}
+
+export function SearchIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4.5 4.5" />
+    </BaseIcon>
+  );
+}
+
+export function CheckIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </BaseIcon>
+  );
+}
+
+export function AlertIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 4 2.8 19.5h18.4L12 4Z" />
+      <path d="M12 10v4" />
+      <path d="M12 17h.01" />
+    </BaseIcon>
+  );
+}
+
+export function CopyIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </BaseIcon>
+  );
+}
+
+export function UploadIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 16V4" />
+      <path d="m6.5 9.5 5.5-5.5 5.5 5.5" />
+      <path d="M4 20h16" />
+    </BaseIcon>
+  );
+}
+
+export function ChevronDownIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </BaseIcon>
+  );
+}

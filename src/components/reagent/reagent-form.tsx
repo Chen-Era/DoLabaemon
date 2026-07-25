@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AlertIcon, CheckIcon, ChevronDownIcon } from "@/components/common/app-icons";
 import { isRequestTimeoutError, requestJson } from "@/lib/http";
+import { reagentCategoryLabel } from "@/lib/reagent-category";
 
 type ParsedReagent = {
   category: "ANTIBODY" | "BUFFER" | "KIT" | "PRIMER" | "BIOLOGICAL" | "CHEMICAL" | "CONSUMABLE" | "OTHER";
   subCategory?: string | null;
   vendor?: string | null;
+  confidence?: number;
   warnings?: string[];
   experimentTags?: string[];
   verification?: {
@@ -50,16 +53,10 @@ type ParseDiagnostics = {
   } | null;
 };
 
-const parseStageOrder: ParseStage[] = ["queued", "processing", "slow"];
-const encouragementMessages = [
-  "保持耐心，结果正在靠近。",
-  "每一步都算数。",
-  "稳一点，会更好。",
-  "继续，马上就好。",
-  "你已经在推进了。",
-  "好结果值得等待。",
-  "别急，答案在路上。",
-  "慢一点，也是在前进。",
+const parseProgressSteps: Array<{ stage: ParseStage; label: string }> = [
+  { stage: "queued", label: "已提交" },
+  { stage: "processing", label: "解析中" },
+  { stage: "slow", label: "耗时较长" },
 ];
 
 function parseStageLabel(stage: ParseStage) {
@@ -119,6 +116,18 @@ function verificationReasonLabel(reason: VerificationReason | null | undefined) 
   }
 }
 
+function verificationPillClass(status: "verified" | "unverified" | null, reason: VerificationReason | null) {
+  if (status === "verified") return "status-pill success";
+  if (reason === "fallback_used" || reason === "verification_model_failed") return "status-pill warning";
+  return "glass-badge";
+}
+
+function antibodyRoleLabel(role: "PRIMARY" | "SECONDARY" | null | undefined) {
+  if (role === "PRIMARY") return "一抗";
+  if (role === "SECONDARY") return "二抗";
+  return null;
+}
+
 function formatMs(value: number | undefined) {
   if (typeof value !== "number") return null;
   return `${(value / 1000).toFixed(value >= 10000 ? 1 : 2)}s`;
@@ -158,6 +167,18 @@ function summarizeDiagnostics(diagnostics: ParseDiagnostics | null) {
   return parts.length ? parts.join(" | ") : null;
 }
 
+function MetaRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd className="truncate font-medium text-slate-800" title={value}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 export function ReagentForm({ labId }: { labId: string }) {
   const [name, setName] = useState("");
   const [catalogNo, setCatalogNo] = useState("");
@@ -173,9 +194,9 @@ export function ReagentForm({ labId }: { labId: string }) {
   const [parseStage, setParseStage] = useState<ParseStage>("idle");
   const [parseStartedAt, setParseStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [encouragementIndex, setEncouragementIndex] = useState(0);
   const [diagnostics, setDiagnostics] = useState<ParseDiagnostics | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   function clearPhaseTimers() {
     phaseTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -188,7 +209,6 @@ export function ReagentForm({ labId }: { labId: string }) {
     setParseStage("queued");
     setParseStartedAt(Date.now());
     setElapsedSeconds(0);
-    setEncouragementIndex(0);
     phaseTimersRef.current = [
       window.setTimeout(() => setParseStage("processing"), 300),
       window.setTimeout(() => setParseStage("slow"), 12000),
@@ -208,14 +228,6 @@ export function ReagentForm({ labId }: { labId: string }) {
     }, 250);
     return () => window.clearInterval(timerId);
   }, [isParsing, parseStartedAt]);
-
-  useEffect(() => {
-    if (!isParsing) return;
-    const timerId = window.setInterval(() => {
-      setEncouragementIndex((prev) => (prev + 1) % encouragementMessages.length);
-    }, 2600);
-    return () => window.clearInterval(timerId);
-  }, [isParsing]);
 
   useEffect(() => () => clearPhaseTimers(), []);
 
@@ -333,40 +345,70 @@ export function ReagentForm({ labId }: { labId: string }) {
     }
   }
 
+  function onEdit() {
+    clearPhaseTimers();
+    setIsParsing(false);
+    setParsed(null);
+    setDraftId(null);
+    setParseSource(null);
+    setVerificationStatus(null);
+    setVerificationReason(null);
+    setDiagnostics(null);
+    setMsg(null);
+    setParseStage("idle");
+    nameInputRef.current?.focus();
+  }
+
+  function onReparse() {
+    if (!name.trim() || !catalogNo.trim()) {
+      setMsg("请先填写试剂名称与货号");
+      return;
+    }
+    void onParse({ preventDefault: () => {} });
+  }
+
+  const currentStepIndex = parseProgressSteps.findIndex((step) => step.stage === parseStage);
+  const diagnosticSummary = summarizeDiagnostics(diagnostics);
+  const reasonLabel = verificationReasonLabel(verificationReason);
+  const antibodyMeta = parsed?.antibodyMeta ?? null;
+  const primerMeta = parsed?.primerMeta ?? null;
+
   return (
     <div className="data-grid cols-2">
-      <section className="app-panel px-6 py-6">
-        <div className="mb-5">
-          <p className="section-kicker">Step 1</p>
-          <h2 className="mt-3 text-2xl font-semibold text-slate-900">输入原始试剂信息</h2>
-          <p className="section-copy mt-2 text-sm">模型会结合名称、货号和补充备注生成结构化建议，最终仍需人工确认。</p>
+      <section className="app-panel px-5 py-5">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold text-slate-900">填写信息</h3>
+          <p className="section-copy mt-1 text-sm">系统会根据名称、货号和备注生成结构化建议，确认后再入库。</p>
         </div>
         <form onSubmit={onParse} className="space-y-4">
-          <div>
-            <label className="field-label" htmlFor="reagent-name">
-              试剂名称
-            </label>
-            <input
-              id="reagent-name"
-              className="input-base"
-              placeholder="例如：Rabbit anti-LC3B"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="reagent-catalog">
-              货号
-            </label>
-            <input
-              id="reagent-catalog"
-              className="input-base"
-              placeholder="输入 catalog number"
-              value={catalogNo}
-              onChange={(e) => setCatalogNo(e.target.value)}
-              required
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="field-label" htmlFor="reagent-name">
+                试剂名称
+              </label>
+              <input
+                id="reagent-name"
+                ref={nameInputRef}
+                className="input-base"
+                placeholder="例如：Rabbit anti-LC3B"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="reagent-catalog">
+                货号
+              </label>
+              <input
+                id="reagent-catalog"
+                className="input-base font-mono"
+                placeholder="例如：2775S"
+                value={catalogNo}
+                onChange={(e) => setCatalogNo(e.target.value)}
+                required
+              />
+            </div>
           </div>
           <div>
             <label className="field-label" htmlFor="reagent-note">
@@ -374,158 +416,224 @@ export function ReagentForm({ labId }: { labId: string }) {
             </label>
             <textarea
               id="reagent-note"
-              className="input-base min-h-32 resize-y"
+              className="input-base min-h-28 resize-y"
               placeholder="可补充厂商、用途、宿主、适用实验等信息"
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
           <button className="button-primary w-full" type="submit" disabled={isParsing}>
-            {isParsing ? `处理中 (${elapsedSeconds}s)` : "调用模型解析"}
+            {isParsing ? `正在识别（${elapsedSeconds} 秒）` : "识别试剂信息"}
           </button>
-          <p className="text-xs text-slate-500">
-            点击后会立即显示处理进度；若启用了联网核验，等待时间通常会更长一些。
-          </p>
+          <p className="field-hint">开始后会显示处理进度；如果需要联网核对，等待时间会稍长。</p>
         </form>
       </section>
 
-      <section className="app-panel px-6 py-6">
-        <div className="mb-5">
-          <p className="section-kicker">Step 2 / 3</p>
-          <h2 className="mt-3 text-2xl font-semibold text-slate-900">结构化结果与确认入库</h2>
-          <p className="section-copy mt-2 text-sm">优先展示人可读摘要，原始 JSON 保留为调试信息。</p>
+      <section className="app-panel px-5 py-5">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold text-slate-900">识别结果</h3>
+          <p className="section-copy mt-1 text-sm">请核对关键信息后确认入库。</p>
         </div>
 
         {isParsing ? (
           <div className="space-y-4">
-            <div className="rounded-3xl border border-blue-200 bg-blue-50 px-5 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-blue-900">{parseStageLabel(parseStage)}</p>
-                  <p className="mt-1 text-sm text-blue-800">{parseStageDescription(parseStage)}</p>
-                </div>
-                <span className="status-pill">已等待 {elapsedSeconds}s</span>
+            <div className="rounded-lg border border-[var(--line)] px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-900">{parseStageLabel(parseStage)}</p>
+                <span className="status-pill">已等待 {elapsedSeconds} 秒</span>
               </div>
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 transition-all">
-                {encouragementMessages[encouragementIndex]}
-              </div>
-              <div className="mt-4 space-y-2">
-                {parseStageOrder.map((stage) => {
-                  const currentIndex = parseStageOrder.indexOf(parseStage);
-                  const stageIndex = parseStageOrder.indexOf(stage);
-                  const isActive = currentIndex === stageIndex;
-                  const isDone = currentIndex > stageIndex;
+              <ol className="mt-4 flex items-center gap-2">
+                {parseProgressSteps.map((step, index) => {
+                  const isDone = currentStepIndex > index;
+                  const isActive = currentStepIndex === index;
                   return (
-                    <div
-                      key={stage}
-                      className={`rounded-2xl border px-4 py-3 text-sm ${
-                        isDone
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : isActive
-                            ? "border-blue-200 bg-white text-blue-900"
-                            : "border-slate-200 bg-white text-slate-500"
-                      }`}
-                    >
-                      {isDone ? "已完成" : isActive ? "进行中" : "等待中"}：{parseStageLabel(stage)}
-                    </div>
+                    <li key={step.stage} className="flex min-w-0 flex-1 items-center gap-2 last:flex-none">
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                          isDone
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                            : isActive
+                              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                              : "border-[var(--line-strong)] text-slate-400"
+                        }`}
+                      >
+                        {isDone ? <CheckIcon className="h-3 w-3" /> : index + 1}
+                      </span>
+                      <span
+                        className={`whitespace-nowrap text-xs ${
+                          isActive ? "font-medium text-slate-900" : isDone ? "text-slate-600" : "text-slate-400"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                      {index < parseProgressSteps.length - 1 ? <span aria-hidden="true" className="h-px min-w-3 flex-1 bg-[var(--line)]" /> : null}
+                    </li>
                   );
                 })}
-              </div>
+              </ol>
+              <p className="mt-3 text-xs leading-5 text-slate-500">{parseStageDescription(parseStage)}</p>
             </div>
-
-            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
-              正在等待模型返回结构化结果，这里稍后会自动切换为可读摘要与确认入库入口。
+            <div className="space-y-2" aria-hidden="true">
+              <div className="skeleton h-4 w-2/3" />
+              <div className="skeleton h-4 w-1/2" />
+              <div className="skeleton h-4 w-3/5" />
             </div>
           </div>
         ) : parsed ? (
           <div className="space-y-4">
-            <div className="data-grid">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">类别</p>
-                <p className="mt-2 font-medium text-slate-900">{parsed.category}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">子类</p>
-                <p className="mt-2 font-medium text-slate-900">{parsed.subCategory || "未识别"}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">厂商</p>
-                <p className="mt-2 font-medium text-slate-900">{parsed.vendor || "未识别"}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">实验标签</p>
-                {parsed.experimentTags?.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {parsed.experimentTags.map((tag) => (
-                      <span key={tag} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-slate-500">未识别，可后续补充多个标签</p>
-                )}
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">抗体信息</p>
-                <p className="mt-2 text-sm text-slate-900">
-                  {parsed.antibodyMeta
-                    ? [parsed.antibodyMeta.role, parsed.antibodyMeta.targetName, parsed.antibodyMeta.hostSpecies].filter(Boolean).join(" / ")
-                    : "无"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm text-slate-500">引物信息</p>
-                <p className="mt-2 text-sm text-slate-900">
-                  {parsed.primerMeta
-                    ? [parsed.primerMeta.targetName, parsed.primerMeta.isReferenceGene ? "内参" : null].filter(Boolean).join(" / ")
-                    : "无"}
-                </p>
-              </div>
-            </div>
-
             <div className="flex flex-wrap gap-2">
               {parseSource ? (
-                <span className={parseSource === "llm" ? "status-pill" : "warning-panel text-sm"}>
-                  解析来源：{parseSource === "llm" ? "LLM" : "Fallback"}
+                <span className={parseSource === "llm" ? "status-pill" : "status-pill warning"}>
+                  识别方式：{parseSource === "llm" ? "模型解析" : "规则补全"}
                 </span>
               ) : null}
               {verificationStatus ? (
-                <span className={verificationStatus === "verified" ? "success-panel text-sm" : "glass-badge"}>
+                <span className={verificationPillClass(verificationStatus, verificationReason)}>
                   联网核验：{verificationStatus === "verified" ? "已核验" : "未核验"}
                 </span>
               ) : null}
-              {parseStage === "done" ? <span className="glass-badge">本次解析耗时 {elapsedSeconds}s</span> : null}
+              {parseStage === "done" ? <span className="glass-badge">本次解析耗时 {elapsedSeconds} 秒</span> : null}
             </div>
-            {verificationReasonLabel(verificationReason) ? (
-              <p className={verificationStatus === "verified" ? "text-sm text-emerald-700" : "warning-panel text-sm"}>
-                {verificationReasonLabel(verificationReason)}
-              </p>
-            ) : null}
+            {reasonLabel ? <p className="text-xs leading-5 text-slate-500">{reasonLabel}</p> : null}
             {parseSource === "llm" ? (
-              <p className="text-sm text-slate-500">
-                本次已完成模型解析；如果启用了联网核验，结果中已包含搜索/纠偏后的最终状态。
-              </p>
+              <p className="text-xs leading-5 text-slate-500">本次已完成模型解析；如果启用了联网核验，结果中已包含搜索/纠偏后的最终状态。</p>
             ) : null}
-            {summarizeDiagnostics(diagnostics) ? <p className="text-xs text-slate-500">诊断：{summarizeDiagnostics(diagnostics)}</p> : null}
 
-            <details className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">查看原始 JSON</summary>
-              <pre className="mt-4 overflow-auto text-xs text-slate-600">{JSON.stringify(parsed, null, 2)}</pre>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[var(--line)] bg-[var(--bg-muted)] px-4 py-3">
+              <div>
+                <dt className="text-xs text-slate-500">类别</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-900">{reagentCategoryLabel(parsed.category)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">子类</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-900">{parsed.subCategory || "未识别"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">厂商</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-900">{parsed.vendor || "未识别"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">置信度</dt>
+                <dd className="mt-0.5 text-sm font-medium text-slate-900">
+                  {typeof parsed.confidence === "number" ? `${Math.round(parsed.confidence * 100)}%` : "未返回"}
+                </dd>
+              </div>
+            </dl>
+
+            <div>
+              <p className="text-xs text-slate-500">实验标签</p>
+              {parsed.experimentTags?.length ? (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {parsed.experimentTags.map((tag) => (
+                    <span key={tag} className="chip">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-slate-400">未识别，可后续补充多个标签</p>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-[var(--line)] px-3.5 py-3">
+                <p className="text-xs font-semibold text-slate-700">抗体信息</p>
+                {antibodyMeta ? (
+                  <dl className="mt-2 space-y-1 text-xs">
+                    <MetaRow label="角色" value={antibodyRoleLabel(antibodyMeta.role)} />
+                    <MetaRow label="靶点" value={antibodyMeta.targetName} />
+                    <MetaRow label="宿主" value={antibodyMeta.hostSpecies} />
+                    <MetaRow label="目标种属" value={antibodyMeta.targetSpecies} />
+                  </dl>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-400">无</p>
+                )}
+              </div>
+              <div className="rounded-lg border border-[var(--line)] px-3.5 py-3">
+                <p className="text-xs font-semibold text-slate-700">引物信息</p>
+                {primerMeta ? (
+                  <dl className="mt-2 space-y-1 text-xs">
+                    <MetaRow label="靶点" value={primerMeta.targetName} />
+                    <MetaRow label="内参" value={primerMeta.isReferenceGene ? "是" : null} />
+                  </dl>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-400">无</p>
+                )}
+              </div>
+            </div>
+
+            {parsed.warnings?.length ? <p className="warning-panel text-xs">{parsed.warnings.join("；")}</p> : null}
+
+            {diagnosticSummary ? (
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-muted)] px-3.5 py-2.5">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                  <ChevronDownIcon className="h-3.5 w-3.5 text-slate-400" />
+                  诊断信息
+                </summary>
+                <p className="mt-2 text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">{diagnosticSummary}</p>
+              </details>
+            ) : null}
+
+            <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-muted)] px-3.5 py-2.5">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                <ChevronDownIcon className="h-3.5 w-3.5 text-slate-400" />
+                查看原始数据
+              </summary>
+              <pre className="mt-2 max-h-64 overflow-auto text-xs leading-5 text-slate-600">{JSON.stringify(parsed, null, 2)}</pre>
             </details>
 
-            <button type="button" onClick={onConfirm} className="button-primary w-full" disabled={isConfirming || !draftId || !parsed}>
-              {isConfirming ? "确认入库中..." : draftId ? "确认入库" : "草稿未保存，暂不能入库"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] pt-4">
+              <button type="button" onClick={onConfirm} className="button-primary" disabled={isConfirming || !draftId || !parsed}>
+                {isConfirming ? "确认入库中..." : "确认入库"}
+              </button>
+              <button type="button" onClick={onEdit} className="button-secondary" disabled={isConfirming}>
+                修改
+              </button>
+              <button type="button" onClick={onReparse} className="button-ghost" disabled={isParsing || isConfirming}>
+                重新解析
+              </button>
+            </div>
+            {!draftId ? <p className="field-hint">草稿未保存，暂不能入库；可点击“重新解析”重试。</p> : null}
+          </div>
+        ) : parseStage === "error" ? (
+          <div className="space-y-3">
+            <div className="danger-panel text-sm">
+              <p className="flex items-center gap-1.5 font-medium">
+                <AlertIcon className="h-4 w-4" />
+                {parseStageLabel("error")}
+              </p>
+              <p className="mt-1 text-xs leading-5">{parseStageDescription("error")}</p>
+            </div>
+            {diagnosticSummary ? (
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-muted)] px-3.5 py-2.5">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                  <ChevronDownIcon className="h-3.5 w-3.5 text-slate-400" />
+                  诊断信息
+                </summary>
+                <p className="mt-2 text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">{diagnosticSummary}</p>
+              </details>
+            ) : null}
+            <div>
+              <button type="button" onClick={onReparse} className="button-ghost" disabled={isParsing}>
+                重新解析
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
-            提交原始信息后，这里会显示结构化分类、实验标签、抗体 / 引物摘要与确认入库入口。
+          <div className="rounded-lg border border-dashed border-[var(--line-strong)]">
+            <p className="empty-state">提交原始信息后，这里会显示结构化分类、实验标签、抗体 / 引物摘要与确认入库入口。</p>
           </div>
         )}
 
         {msg ? (
-          <p className={`mt-4 text-sm ${msg.includes("失败") || msg.includes("异常") ? "danger-panel" : "success-panel"}`}>{msg}</p>
+          <p
+            className={`mt-4 text-sm ${msg.includes("失败") || msg.includes("异常") ? "danger-panel" : "success-panel"}`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {msg}
+          </p>
         ) : null}
       </section>
     </div>

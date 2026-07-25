@@ -401,3 +401,185 @@ test("parseReagentInput parses think-wrapped fenced model output instead of fall
     },
   );
 });
+
+test("parseReagentInput coerces 0-100 confidence instead of falling back", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "R&D Systems",
+          confidence: 92,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Recombinant Human RANKL Protein",
+          catalogNo: "390-TN-010",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.parsed.category, "BIOLOGICAL");
+      assert.equal(result.parsed.confidence, 0.92);
+      assert.ok(result.parsed.warnings.some((warning) => warning.includes("0-100")));
+      assert.ok(!result.diagnostics?.degradedStages.includes("initial_draft_failed"));
+    },
+  );
+});
+
+test("parseReagentInput coerces lowercase antibody roles and drops invented tags", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "ANTIBODY",
+          subCategory: "Primary Antibody",
+          vendor: "Abcam",
+          confidence: 0.85,
+          warnings: [],
+          experimentTags: ["WB_PRIMARY_ANTIBODY", "NOT_A_REAL_TAG"],
+          antibodyMeta: { role: "primary", hostSpecies: "Rabbit", targetSpecies: "Human", targetName: "CD9" },
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Anti-CD9 antibody",
+          catalogNo: "ab92726",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.parsed.category, "ANTIBODY");
+      assert.equal(result.parsed.antibodyMeta?.role, "PRIMARY");
+      assert.deepEqual(result.parsed.experimentTags, ["WB_PRIMARY_ANTIBODY"]);
+      assert.ok(result.parsed.warnings.some((warning) => warning.includes("NOT_A_REAL_TAG")));
+    },
+  );
+});
+
+test("parseReagentInput salvages truncated model output instead of falling back", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const fullDraft = JSON.stringify({
+        category: "BUFFER",
+        subCategory: "Culture Medium",
+        vendor: "Gibco",
+        confidence: 0.9,
+        warnings: [],
+        experimentTags: ["CELL_CULTURE_MEDIUM"],
+        antibodyMeta: null,
+        primerMeta: null,
+      });
+      const client = createFakeClient([fullDraft.slice(0, Math.floor(fullDraft.length * 0.6))]);
+
+      const result = await parseReagentInput(
+        {
+          name: "DMEM",
+          catalogNo: "11965092",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.parsed.category, "BUFFER");
+      assert.equal(result.parsed.vendor, "Gibco");
+    },
+  );
+});
+
+test("parseReagentInput recovers when the provider rejects temperature=0", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://mimo.example.com/v1",
+      OPENAI_MODEL: "mimo-v1",
+    },
+    async () => {
+      let attempts = 0;
+      const client = {
+        chat: {
+          completions: {
+            create: async (body: Record<string, unknown>) => {
+              attempts += 1;
+              if ("temperature" in body) {
+                throw new Error("400 temperature must be in (0, 1]");
+              }
+              return {
+                choices: [
+                  {
+                    message: {
+                      content: JSON.stringify({
+                        category: "BUFFER",
+                        subCategory: "Culture Medium",
+                        vendor: "Gibco",
+                        confidence: 0.9,
+                        warnings: [],
+                        experimentTags: ["CELL_CULTURE_MEDIUM"],
+                        antibodyMeta: null,
+                        primerMeta: null,
+                      }),
+                    },
+                  },
+                ],
+              };
+            },
+          },
+        },
+      };
+
+      const result = await parseReagentInput(
+        {
+          name: "DMEM",
+          catalogNo: "11965092",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(attempts, 2);
+      assert.equal(result.parsed.category, "BUFFER");
+    },
+  );
+});

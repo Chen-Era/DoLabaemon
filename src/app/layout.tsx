@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Dorlabaemon | 智能实验试剂与实验准备平台",
-  description: "Dorlabaemon 是面向实验室团队的 AI-assisted reagent inventory and experiment readiness workspace。",
+  description: "Dorlabaemon 是面向实验室团队的试剂管理与实验准备平台。",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh" className="h-full antialiased">
+    <html lang="zh" className="h-full antialiased" data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col">
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
       </body>

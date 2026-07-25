@@ -11,6 +11,7 @@ import { finalizeAiFlow, prepareAiFlow } from "@/lib/ai-orchestrator/run-flow";
 import type { AiFlowContext } from "@/lib/ai-orchestrator/types";
 import { buildExperimentSkillHints } from "@/lib/skills/builtin/experiment-type-curator";
 import { cleanUrlText } from "@/lib/url/clean-url";
+import { withTimeout } from "@/lib/async/with-timeout";
 
 type ResolveInput = {
   customExperimentName: string;
@@ -20,6 +21,10 @@ type ResolveInput = {
   llmConfig?: RuntimeLlmConfig;
   flowContext?: AiFlowContext;
 };
+
+// Reasoning models can need tens of seconds; keep the call bounded so the
+// route falls back to the local suggestion instead of hanging.
+const EXPERIMENT_RESOLVE_TIMEOUT_MS = 45000;
 
 type LooseSuggestionShape = {
   proposedExperimentName?: unknown;
@@ -167,7 +172,7 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
     if (apiKey) {
       const client = getLlmClient({ apiKey: input.llmConfig?.apiKey, baseURL: input.llmConfig?.baseURL });
       const model = input.llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-      const result = await generateLlmText(client, { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
+      const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
         model,
         input: [
           {
@@ -190,7 +195,7 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
           },
         ],
         temperature: 0,
-      });
+      }), EXPERIMENT_RESOLVE_TIMEOUT_MS, "EXPERIMENT_RESOLVE");
       const rawOutput = result.text || "{}";
       suggestion = experimentResolveSchema.parse(normalizeLlmParsedPayload(normalizeLooseSuggestion(parseLlmJson(rawOutput) as LooseSuggestionShape)));
     }

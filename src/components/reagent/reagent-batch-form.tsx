@@ -1,7 +1,9 @@
 "use client";
 
 import { ClipboardEvent, useMemo, useState } from "react";
+import { UploadIcon } from "@/components/common/app-icons";
 import { isRequestTimeoutError, requestJson } from "@/lib/http";
+import { reagentCategoryLabel } from "@/lib/reagent-category";
 
 type ParsedReagent = {
   category: "ANTIBODY" | "BUFFER" | "KIT" | "PRIMER" | "BIOLOGICAL" | "CHEMICAL" | "CONSUMABLE" | "OTHER";
@@ -156,6 +158,12 @@ function verificationReasonLabel(reason: BatchParseItem["verificationReason"]) {
   }
 }
 
+function rowStatusPill(row: BatchRow) {
+  if (row.status === "confirmed") return <span className="status-pill success">已入库</span>;
+  if (row.status === "failed") return <span className="status-pill danger">失败</span>;
+  return <span className="status-pill">待确认</span>;
+}
+
 export function ReagentBatchForm({ labId }: { labId: string }) {
   const [rawText, setRawText] = useState("");
   const [rows, setRows] = useState<BatchRow[]>([]);
@@ -166,6 +174,12 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
 
   const readyRows = useMemo(() => rows.filter((row) => row.status === "ready" && row.draftId && row.parsed), [rows]);
   const selectedReadyRows = useMemo(() => readyRows.filter((row) => row.selected), [readyRows]);
+  const allReadySelected = readyRows.length > 0 && selectedReadyRows.length === readyRows.length;
+  const someReadySelected = selectedReadyRows.length > 0 && !allReadySelected;
+
+  function toggleSelectAllReady() {
+    setRows((prev) => prev.map((row) => (row.status === "ready" ? { ...row, selected: !allReadySelected } : row)));
+  }
 
   async function onParseBatch() {
     if (!rawText.trim()) {
@@ -321,13 +335,10 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
   }
 
   return (
-    <section className="app-panel px-6 py-6">
-      <div className="mb-5">
-        <p className="section-kicker">Batch Ingestion</p>
-        <h2 className="mt-3 text-2xl font-semibold text-slate-900">批量新增试剂</h2>
-        <p className="section-copy mt-2 text-sm">
-          支持直接粘贴多行文本或表格文本；若在输入框中粘贴图片，系统会先自动提取文字，再进入批量识别流程。
-        </p>
+    <section className="app-panel px-5 py-5">
+      <div className="mb-4">
+        <h3 className="text-base font-semibold text-slate-900">批量识别</h3>
+        <p className="section-copy mt-1 text-sm">粘贴表格文本或上传图片，识别后统一核对。</p>
       </div>
 
       <div className="space-y-4">
@@ -335,168 +346,230 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
           <label className="field-label" htmlFor="reagent-batch-input">
             批量原始信息
           </label>
-          <textarea
-            id="reagent-batch-input"
-            className="input-base min-h-48 resize-y"
-            placeholder={"示例：\nRabbit anti-LC3B\tCST\t2775S\tWB 1:1000, IF 1:200\nGoat anti-rabbit IgG Alexa 488\tInvitrogen\tA-11008\tIF secondary"}
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            onPaste={onPaste}
-          />
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="glass-badge">支持 Excel / 制表符文本</span>
-            <span className="glass-badge">支持输入框粘贴图片自动转文字</span>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
+            <textarea
+              id="reagent-batch-input"
+              className="input-base min-h-48 resize-y"
+              placeholder={"示例：\nRabbit anti-LC3B\tCST\t2775S\tWB 1:1000, IF 1:200\nGoat anti-rabbit IgG Alexa 488\tInvitrogen\tA-11008\tIF secondary"}
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+              onPaste={onPaste}
+            />
+            <label
+              htmlFor="reagent-batch-image"
+              className={`flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center transition-colors ${
+                extractingImage
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                  : "border-[var(--line-strong)] bg-[var(--bg-muted)] hover:border-[var(--text-faint)]"
+              }`}
+            >
+              <UploadIcon className="h-5 w-5 text-slate-400" />
+              <span className="text-sm font-medium text-slate-700">{extractingImage ? "图片转文字中..." : "点击选择图片"}</span>
+              <span className="text-xs leading-5 text-slate-400">支持截图、照片；也可以直接在文本框中粘贴图片</span>
+              <input
+                id="reagent-batch-image"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={extractingImage}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void extractImage(file);
+                }}
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="glass-badge">支持表格文本</span>
+            <span className="glass-badge">支持图片转文字</span>
             {extractingImage ? <span className="status-pill">图片转文字中...</span> : null}
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onParseBatch} className="button-primary" disabled={parsing || extractingImage}>
             {parsing ? "批量识别中..." : "批量识别"}
           </button>
-          <button
-            type="button"
-            onClick={() => setRows((prev) => prev.map((row) => (row.status === "ready" ? { ...row, selected: true } : row)))}
-            className="button-secondary"
-            disabled={!readyRows.length}
-          >
-            全选可入库项
-          </button>
-          <button
-            type="button"
-            onClick={() => setRows((prev) => prev.map((row) => ({ ...row, selected: false })))}
-            className="button-secondary"
-            disabled={!rows.some((row) => row.selected)}
-          >
-            取消全选
-          </button>
-          <button type="button" onClick={() => onConfirm("selected")} className="button-secondary" disabled={confirming || !selectedReadyRows.length}>
-            {confirming ? "确认中..." : `确认已选 (${selectedReadyRows.length})`}
-          </button>
-          <button type="button" onClick={() => onConfirm("all")} className="button-secondary" disabled={confirming || !readyRows.length}>
-            {confirming ? "确认中..." : `全部确认入库 (${readyRows.length})`}
-          </button>
+          <p className="field-hint">识别完成后可在下方逐条核对，再统一确认入库。</p>
         </div>
 
         {rows.length ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <span className="status-pill">可入库 {readyRows.length}</span>
-              <span className="glass-badge">已选择 {selectedReadyRows.length}</span>
-              <span className="glass-badge">总候选 {rows.length}</span>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--accent)]"
+                  checked={allReadySelected}
+                  disabled={!readyRows.length}
+                  onChange={toggleSelectAllReady}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someReadySelected;
+                  }}
+                />
+                全选可入库项
+              </label>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500">
+                  共 {rows.length} 条候选 · 可入库 {readyRows.length} · 已选 {selectedReadyRows.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onConfirm("selected")}
+                  disabled={confirming || !selectedReadyRows.length}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:border-[var(--accent-strong)] hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {confirming ? "确认中..." : `确认入库${selectedReadyRows.length ? ` (${selectedReadyRows.length})` : ""}`}
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {rows.map((row) => (
-                <article key={row.rowId} className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        <span className="glass-badge">{row.rowId}</span>
-                        <span className={row.status === "confirmed" ? "success-panel text-sm" : row.status === "failed" ? "danger-panel text-sm" : "status-pill"}>
-                          {row.status === "confirmed" ? "已入库" : row.status === "failed" ? "需处理" : "待确认"}
-                        </span>
-                        {row.parseSource ? (
-                          <span className={row.parseSource === "llm" ? "status-pill" : "warning-panel text-sm"}>
-                            解析来源：{row.parseSource === "llm" ? "LLM" : "Fallback"}
+            <div className="table-shell">
+              <table className="min-w-[780px] text-sm">
+                <thead>
+                  <tr>
+                    <th className="w-12">选择</th>
+                    <th>试剂</th>
+                    <th>货号</th>
+                    <th>类别</th>
+                    <th>厂商</th>
+                    <th>实验标签</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const tags = row.parsed?.experimentTags ?? [];
+                    const vendor = row.parsed?.vendor ?? row.rawInput.vendor ?? "";
+                    const reasonLabel = verificationReasonLabel(row.verificationReason);
+                    const antibodySummary = row.parsed?.antibodyMeta
+                      ? [
+                          row.parsed.antibodyMeta.role === "PRIMARY" ? "一抗" : row.parsed.antibodyMeta.role === "SECONDARY" ? "二抗" : null,
+                          row.parsed.antibodyMeta.targetName,
+                          row.parsed.antibodyMeta.hostSpecies,
+                        ]
+                          .filter(Boolean)
+                          .join(" / ")
+                      : null;
+                    const primerSummary = row.parsed?.primerMeta
+                      ? [row.parsed.primerMeta.targetName, row.parsed.primerMeta.isReferenceGene ? "内参" : null].filter(Boolean).join(" / ")
+                      : null;
+                    return (
+                      <tr key={row.rowId}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-[var(--accent)]"
+                            checked={row.selected}
+                            disabled={row.status !== "ready"}
+                            onChange={(e) =>
+                              setRows((prev) => prev.map((item) => (item.rowId === row.rowId ? { ...item, selected: e.target.checked } : item)))
+                            }
+                          />
+                        </td>
+                        <td className="max-w-52">
+                          <p className="truncate font-medium text-slate-900" title={row.rawInput.name}>
+                            {row.rawInput.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">{row.rowId}</p>
+                          <details className="mt-1">
+                            <summary className="cursor-pointer list-none text-xs text-slate-500 hover:text-slate-700 [&::-webkit-details-marker]:hidden">
+                              详情
+                            </summary>
+                            <div className="mt-1 space-y-1 text-xs leading-5 text-slate-500">
+                              {antibodySummary ? <p className="[overflow-wrap:anywhere]">抗体：{antibodySummary}</p> : null}
+                              {primerSummary ? <p className="[overflow-wrap:anywhere]">引物：{primerSummary}</p> : null}
+                              {row.rawInput.antibodyCompatibilityText ? (
+                                <p className="[overflow-wrap:anywhere]">兼容性：{row.rawInput.antibodyCompatibilityText}</p>
+                              ) : null}
+                              {row.rawInput.note ? <p className="[overflow-wrap:anywhere]">备注：{row.rawInput.note}</p> : null}
+                              <pre className="max-h-40 overflow-auto rounded-md bg-[var(--bg-muted)] p-2 text-[11px] leading-4 text-slate-500">
+                                {JSON.stringify(row.rawInput, null, 2)}
+                              </pre>
+                            </div>
+                          </details>
+                        </td>
+                        <td className="max-w-32">
+                          <span className="block truncate font-mono text-xs text-slate-600" title={row.rawInput.catalogNo ?? ""}>
+                            {row.rawInput.catalogNo || <span className="font-sans text-slate-400">未提供</span>}
                           </span>
-                        ) : null}
-                        {row.verificationStatus ? (
-                          <span className={row.verificationStatus === "verified" ? "success-panel text-sm" : "glass-badge"}>
-                            联网核验：{row.verificationStatus === "verified" ? "已核验" : "未核验"}
+                        </td>
+                        <td className="max-w-28">
+                          {row.parsed ? (
+                            <>
+                              <span className="glass-badge">{reagentCategoryLabel(row.parsed.category)}</span>
+                              {row.parsed.subCategory ? (
+                                <p className="mt-1 truncate text-xs text-slate-400" title={row.parsed.subCategory}>
+                                  {row.parsed.subCategory}
+                                </p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-32">
+                          <span className="block truncate text-xs text-slate-600" title={vendor}>
+                            {vendor || <span className="text-slate-400">未识别</span>}
                           </span>
-                        ) : null}
-                      </div>
-                      <h3 className="text-lg font-medium text-slate-900">{row.rawInput.name}</h3>
-                      <p className="text-sm text-slate-600">
-                        厂家：{row.rawInput.vendor || "未提供"} | 货号：{row.rawInput.catalogNo || "未提供"}
-                      </p>
-                      {row.rawInput.antibodyCompatibilityText ? (
-                        <p className="text-sm text-slate-600">兼容性：{row.rawInput.antibodyCompatibilityText}</p>
-                      ) : null}
-                      {row.rawInput.note ? <p className="text-sm text-slate-600">备注：{row.rawInput.note}</p> : null}
-                    </div>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={row.selected}
-                        disabled={row.status !== "ready"}
-                        onChange={(e) =>
-                          setRows((prev) => prev.map((item) => (item.rowId === row.rowId ? { ...item, selected: e.target.checked } : item)))
-                        }
-                      />
-                      选择入库
-                    </label>
-                  </div>
-
-                  {row.parsed ? (
-                    <div className="mt-4 data-grid">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">类别</p>
-                        <p className="mt-2 font-medium text-slate-900">{row.parsed.category}</p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">子类</p>
-                        <p className="mt-2 font-medium text-slate-900">{row.parsed.subCategory || "未识别"}</p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">厂商</p>
-                        <p className="mt-2 font-medium text-slate-900">{row.parsed.vendor || row.rawInput.vendor || "未识别"}</p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">实验标签</p>
-                        <p className="mt-2 text-sm text-slate-900">{row.parsed.experimentTags?.length ? row.parsed.experimentTags.join(" / ") : "无"}</p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">抗体信息</p>
-                        <p className="mt-2 text-sm text-slate-900">
-                          {row.parsed.antibodyMeta
-                            ? [row.parsed.antibodyMeta.role, row.parsed.antibodyMeta.targetName, row.parsed.antibodyMeta.hostSpecies]
-                                .filter(Boolean)
-                                .join(" / ")
-                            : "无"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <p className="text-sm text-slate-500">引物信息</p>
-                        <p className="mt-2 text-sm text-slate-900">
-                          {row.parsed.primerMeta
-                            ? [row.parsed.primerMeta.targetName, row.parsed.primerMeta.isReferenceGene ? "内参" : null].filter(Boolean).join(" / ")
-                            : "无"}
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {verificationReasonLabel(row.verificationReason) ? (
-                    <p className={row.verificationStatus === "verified" ? "mt-4 text-sm text-emerald-700" : "warning-panel mt-4 text-sm"}>
-                      {verificationReasonLabel(row.verificationReason)}
-                    </p>
-                  ) : null}
-                  {row.parsed?.warnings?.length ? <p className="warning-panel mt-4 text-sm">{row.parsed.warnings.join("；")}</p> : null}
-                  {row.error ? <p className="danger-panel mt-4 text-sm">{row.error}</p> : null}
-                  {row.confirmResult?.action === "incremented" ? (
-                    <p className="success-panel mt-4 text-sm">
-                      已按补货处理：库存 {row.confirmResult.beforeQuantity} -&gt; {row.confirmResult.afterQuantity}
-                    </p>
-                  ) : null}
-                  {row.confirmResult?.action === "created" ? <p className="success-panel mt-4 text-sm">已新增入库</p> : null}
-
-                  <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <summary className="cursor-pointer text-sm font-medium text-slate-700">查看原始信息</summary>
-                    <pre className="mt-4 overflow-auto text-xs text-slate-600">{JSON.stringify(row.rawInput, null, 2)}</pre>
-                  </details>
-                </article>
-              ))}
+                        </td>
+                        <td className="max-w-40" title={tags.join("、")}>
+                          {tags.length ? (
+                            <div className="flex flex-nowrap gap-1 overflow-hidden">
+                              {tags.map((tag) => (
+                                <span key={tag} className="chip">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">无</span>
+                          )}
+                        </td>
+                        <td className="max-w-44">
+                          {rowStatusPill(row)}
+                          {row.confirmResult?.action === "created" ? <p className="mt-1 text-xs text-[var(--success)]">已新增入库</p> : null}
+                          {row.confirmResult?.action === "incremented" ? (
+                            <p className="mt-1 text-xs text-[var(--success)]">
+                              已按补货处理：库存 {row.confirmResult.beforeQuantity} -&gt; {row.confirmResult.afterQuantity}
+                            </p>
+                          ) : null}
+                          {row.error ? <p className="mt-1 text-xs text-[var(--danger)] [overflow-wrap:anywhere]">{row.error}</p> : null}
+                          {row.parsed?.warnings?.length ? (
+                            <p className="mt-1 text-xs text-[var(--warning)] [overflow-wrap:anywhere]">{row.parsed.warnings.join("；")}</p>
+                          ) : null}
+                          {row.verificationStatus === "verified" || row.parseSource === "fallback" ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {row.verificationStatus === "verified" ? <span className="chip">联网补齐</span> : null}
+                              {row.parseSource === "fallback" ? <span className="status-pill warning">规则兜底</span> : null}
+                            </div>
+                          ) : null}
+                          {reasonLabel ? <p className="mt-1 text-xs leading-4 text-slate-400">{reasonLabel}</p> : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
-            粘贴文本或图片并完成批量识别后，这里会显示逐条候选结果与批量确认入口。
+          <div className="rounded-lg border border-dashed border-[var(--line-strong)]">
+            <p className="empty-state">粘贴文本或图片并完成批量识别后，这里会显示逐条候选结果与批量确认入口。</p>
           </div>
         )}
 
-        {msg ? <p className={`text-sm ${msg.includes("失败") || msg.includes("异常") ? "danger-panel" : "success-panel"}`}>{msg}</p> : null}
+        {msg ? (
+          <p
+            className={`text-sm ${msg.includes("失败") || msg.includes("异常") ? "danger-panel" : "success-panel"}`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {msg}
+          </p>
+        ) : null}
       </div>
     </section>
   );

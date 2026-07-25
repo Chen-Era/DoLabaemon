@@ -1,178 +1,194 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand/logo";
+import { ExperimentIcon, LabsIcon, ReagentsIcon } from "@/components/common/app-icons";
 import { MockDashboard } from "@/components/home/mock-dashboard";
+import styles from "@/components/home/landing.module.css";
 import { isDemoMode } from "@/lib/demo-mode";
+
+const workflow = [
+  { number: "01", title: "录入", copy: "整理名称、货号和备注。", icon: ReagentsIcon },
+  { number: "02", title: "确认", copy: "核对字段和分类。", icon: CheckIcon },
+  { number: "03", title: "检查", copy: "确认实验条件是否齐备。", icon: ExperimentIcon },
+  { number: "04", title: "协作", copy: "团队查看同一份记录。", icon: LabsIcon },
+];
+
+const spaces = [
+  {
+    label: "试剂库",
+    title: "需要时，快速找到试剂",
+    copy: "按名称、货号和标签查看库存。",
+    href: "/reagents",
+    icon: ReagentsIcon,
+    tone: "blue",
+  },
+  {
+    label: "实验检查",
+    title: "实验前，把条件查清",
+    copy: "区分已满足、待补充和注意事项。",
+    href: "/experiment-check",
+    icon: ExperimentIcon,
+    tone: "green",
+  },
+  {
+    label: "实验室",
+    title: "让团队共享同一份信息",
+    copy: "记录可共享，实验室边界保持清楚。",
+    href: "/labs",
+    icon: LabsIcon,
+    tone: "violet",
+  },
+] as const;
+
+function ArrowIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
 
 export default function Home() {
   const demoMode = isDemoMode();
   const primaryHref = demoMode ? "/labs" : "/login";
   const primaryLabel = demoMode ? "进入演示" : "进入系统";
 
-  const steps = [
-    {
-      step: "01",
-      title: "整理试剂",
-      copy: "把名称、货号和备注快速导入到统一工作区，建立实验资产的单一入口。",
-    },
-    {
-      step: "02",
-      title: "结构化确认",
-      copy: "结合模型解析与人工确认，把试剂转成可筛选、可判断的结构化知识。",
-    },
-    {
-      step: "03",
-      title: "实验判定",
-      copy: "围绕 WB、qPCR、IF 等场景检查最低必需项、推荐补充项与风险提示。",
-    },
-    {
-      step: "04",
-      title: "共享协作",
-      copy: "实验室成员共享库存视图与判定语境，同时保留实验室之间的数据隔离。",
-    },
-  ];
-
-  const screens = [
-    {
-      label: "Reagents",
-      title: "试剂清单与快速筛选",
-      copy: "围绕名称、货号、标签和靶点快速定位库存，适合开题和排实验前做准备审查。",
-    },
-    {
-      label: "Experiment Check",
-      title: "规则优先的实验准备判断",
-      copy: "把实验项目、研究方向和前置条件转为结构化判断结果，让缺失项与风险一眼可见。",
-    },
-    {
-      label: "Labs",
-      title: "面向团队的协作工作区",
-      copy: "实验室可共享库存资产、邀请成员并围绕同一套实验准备语言协作。",
-    },
-  ];
-
-  const trustItems = ["规则判定优先", "人工确认入库", "实验室数据隔离"];
-
   return (
-    <main className="app-shell pb-16 pt-6">
-      <div className="page-container">
-        <section className="app-panel-strong px-6 py-6 md:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <BrandLogo imageClassName="h-14" />
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="status-pill">试剂管理</span>
-              <Link href="/labs" className="glass-badge">
-                查看工作区
-              </Link>
-            </div>
-          </div>
-        </section>
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <div className={`${styles.container} ${styles.headerInner}`}>
+          <Link href="/" className={styles.brand} aria-label="Dorlabaemon 首页">
+            <BrandLogo imageClassName="w-[10.5rem]" priority />
+          </Link>
 
-        <section className="hero-grid mt-8">
-          <div className="app-panel-strong px-6 py-8 md:px-8 md:py-10">
-            <p className="section-kicker">首页</p>
-            <h1 className="section-title mt-4">
-              Dorlabaemon
-              <span className="mt-2 block text-[0.42em] font-medium tracking-[0.04em] text-slate-500">试剂管理系统</span>
-            </h1>
-            <p className="section-copy mt-5 max-w-2xl text-base md:text-lg">
-              面向实验室团队的试剂与实验准备平台。
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={primaryHref} className="button-primary">
-                {primaryLabel}
+          <nav className={styles.nav} aria-label="首页导航">
+            <a href="#workflow">流程</a>
+            <a href="#workspace">工作区</a>
+          </nav>
+
+          <div className={styles.headerActions}>
+            {!demoMode ? (
+              <Link href="/register" className={styles.registerLink}>
+                创建账号
               </Link>
-              <a href="#workflow" className="button-secondary">
-                查看核心流程
+            ) : null}
+            <Link href={primaryHref} className={styles.primaryAction}>
+              {primaryLabel}
+              <ArrowIcon className={styles.actionArrow} />
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <div className={styles.content}>
+        <section className={`${styles.container} ${styles.hero}`} aria-labelledby="hero-title">
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>试剂管理工作区</p>
+            <h1 id="hero-title" className={styles.heroTitle}>
+              实验前，先把
+              <span>试剂查清。</span>
+            </h1>
+            <p className={styles.heroDescription}>试剂记录、实验条件和团队协作，都在同一个实验室工作区里。</p>
+            <div className={styles.heroActions}>
+              <Link href={primaryHref} className={styles.primaryAction}>
+                {primaryLabel}
+                <ArrowIcon className={styles.actionArrow} />
+              </Link>
+              <a href="#workflow" className={styles.textAction}>
+                了解流程
+                <ArrowIcon className={styles.actionArrow} />
               </a>
             </div>
-            <div className="data-grid cols-3 mt-10">
-              <div className="kpi-card px-4 py-4">
-                <p className="kpi-label">录入模式</p>
-                <p className="metric-value mt-3">AI + Human</p>
-                <p className="section-copy mt-2 text-sm">模型负责整理，最终由研究者确认后入库。</p>
-              </div>
-              <div className="kpi-card px-4 py-4">
-                <p className="kpi-label">判定方式</p>
-                <p className="metric-value mt-3">Rules First</p>
-                <p className="section-copy mt-2 text-sm">实验可行性优先来自结构化规则，而不是黑盒建议。</p>
-              </div>
-              <div className="kpi-card px-4 py-4">
-                <p className="kpi-label">协作范围</p>
-                <p className="metric-value mt-3">Lab Scoped</p>
-                <p className="section-copy mt-2 text-sm">同实验室共享、实验室之间严格隔离。</p>
-              </div>
-            </div>
+            <ul className={styles.principles} aria-label="产品原则">
+              <li>
+                <CheckIcon />人工确认
+              </li>
+              <li>
+                <CheckIcon />规则检查
+              </li>
+              <li>
+                <CheckIcon />实验室隔离
+              </li>
+            </ul>
           </div>
 
-          <MockDashboard />
-        </section>
-
-        <section id="workflow" className="mt-16">
-          <div className="mb-6">
-            <p className="section-kicker">Workflow</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">让研究准备过程保持连续</h2>
-          </div>
-          <div className="data-grid cols-2">
-            {steps.map((item) => (
-              <article key={item.step} className="app-panel px-5 py-5">
-                <p className="text-sm font-semibold tracking-[0.22em] text-blue-600">{item.step}</p>
-                <h3 className="mt-4 text-xl font-semibold text-slate-900">{item.title}</h3>
-                <p className="section-copy mt-3 text-sm">{item.copy}</p>
-              </article>
-            ))}
+          <div className={styles.heroPreview}>
+            <p className={styles.previewLabel}>工作区预览</p>
+            <MockDashboard />
           </div>
         </section>
 
-        <section className="mt-16">
-          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="section-kicker">Core Screens</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">围绕真实业务页面组织视觉层级</h2>
-            </div>
-            <p className="section-copy max-w-xl text-sm">视觉升级不改变逻辑，而是让库存管理、AI 解析和实验判定在同一产品语言中更易读、更可信。</p>
+        <section id="workflow" className={`${styles.container} ${styles.section}`} aria-labelledby="workflow-title">
+          <div className={styles.sectionHeading}>
+            <p className={styles.eyebrow}>工作流程</p>
+            <h2 id="workflow-title">从记录到实验，步骤清楚。</h2>
           </div>
-          <div className="data-grid cols-3">
-            {screens.map((item) => (
-              <article key={item.label} className="app-panel px-5 py-5">
-                <span className="glass-badge">{item.label}</span>
-                <h3 className="mt-4 text-xl font-semibold text-slate-900">{item.title}</h3>
-                <p className="section-copy mt-3 text-sm">{item.copy}</p>
-              </article>
-            ))}
+          <ol className={styles.workflow}>
+            {workflow.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.number} className={styles.workflowItem}>
+                  <span className={styles.stepNumber}>{item.number}</span>
+                  <Icon className={styles.stepIcon} />
+                  <h3>{item.title}</h3>
+                  <p>{item.copy}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
+        <section id="workspace" className={`${styles.container} ${styles.section}`} aria-labelledby="workspace-title">
+          <div className={styles.sectionHeading}>
+            <p className={styles.eyebrow}>三个工作区</p>
+            <h2 id="workspace-title">信息放对位置，准备更轻松。</h2>
+          </div>
+          <div className={styles.spaceList}>
+            {spaces.map((space) => {
+              const Icon = space.icon;
+              return (
+                <Link key={space.label} href={space.href} className={`${styles.spaceLink} ${styles[`tone${space.tone}`]}`}>
+                  <span className={styles.spaceIcon}>
+                    <Icon />
+                  </span>
+                  <span className={styles.spaceCopy}>
+                    <span className={styles.spaceLabel}>{space.label}</span>
+                    <strong>{space.title}</strong>
+                    <span>{space.copy}</span>
+                  </span>
+                  <ArrowIcon className={styles.spaceArrow} />
+                </Link>
+              );
+            })}
           </div>
         </section>
 
-        <section className="app-panel mt-16 px-6 py-6 md:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="section-kicker">Trust Layer</p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">保持科研工具应有的可解释性与边界感</h2>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {trustItems.map((item) => (
-                <span key={item} className="status-pill">
-                  {item}
-                </span>
-              ))}
-            </div>
+        <section className={`${styles.container} ${styles.closing}`} aria-labelledby="closing-title">
+          <div>
+            <p className={styles.eyebrow}>开始使用</p>
+            <h2 id="closing-title">从一条清楚的试剂记录开始。</h2>
           </div>
-        </section>
-
-        <section className="app-panel-strong mt-16 px-6 py-8 text-center md:px-8">
-          <p className="section-kicker">Start Now</p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">把试剂清单、判定逻辑与协作上下文统一到一个工作台</h2>
-          <p className="section-copy mx-auto mt-4 max-w-2xl text-sm md:text-base">
-            Dorlabaemon 延续专业科研语气，把复杂准备步骤组织为更稳定、更清晰的产品体验。
-          </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link href={primaryHref} className="button-primary">
-              {primaryLabel}
-            </Link>
-            <Link href="/reagents" className="button-secondary">
-              浏览试剂页
-            </Link>
-          </div>
+          <Link href={primaryHref} className={styles.primaryAction}>
+            {primaryLabel}
+            <ArrowIcon className={styles.actionArrow} />
+          </Link>
         </section>
       </div>
+
+      <footer className={styles.footer}>
+        <div className={`${styles.container} ${styles.footerInner}`}>
+          <span>Dorlabaemon · 试剂管理系统</span>
+          <span>为实验准备而设计</span>
+        </div>
+      </footer>
     </main>
   );
 }
