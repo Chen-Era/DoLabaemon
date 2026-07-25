@@ -8,19 +8,28 @@ type RetrievalPromptContext = {
   evidenceLines?: string[];
 };
 
+function previewText(text: string | undefined, limit: number) {
+  const normalized = (text ?? "").trim();
+  return normalized.length <= limit ? normalized : `${normalized.slice(0, limit)}...`;
+}
+
 export function buildReagentParsePrompt(lang: "zh" | "en", retrievalContext?: RetrievalPromptContext) {
   const tagList = experimentTags.join(", ");
   const subCategoryList = standardSubCategories.join(", ");
+  const candidateCategories = retrievalContext?.candidateCategories?.slice(0, 4);
+  const candidateSubCategories = retrievalContext?.candidateSubCategories?.slice(0, 6);
+  const candidateExperimentTags = retrievalContext?.candidateExperimentTags?.slice(0, 8);
+  const evidenceLines = retrievalContext?.evidenceLines?.slice(0, 4).map((item) => previewText(item, 160));
   const retrievalSummary = retrievalContext
     ? [
-        retrievalContext.candidateCategories?.length ? `Candidate categories: ${retrievalContext.candidateCategories.join(", ")}.` : null,
-        retrievalContext.candidateSubCategories?.length
-          ? `Candidate subCategories: ${retrievalContext.candidateSubCategories.join(", ")}.`
+        candidateCategories?.length ? `Candidate categories: ${candidateCategories.join(", ")}.` : null,
+        candidateSubCategories?.length
+          ? `Candidate subCategories: ${candidateSubCategories.join(", ")}.`
           : null,
-        retrievalContext.candidateExperimentTags?.length
-          ? `Candidate experimentTags: ${retrievalContext.candidateExperimentTags.join(", ")}.`
+        candidateExperimentTags?.length
+          ? `Candidate experimentTags: ${candidateExperimentTags.join(", ")}.`
           : null,
-        retrievalContext.evidenceLines?.length ? `Evidence: ${retrievalContext.evidenceLines.join(" | ")}.` : null,
+        evidenceLines?.length ? `Evidence: ${evidenceLines.join(" | ")}.` : null,
       ]
         .filter(Boolean)
         .join(" ")

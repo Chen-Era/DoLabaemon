@@ -43,7 +43,7 @@ function shouldSkipDomain(domain: string) {
   return blockedDomains.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`));
 }
 
-function previewText(text: string, limit = 1800) {
+function previewText(text: string, limit = 900) {
   return text.length <= limit ? text : `${text.slice(0, limit)}...`;
 }
 

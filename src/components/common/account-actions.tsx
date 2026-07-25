@@ -25,10 +25,20 @@ export function AccountActions() {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button type="button" className="button-secondary" disabled={busy !== null} onClick={() => handleAction("switch")}>
+      <button
+        type="button"
+        className="rounded-lg border border-white/12 bg-white/6 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={busy !== null}
+        onClick={() => handleAction("switch")}
+      >
         {busy === "switch" ? "切换中..." : "切换账号"}
       </button>
-      <button type="button" className="button-secondary" disabled={busy !== null} onClick={() => handleAction("logout")}>
+      <button
+        type="button"
+        className="rounded-lg border border-white/12 bg-transparent px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={busy !== null}
+        onClick={() => handleAction("logout")}
+      >
         {busy === "logout" ? "退出中..." : "退出登录"}
       </button>
     </div>

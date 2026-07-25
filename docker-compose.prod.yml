@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: ${DOCKER_REGISTRY_PREFIX:-}postgres:16
+    container_name: dorlabaemon-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - dorlabaemon_postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOCKER_REGISTRY_PREFIX: ${DOCKER_REGISTRY_PREFIX:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    container_name: dorlabaemon-app
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  dorlabaemon_postgres_data:

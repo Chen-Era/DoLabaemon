@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand/logo";
+import { MockDashboard } from "@/components/home/mock-dashboard";
 import { isDemoMode } from "@/lib/demo-mode";
 
 export default function Home() {
@@ -55,9 +56,9 @@ export default function Home() {
       <div className="page-container">
         <section className="app-panel-strong px-6 py-6 md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <BrandLogo />
-            <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-300">
-              <span className="status-pill">Autonomous Reagent Readiness</span>
+            <BrandLogo imageClassName="h-14" />
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="status-pill">试剂管理</span>
               <Link href="/labs" className="glass-badge">
                 查看工作区
               </Link>
@@ -67,13 +68,13 @@ export default function Home() {
 
         <section className="hero-grid mt-8">
           <div className="app-panel-strong px-6 py-8 md:px-8 md:py-10">
-            <p className="section-kicker">Research Workspace</p>
+            <p className="section-kicker">首页</p>
             <h1 className="section-title mt-4">
               Dorlabaemon
-              <span className="mt-2 block text-[0.42em] font-medium tracking-[0.04em] text-zinc-400">哆LabA梦</span>
+              <span className="mt-2 block text-[0.42em] font-medium tracking-[0.04em] text-slate-500">试剂管理系统</span>
             </h1>
             <p className="section-copy mt-5 max-w-2xl text-base md:text-lg">
-              面向实验室团队的智能试剂与实验准备平台。把分散的试剂信息、实验前核对动作与协作上下文收束到同一条研究工作流中。
+              面向实验室团队的试剂与实验准备平台。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href={primaryHref} className="button-primary">
@@ -84,60 +85,37 @@ export default function Home() {
               </a>
             </div>
             <div className="data-grid cols-3 mt-10">
-              <div className="app-panel px-4 py-4">
-                <p className="metric-value">AI + Human</p>
+              <div className="kpi-card px-4 py-4">
+                <p className="kpi-label">录入模式</p>
+                <p className="metric-value mt-3">AI + Human</p>
                 <p className="section-copy mt-2 text-sm">模型负责整理，最终由研究者确认后入库。</p>
               </div>
-              <div className="app-panel px-4 py-4">
-                <p className="metric-value">Rules First</p>
+              <div className="kpi-card px-4 py-4">
+                <p className="kpi-label">判定方式</p>
+                <p className="metric-value mt-3">Rules First</p>
                 <p className="section-copy mt-2 text-sm">实验可行性优先来自结构化规则，而不是黑盒建议。</p>
               </div>
-              <div className="app-panel px-4 py-4">
-                <p className="metric-value">Lab Scoped</p>
+              <div className="kpi-card px-4 py-4">
+                <p className="kpi-label">协作范围</p>
+                <p className="metric-value mt-3">Lab Scoped</p>
                 <p className="section-copy mt-2 text-sm">同实验室共享、实验室之间严格隔离。</p>
               </div>
             </div>
           </div>
 
-          <aside className="app-panel px-6 py-6 md:px-7">
-            <div className="flex items-center justify-between">
-              <span className="status-pill">Live Product Narrative</span>
-              <span className="text-xs text-zinc-500">科研语境优先</span>
-            </div>
-            <div className="subtle-divider my-6" />
-            <div className="space-y-5">
-              <div>
-                <p className="text-sm text-zinc-500">System Lens</p>
-                <p className="mt-2 text-xl font-semibold text-white">从试剂库存到实验准备结论</p>
-              </div>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                  <p className="text-sm font-medium text-white">统一试剂上下文</p>
-                  <p className="section-copy mt-2 text-sm">把标签、靶点、类别与实验用途沉淀为共享资产。</p>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                  <p className="text-sm font-medium text-white">显式缺失与风险</p>
-                  <p className="section-copy mt-2 text-sm">最低必需项、推荐补充项、兼容性问题分别输出。</p>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                  <p className="text-sm font-medium text-white">团队协作视图</p>
-                  <p className="section-copy mt-2 text-sm">同一实验室成员在同一试剂语义层上做讨论与决策。</p>
-                </div>
-              </div>
-            </div>
-          </aside>
+          <MockDashboard />
         </section>
 
         <section id="workflow" className="mt-16">
           <div className="mb-6">
             <p className="section-kicker">Workflow</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">让研究准备过程保持连续</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">让研究准备过程保持连续</h2>
           </div>
           <div className="data-grid cols-2">
             {steps.map((item) => (
               <article key={item.step} className="app-panel px-5 py-5">
-                <p className="text-sm font-semibold tracking-[0.22em] text-cyan-200/80">{item.step}</p>
-                <h3 className="mt-4 text-xl font-semibold text-white">{item.title}</h3>
+                <p className="text-sm font-semibold tracking-[0.22em] text-blue-600">{item.step}</p>
+                <h3 className="mt-4 text-xl font-semibold text-slate-900">{item.title}</h3>
                 <p className="section-copy mt-3 text-sm">{item.copy}</p>
               </article>
             ))}
@@ -148,7 +126,7 @@ export default function Home() {
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="section-kicker">Core Screens</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">围绕真实业务页面组织视觉层级</h2>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">围绕真实业务页面组织视觉层级</h2>
             </div>
             <p className="section-copy max-w-xl text-sm">视觉升级不改变逻辑，而是让库存管理、AI 解析和实验判定在同一产品语言中更易读、更可信。</p>
           </div>
@@ -156,7 +134,7 @@ export default function Home() {
             {screens.map((item) => (
               <article key={item.label} className="app-panel px-5 py-5">
                 <span className="glass-badge">{item.label}</span>
-                <h3 className="mt-4 text-xl font-semibold text-white">{item.title}</h3>
+                <h3 className="mt-4 text-xl font-semibold text-slate-900">{item.title}</h3>
                 <p className="section-copy mt-3 text-sm">{item.copy}</p>
               </article>
             ))}
@@ -167,7 +145,7 @@ export default function Home() {
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="section-kicker">Trust Layer</p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">保持科研工具应有的可解释性与边界感</h2>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">保持科研工具应有的可解释性与边界感</h2>
             </div>
             <div className="flex flex-wrap gap-3">
               {trustItems.map((item) => (
@@ -181,7 +159,7 @@ export default function Home() {
 
         <section className="app-panel-strong mt-16 px-6 py-8 text-center md:px-8">
           <p className="section-kicker">Start Now</p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white">把试剂清单、判定逻辑与协作上下文统一到一个工作台</h2>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">把试剂清单、判定逻辑与协作上下文统一到一个工作台</h2>
           <p className="section-copy mx-auto mt-4 max-w-2xl text-sm md:text-base">
             Dorlabaemon 延续专业科研语气，把复杂准备步骤组织为更稳定、更清晰的产品体验。
           </p>

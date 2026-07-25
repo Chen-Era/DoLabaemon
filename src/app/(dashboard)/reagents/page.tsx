@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { SortIcon } from "@/components/common/app-icons";
 import { CopySelectedButton } from "@/components/common/copy-selected-button";
 import { requestJson } from "@/lib/http";
 
@@ -104,7 +105,7 @@ export default function ReagentsPage() {
         <p className="section-kicker">Reagent Index</p>
         <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white">试剂清单</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">试剂清单</h1>
             <p className="section-copy mt-3 max-w-2xl text-sm md:text-base">
               围绕实验标签、靶点、货号和类别快速筛选库存，帮助你在真正开做实验前完成准备审查。
             </p>
@@ -125,17 +126,29 @@ export default function ReagentsPage() {
       </section>
 
       <section className="data-grid cols-3">
-        <div className="app-panel px-5 py-5">
-          <p className="section-copy text-sm">库存总量</p>
+        <div className="kpi-card px-5 py-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="kpi-label">Inventory Volume</p>
+            <span className="kpi-trend">Realtime</span>
+          </div>
           <p className="metric-value mt-3">{items.length}</p>
+          <p className="section-copy mt-2 text-sm">当前实验室已纳入统一索引的试剂条目。</p>
         </div>
-        <div className="app-panel px-5 py-5">
-          <p className="section-copy text-sm">筛选结果</p>
+        <div className="kpi-card px-5 py-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="kpi-label">Filtered Result</p>
+            <span className="kpi-trend">Search</span>
+          </div>
           <p className="metric-value mt-3">{filteredItems.length}</p>
+          <p className="section-copy mt-2 text-sm">结合搜索词与标签过滤后的即时结果数。</p>
         </div>
-        <div className="app-panel px-5 py-5">
-          <p className="section-copy text-sm">可用标签</p>
+        <div className="kpi-card px-5 py-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="kpi-label">Experiment Tags</p>
+            <span className="kpi-trend">Coverage</span>
+          </div>
           <p className="metric-value mt-3">{availableTags.length}</p>
+          <p className="section-copy mt-2 text-sm">用于快速定位实验准备语境的结构化标签。</p>
         </div>
       </section>
 
@@ -143,7 +156,7 @@ export default function ReagentsPage() {
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="section-kicker">Filters</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">筛选与批量操作</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">筛选与批量操作</h2>
           </div>
           <CopySelectedButton rows={selectedRows} />
         </div>
@@ -176,7 +189,7 @@ export default function ReagentsPage() {
           <div className="flex items-end">
             <div className="flex flex-wrap gap-2">
               <span className="status-pill">当前显示 {filteredItems.length}</span>
-              <span className="glass-badge">已选 {selectedRows.length}</span>
+              <span className={`status-pill ${selectedRows.length ? "success" : ""}`.trim()}>已选 {selectedRows.length}</span>
             </div>
           </div>
         </div>
@@ -188,11 +201,36 @@ export default function ReagentsPage() {
           <table className="text-sm">
             <thead>
               <tr>
-                <th>选择</th>
-                <th>名称</th>
-                <th>货号</th>
-                <th>类别</th>
-                <th>实验标签 / 靶点</th>
+                <th>
+                  <span className="table-header-sort">
+                    选择
+                    <SortIcon />
+                  </span>
+                </th>
+                <th>
+                  <span className="table-header-sort">
+                    名称
+                    <SortIcon />
+                  </span>
+                </th>
+                <th>
+                  <span className="table-header-sort">
+                    货号
+                    <SortIcon />
+                  </span>
+                </th>
+                <th>
+                  <span className="table-header-sort">
+                    类别
+                    <SortIcon />
+                  </span>
+                </th>
+                <th>
+                  <span className="table-header-sort">
+                    实验标签 / 靶点
+                    <SortIcon />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -205,17 +243,17 @@ export default function ReagentsPage() {
                       onChange={(e) => setSelected((p) => ({ ...p, [it.id]: e.target.checked }))}
                     />
                   </td>
-                  <td className="font-medium text-white">{it.name}</td>
-                  <td className="text-zinc-300">{it.catalogNo}</td>
+                  <td className="font-medium text-slate-900">{it.name}</td>
+                  <td className="text-slate-600">{it.catalogNo}</td>
                   <td>
                     <span className="glass-badge">{it.category}</span>
                   </td>
-                  <td className="text-zinc-300">{buildSummary(it)}</td>
+                  <td className="text-slate-600">{buildSummary(it)}</td>
                 </tr>
               ))}
               {!filteredItems.length ? (
                 <tr>
-                  <td className="py-8 text-center text-zinc-500" colSpan={5}>
+                  <td className="py-8 text-center text-slate-500" colSpan={5}>
                     没有匹配的试剂
                   </td>
                 </tr>

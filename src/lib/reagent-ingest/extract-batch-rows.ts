@@ -1,9 +1,21 @@
-import { getLlmClient } from "@/lib/llm/client";
+import { generateLlmText, getLlmClient } from "@/lib/llm/client";
+import { parseLlmJson } from "@/lib/llm/json-output";
 import { normalizeLlmParsedPayload } from "@/lib/llm/normalize";
+import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { buildReagentBatchExtractPrompt } from "@/lib/llm/prompts/reagent-batch-extract";
 import { reagentBatchExtractSchema } from "@/lib/llm/schemas";
+import { cleanUrlText } from "@/lib/url/clean-url";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { fetchVerificationPages, type VerificationPage } from "@/lib/reagent-ingest/fetch-verification-pages";
 import { searchReagentWeb } from "@/lib/reagent-ingest/web-search";
+
+export type BatchRowSupplementation = {
+  attemptedSearch: boolean;
+  searchStatus: "not_needed" | "no_results" | "filled_from_search" | "evidence_inconclusive" | "request_failed";
+  vendorInferred: boolean;
+  catalogInferred: boolean;
+  pageCount: number;
+};
 
 export type ExtractedBatchRow = {
   sourceText: string;
@@ -12,15 +24,28 @@ export type ExtractedBatchRow = {
   catalogNo?: string | null;
   note?: string | null;
   antibodyCompatibilityText?: string | null;
+  supplementation?: BatchRowSupplementation;
 };
 
 type ExtractBatchRowsOptions = {
   allowLlm?: boolean;
-  searchWeb?: typeof searchReagentWeb;
+  searchWeb?: (query: string) => ReturnType<typeof searchReagentWeb>;
   fetchPages?: typeof fetchVerificationPages;
+  llmConfig?: RuntimeLlmConfig;
 };
 
 const headerTokens = ["name", "名称", "vendor", "厂家", "company", "catalog", "货号", "cat", "species", "兼容", "宿主", "备注", "note"];
+const headerFieldAliases = {
+  name: ["name", "名称", "产品名称", "试剂名称", "reagent", "product", "品名"],
+  vendor: ["vendor", "厂家", "品牌", "供应商", "company", "manufacturer", "brand"],
+  catalogNo: ["catalog", "catalogno", "catalognumber", "货号", "货号编号", "cat", "catno", "货号no", "产品编号", "订货号"],
+  note: ["note", "备注", "说明", "用途", "稀释", "dilution", "application", "comment"],
+  antibodyCompatibilityText: ["species", "宿主", "兼容", "适用种属", "reactivity", "host", "hostspecies", "targetspecies"],
+} as const;
+
+type HeaderField = keyof typeof headerFieldAliases;
+type HeaderMapping = Partial<Record<HeaderField, number>>;
+const BATCH_ROW_SUPPLEMENT_CONCURRENCY = 3;
 
 function cleanCell(value: string) {
   const trimmed = value.trim();
@@ -46,7 +71,42 @@ function looksLikeHeaderRow(columns: string[]) {
   return matched >= Math.min(2, columns.length);
 }
 
-function parseTabularText(rawText: string) {
+function normalizeHeaderCell(value: string) {
+  return value.trim().toLowerCase().replace(/[\s_\-:/()]+/g, "");
+}
+
+function findHeaderMapping(columns: string[]): HeaderMapping | null {
+  const mapping: HeaderMapping = {};
+
+  for (const [index, column] of columns.entries()) {
+    const normalized = normalizeHeaderCell(column);
+    if (!normalized) continue;
+
+    for (const field of Object.keys(headerFieldAliases) as HeaderField[]) {
+      if (mapping[field] !== undefined) continue;
+      const aliases = headerFieldAliases[field];
+      if (aliases.some((alias) => normalized.includes(normalizeHeaderCell(alias)))) {
+        mapping[field] = index;
+        break;
+      }
+    }
+  }
+
+  const matchedFieldCount = Object.keys(mapping).length;
+  return matchedFieldCount >= 2 && mapping.name !== undefined ? mapping : null;
+}
+
+function getCell(columns: string[], index: number | undefined) {
+  if (index === undefined) return null;
+  return cleanCell(columns[index] ?? "");
+}
+
+function joinParts(parts: Array<string | null | undefined>) {
+  const cleaned = parts.map((part) => cleanCell(part ?? "")).filter(Boolean);
+  return cleaned.length ? cleaned.join(" | ") : null;
+}
+
+function parseTabularText(rawText: string): ExtractedBatchRow[] {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -54,6 +114,33 @@ function parseTabularText(rawText: string) {
 
   if (!lines.length || !lines.some((line) => line.includes("\t"))) {
     return [];
+  }
+
+  const firstColumns = lines[0]?.split("\t").map((cell) => cell.trim()) ?? [];
+  const headerMapping = findHeaderMapping(firstColumns);
+
+  if (headerMapping) {
+    const usedIndexes = new Set(Object.values(headerMapping));
+    return lines
+      .slice(1)
+      .map((line) => {
+        const columns = line.split("\t").map((cell) => cell.trim());
+        if (columns.length < 2) return null;
+
+        const extraParts = columns.filter((cell, index) => !usedIndexes.has(index) && cleanCell(cell));
+        const note = joinParts([getCell(columns, headerMapping.note), ...extraParts]);
+        const compatibility = getCell(columns, headerMapping.antibodyCompatibilityText) ?? note;
+
+        return normalizeRow({
+          sourceText: line,
+          name: getCell(columns, headerMapping.name) ?? "",
+          vendor: getCell(columns, headerMapping.vendor),
+          catalogNo: getCell(columns, headerMapping.catalogNo),
+          note,
+          antibodyCompatibilityText: compatibility,
+        });
+      })
+      .filter((row): row is ExtractedBatchRow => !!row);
   }
 
   const parsed = lines
@@ -129,13 +216,35 @@ async function supplementRowWithSearch(
   row: ExtractedBatchRow,
   searchWeb: typeof searchReagentWeb,
   fetchPages: typeof fetchVerificationPages,
-) {
-  if (row.vendor && row.catalogNo) return row;
+): Promise<ExtractedBatchRow> {
+  if (row.vendor && row.catalogNo) {
+    return {
+      ...row,
+      supplementation: {
+        attemptedSearch: false,
+        searchStatus: "not_needed",
+        vendorInferred: false,
+        catalogInferred: false,
+        pageCount: 0,
+      },
+    };
+  }
 
   try {
     const query = [row.name, row.vendor, row.catalogNo, row.note, row.antibodyCompatibilityText].filter(Boolean).join(" ");
     const results = await searchWeb(query);
-    if (!results.length) return row;
+    if (!results.length) {
+      return {
+        ...row,
+        supplementation: {
+          attemptedSearch: true,
+          searchStatus: "no_results",
+          vendorInferred: false,
+          catalogInferred: false,
+          pageCount: 0,
+        },
+      };
+    }
     const pages = await fetchPages(results, 2);
     const evidenceText = combineEvidenceText(
       pages,
@@ -143,20 +252,46 @@ async function supplementRowWithSearch(
     );
     const vendor = row.vendor ?? inferVendorFromEvidence(evidenceText);
     const catalogNo = row.catalogNo ?? inferCatalogFromEvidence(evidenceText);
+    const vendorInferred = !row.vendor && !!vendor;
+    const catalogInferred = !row.catalogNo && !!catalogNo;
     return {
       ...row,
       vendor,
       catalogNo,
+      supplementation: {
+        attemptedSearch: true,
+        searchStatus: vendorInferred || catalogInferred ? "filled_from_search" : "evidence_inconclusive",
+        vendorInferred,
+        catalogInferred,
+        pageCount: pages.length,
+      },
     };
   } catch {
-    return row;
+    return {
+      ...row,
+      supplementation: {
+        attemptedSearch: true,
+        searchStatus: "request_failed",
+        vendorInferred: false,
+        catalogInferred: false,
+        pageCount: 0,
+      },
+    };
   }
 }
 
-async function parseWithLlm(rawText: string, lang: "zh" | "en") {
-  const client = getLlmClient();
-  const model = process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-  const response = await client.responses.create({
+async function supplementRowsWithSearch(
+  rows: ExtractedBatchRow[],
+  searchWeb: typeof searchReagentWeb,
+  fetchPages: typeof fetchVerificationPages,
+): Promise<ExtractedBatchRow[]> {
+  return mapWithConcurrency(rows, BATCH_ROW_SUPPLEMENT_CONCURRENCY, async (row) => supplementRowWithSearch(row, searchWeb, fetchPages));
+}
+
+async function parseWithLlm(rawText: string, lang: "zh" | "en", llmConfig?: RuntimeLlmConfig) {
+  const client = getLlmClient({ apiKey: llmConfig?.apiKey, baseURL: llmConfig?.baseURL });
+  const model = llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
+  const result = await generateLlmText(client, { baseURL: cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
     model,
     input: [
       {
@@ -171,8 +306,8 @@ async function parseWithLlm(rawText: string, lang: "zh" | "en") {
     temperature: 0,
   });
 
-  const rawOutput = response.output_text || "[]";
-  return reagentBatchExtractSchema.parse(normalizeLlmParsedPayload(JSON.parse(rawOutput))).map((row) => ({
+  const rawOutput = result.text || "[]";
+  return reagentBatchExtractSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput))).map((row) => ({
     sourceText: row.sourceText,
     name: row.name,
     vendor: row.vendor ?? null,
@@ -185,7 +320,16 @@ async function parseWithLlm(rawText: string, lang: "zh" | "en") {
 export async function extractBatchRows(rawText: string, lang: "zh" | "en", options?: ExtractBatchRowsOptions) {
   const trimmed = rawText.trim();
   if (!trimmed) return [];
-  const searchWeb = options?.searchWeb ?? searchReagentWeb;
+  const llmConfig = options?.llmConfig;
+  const searchWeb =
+    options?.searchWeb ??
+    ((query: string) =>
+      searchReagentWeb(query, {
+        enabled: llmConfig?.searchEnabled,
+        provider: llmConfig?.searchProvider,
+        apiKey: llmConfig?.searchApiKey,
+        baseURL: llmConfig?.searchBaseURL,
+      }));
   const fetchPages = options?.fetchPages ?? fetchVerificationPages;
 
   const tabular = parseTabularText(trimmed);
@@ -193,14 +337,14 @@ export async function extractBatchRows(rawText: string, lang: "zh" | "en", optio
 
   if (options?.allowLlm === false) {
     const rows = parseLineFallback(trimmed);
-    return Promise.all(rows.map((row) => supplementRowWithSearch(row, searchWeb, fetchPages)));
+    return supplementRowsWithSearch(rows, searchWeb, fetchPages);
   }
 
   try {
-    const llmRows = await parseWithLlm(trimmed, lang);
+    const llmRows = await parseWithLlm(trimmed, lang, llmConfig);
     if (llmRows.length) {
       const normalized = llmRows.map((row) => normalizeRow(row)).filter((row): row is ExtractedBatchRow => !!row);
-      return Promise.all(normalized.map((row) => supplementRowWithSearch(row, searchWeb, fetchPages)));
+      return supplementRowsWithSearch(normalized, searchWeb, fetchPages);
     }
   } catch (error) {
     console.error("[reagent-batch-extract] llm extraction failed", {
@@ -210,7 +354,7 @@ export async function extractBatchRows(rawText: string, lang: "zh" | "en", optio
   }
 
   const rows = parseLineFallback(trimmed);
-  return Promise.all(rows.map((row) => supplementRowWithSearch(row, searchWeb, fetchPages)));
+  return supplementRowsWithSearch(rows, searchWeb, fetchPages);
 }
 
 export function summarizeBatchText(rawText: string) {

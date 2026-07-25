@@ -84,7 +84,7 @@ export default function ExperimentCheckPage() {
     <div className="space-y-6">
       <section className="app-panel-strong px-6 py-6 md:px-8">
         <p className="section-kicker">Experiment Readiness</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">实验可行性判定</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">实验可行性判定</h1>
         <p className="section-copy mt-3 max-w-2xl text-sm md:text-base">
           系统会优先检查最低必需项，再给出推荐补充和风险提示，让实验准备结论更可解释。
         </p>
@@ -94,7 +94,7 @@ export default function ExperimentCheckPage() {
         <section className="app-panel px-6 py-6">
           <div className="mb-5">
             <p className="section-kicker">Input</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">输入实验参数</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">输入实验参数</h2>
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
@@ -116,8 +116,8 @@ export default function ExperimentCheckPage() {
                   type="button"
                   className={`rounded-2xl border px-4 py-3 text-sm transition ${
                     inputMode === "STANDARD"
-                      ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-100"
-                      : "border-white/10 bg-white/5 text-zinc-300"
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600"
                   }`}
                   onClick={() => {
                     setInputMode("STANDARD");
@@ -130,8 +130,8 @@ export default function ExperimentCheckPage() {
                   type="button"
                   className={`rounded-2xl border px-4 py-3 text-sm transition ${
                     inputMode === "MANUAL"
-                      ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-100"
-                      : "border-white/10 bg-white/5 text-zinc-300"
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600"
                   }`}
                   onClick={() => {
                     setInputMode("MANUAL");
@@ -214,11 +214,11 @@ export default function ExperimentCheckPage() {
         <section className="app-panel px-6 py-6">
           <div className="mb-5">
             <p className="section-kicker">Result</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">判定结果</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">判定结果</h2>
           </div>
           {result?.needsConfirmation && result.suggestion ? (
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-[rgba(242,190,87,0.32)] bg-[rgba(242,190,87,0.1)] px-5 py-5 text-[#ffe7a8]">
+              <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-5 text-amber-800">
                 <p className="text-sm font-semibold tracking-[0.16em] uppercase">Suggestion</p>
                 <p className="mt-3 text-2xl font-semibold">{result.suggestion.proposedExperimentName}</p>
                 <p className="mt-3 text-sm leading-7">
@@ -226,36 +226,36 @@ export default function ExperimentCheckPage() {
                 </p>
               </div>
               <div className="data-grid">
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                  <p className="text-zinc-400">建议归一到</p>
-                  <p className="mt-3 leading-7 text-white">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                  <p className="text-slate-500">建议归一到</p>
+                  <p className="mt-3 leading-7 text-slate-900">
                     {result.suggestion.matchedExistingCode || result.suggestion.proposedExperimentCode || "新实验候选"}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                  <p className="text-zinc-400">建议置信度</p>
-                  <p className="mt-3 leading-7 text-white">{result.suggestion.confidence.toFixed(2)}</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                  <p className="text-slate-500">建议置信度</p>
+                  <p className="mt-3 leading-7 text-slate-900">{result.suggestion.confidence.toFixed(2)}</p>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                  <p className="text-zinc-400">流程阶段</p>
-                  <p className="mt-3 leading-7 text-white">{result.suggestion.workflowStages.join("；") || "无"}</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                  <p className="text-slate-500">流程阶段</p>
+                  <p className="mt-3 leading-7 text-slate-900">{result.suggestion.workflowStages.join("；") || "无"}</p>
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                <p className="text-zinc-400">最低必需试剂</p>
-                <p className="mt-3 leading-7 text-white">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                <p className="text-slate-500">最低必需试剂</p>
+                <p className="mt-3 leading-7 text-slate-900">
                   {result.suggestion.minRequiredItems.map((item) => item.name).join("；") || "无"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                <p className="text-zinc-400">推荐补充试剂</p>
-                <p className="mt-3 leading-7 text-white">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                <p className="text-slate-500">推荐补充试剂</p>
+                <p className="mt-3 leading-7 text-slate-900">
                   {result.suggestion.recommendedItems.map((item) => item.name).join("；") || "无"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-                <p className="text-zinc-400">说明与警告</p>
-                <p className="mt-3 leading-7 text-white">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+                <p className="text-slate-500">说明与警告</p>
+                <p className="mt-3 leading-7 text-slate-900">
                   {[result.suggestion.rationale, ...result.suggestion.warnings].filter(Boolean).join("；") || "无"}
                 </p>
               </div>
@@ -263,7 +263,7 @@ export default function ExperimentCheckPage() {
           ) : result ? (
             <CheckResult {...result} />
           ) : (
-            <div className="rounded-3xl border border-dashed border-white/10 px-5 py-8 text-sm text-zinc-400">
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
               选择标准实验类型，或手动输入实验名称后提交，即可查看库存判定结果；若暂未高置信匹配，系统会先给出候选实验模板和试剂配置。
             </div>
           )}

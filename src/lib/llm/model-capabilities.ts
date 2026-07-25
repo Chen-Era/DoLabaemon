@@ -1,5 +1,7 @@
+import { cleanUrlText } from "@/lib/url/clean-url";
+
 function normalizeBaseUrl(baseUrl?: string | null) {
-  return (baseUrl ?? "").trim().toLowerCase();
+  return (cleanUrlText(baseUrl) ?? "").toLowerCase();
 }
 
 function normalizeModel(model?: string | null) {
@@ -15,7 +17,7 @@ export function getProviderLabel(baseUrl?: string | null) {
 }
 
 export function supportsNativeWebSearch(options?: { baseUrl?: string | null; model?: string | null }) {
-  const provider = getProviderLabel(options?.baseUrl ?? process.env.OPENAI_BASE_URL);
+  const provider = getProviderLabel(cleanUrlText(options?.baseUrl) ?? cleanUrlText(process.env.OPENAI_BASE_URL));
   const model = normalizeModel(options?.model ?? process.env.OPENAI_MODEL);
 
   if (provider !== "openai") {

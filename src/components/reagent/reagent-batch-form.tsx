@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardEvent, useMemo, useState } from "react";
-import { requestJson } from "@/lib/http";
+import { isRequestTimeoutError, requestJson } from "@/lib/http";
 
 type ParsedReagent = {
   category: "ANTIBODY" | "BUFFER" | "KIT" | "PRIMER" | "BIOLOGICAL" | "CHEMICAL" | "CONSUMABLE" | "OTHER";
@@ -179,6 +179,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ labId, rawText, lang: "zh" }),
+        timeoutMs: 120000,
       });
       if (response.status === 401) {
         window.location.href = "/login";
@@ -197,8 +198,8 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
       setRows(nextRows);
       const failedCount = nextRows.filter((row) => row.status === "failed").length;
       setMsg(`已生成 ${nextRows.length} 条候选结果${failedCount ? `，其中 ${failedCount} 条需要手工检查` : ""}`);
-    } catch {
-      setMsg("网络异常，请稍后重试");
+    } catch (error) {
+      setMsg(isRequestTimeoutError(error) ? "批量识别超时，请缩小批次或检查模型/搜索配置后重试" : "网络异常，请稍后重试");
     } finally {
       setParsing(false);
     }
@@ -218,6 +219,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
           mimeType: file.type || "image/png",
           lang: "zh",
         }),
+        timeoutMs: 90000,
       });
       if (response.status === 401) {
         window.location.href = "/login";
@@ -234,8 +236,8 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
       }
       setRawText((prev) => (prev.trim() ? `${prev.trim()}\n\n${extractedText}` : extractedText));
       setMsg("图片内容已转成文本并追加到批量输入框");
-    } catch {
-      setMsg("图片读取或上传失败");
+    } catch (error) {
+      setMsg(isRequestTimeoutError(error) ? "图片转文字超时，请稍后重试" : "图片读取或上传失败");
     } finally {
       setExtractingImage(false);
     }
@@ -322,7 +324,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
     <section className="app-panel px-6 py-6">
       <div className="mb-5">
         <p className="section-kicker">Batch Ingestion</p>
-        <h2 className="mt-3 text-2xl font-semibold text-white">批量新增试剂</h2>
+        <h2 className="mt-3 text-2xl font-semibold text-slate-900">批量新增试剂</h2>
         <p className="section-copy mt-2 text-sm">
           支持直接粘贴多行文本或表格文本；若在输入框中粘贴图片，系统会先自动提取文字，再进入批量识别流程。
         </p>
@@ -341,7 +343,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
             onChange={(e) => setRawText(e.target.value)}
             onPaste={onPaste}
           />
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-400">
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
             <span className="glass-badge">支持 Excel / 制表符文本</span>
             <span className="glass-badge">支持输入框粘贴图片自动转文字</span>
             {extractingImage ? <span className="status-pill">图片转文字中...</span> : null}
@@ -386,7 +388,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
 
             <div className="space-y-3">
               {rows.map((row) => (
-                <article key={row.rowId} className="rounded-3xl border border-white/10 bg-white/3 px-5 py-5">
+                <article key={row.rowId} className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                       <div className="flex flex-wrap gap-2">
@@ -405,16 +407,16 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                           </span>
                         ) : null}
                       </div>
-                      <h3 className="text-lg font-medium text-white">{row.rawInput.name}</h3>
-                      <p className="text-sm text-zinc-300">
+                      <h3 className="text-lg font-medium text-slate-900">{row.rawInput.name}</h3>
+                      <p className="text-sm text-slate-600">
                         厂家：{row.rawInput.vendor || "未提供"} | 货号：{row.rawInput.catalogNo || "未提供"}
                       </p>
                       {row.rawInput.antibodyCompatibilityText ? (
-                        <p className="text-sm text-zinc-300">兼容性：{row.rawInput.antibodyCompatibilityText}</p>
+                        <p className="text-sm text-slate-600">兼容性：{row.rawInput.antibodyCompatibilityText}</p>
                       ) : null}
-                      {row.rawInput.note ? <p className="text-sm text-zinc-300">备注：{row.rawInput.note}</p> : null}
+                      {row.rawInput.note ? <p className="text-sm text-slate-600">备注：{row.rawInput.note}</p> : null}
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-zinc-200">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
                       <input
                         type="checkbox"
                         checked={row.selected}
@@ -429,25 +431,25 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
 
                   {row.parsed ? (
                     <div className="mt-4 data-grid">
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">类别</p>
-                        <p className="mt-2 font-medium text-white">{row.parsed.category}</p>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">类别</p>
+                        <p className="mt-2 font-medium text-slate-900">{row.parsed.category}</p>
                       </div>
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">子类</p>
-                        <p className="mt-2 font-medium text-white">{row.parsed.subCategory || "未识别"}</p>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">子类</p>
+                        <p className="mt-2 font-medium text-slate-900">{row.parsed.subCategory || "未识别"}</p>
                       </div>
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">厂商</p>
-                        <p className="mt-2 font-medium text-white">{row.parsed.vendor || row.rawInput.vendor || "未识别"}</p>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">厂商</p>
+                        <p className="mt-2 font-medium text-slate-900">{row.parsed.vendor || row.rawInput.vendor || "未识别"}</p>
                       </div>
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">实验标签</p>
-                        <p className="mt-2 text-sm text-white">{row.parsed.experimentTags?.length ? row.parsed.experimentTags.join(" / ") : "无"}</p>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">实验标签</p>
+                        <p className="mt-2 text-sm text-slate-900">{row.parsed.experimentTags?.length ? row.parsed.experimentTags.join(" / ") : "无"}</p>
                       </div>
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">抗体信息</p>
-                        <p className="mt-2 text-sm text-white">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">抗体信息</p>
+                        <p className="mt-2 text-sm text-slate-900">
                           {row.parsed.antibodyMeta
                             ? [row.parsed.antibodyMeta.role, row.parsed.antibodyMeta.targetName, row.parsed.antibodyMeta.hostSpecies]
                                 .filter(Boolean)
@@ -455,9 +457,9 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                             : "无"}
                         </p>
                       </div>
-                      <div className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                        <p className="text-sm text-zinc-400">引物信息</p>
-                        <p className="mt-2 text-sm text-white">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-sm text-slate-500">引物信息</p>
+                        <p className="mt-2 text-sm text-slate-900">
                           {row.parsed.primerMeta
                             ? [row.parsed.primerMeta.targetName, row.parsed.primerMeta.isReferenceGene ? "内参" : null].filter(Boolean).join(" / ")
                             : "无"}
@@ -467,7 +469,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                   ) : null}
 
                   {verificationReasonLabel(row.verificationReason) ? (
-                    <p className={row.verificationStatus === "verified" ? "mt-4 text-sm text-emerald-200" : "warning-panel mt-4 text-sm"}>
+                    <p className={row.verificationStatus === "verified" ? "mt-4 text-sm text-emerald-700" : "warning-panel mt-4 text-sm"}>
                       {verificationReasonLabel(row.verificationReason)}
                     </p>
                   ) : null}
@@ -480,16 +482,16 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                   ) : null}
                   {row.confirmResult?.action === "created" ? <p className="success-panel mt-4 text-sm">已新增入库</p> : null}
 
-                  <details className="mt-4 rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-                    <summary className="cursor-pointer text-sm font-medium text-zinc-200">查看原始信息</summary>
-                    <pre className="mt-4 overflow-auto text-xs text-zinc-300">{JSON.stringify(row.rawInput, null, 2)}</pre>
+                  <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-700">查看原始信息</summary>
+                    <pre className="mt-4 overflow-auto text-xs text-slate-600">{JSON.stringify(row.rawInput, null, 2)}</pre>
                   </details>
                 </article>
               ))}
             </div>
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-white/10 px-5 py-8 text-sm text-zinc-400">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
             粘贴文本或图片并完成批量识别后，这里会显示逐条候选结果与批量确认入口。
           </div>
         )}

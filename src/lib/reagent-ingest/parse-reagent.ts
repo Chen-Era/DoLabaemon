@@ -1,14 +1,22 @@
 import { z } from "zod";
-import { getLlmClient } from "@/lib/llm/client";
+import { generateLlmText, getLlmClient } from "@/lib/llm/client";
+import { parseLlmJson } from "@/lib/llm/json-output";
 import { normalizeLlmParsedPayload } from "@/lib/llm/normalize";
 import { buildReagentParsePrompt } from "@/lib/llm/prompts/reagent-parse";
 import { buildReagentVerifyPrompt } from "@/lib/llm/prompts/reagent-verify";
 import { getNativeWebSearchToolType } from "@/lib/llm/model-capabilities";
+import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { reagentParsedSchema, verifiedReagentParsedSchema } from "@/lib/llm/schemas";
-import { retrieveReagentKnowledge } from "@/lib/reagent-knowledge/retrieval";
+import { retrieveReagentKnowledgeRuntime } from "@/lib/reagent-knowledge/runtime";
+import type { ReagentKnowledgeRetrievalResult } from "@/lib/reagent-knowledge/types";
 import { buildHeuristicParse } from "@/lib/reagent-tagging";
 import { fetchVerificationPages, type VerificationPage } from "@/lib/reagent-ingest/fetch-verification-pages";
 import { isExternalSearchConfigured, searchReagentWeb } from "@/lib/reagent-ingest/web-search";
+import { finalizeAiFlow, prepareAiFlow } from "@/lib/ai-orchestrator/run-flow";
+import type { AiFlowContext, AiFlowExecution } from "@/lib/ai-orchestrator/types";
+import { invokeMcpTool } from "@/lib/mcp/client";
+import { buildReagentSkillHints } from "@/lib/skills/builtin/reagent-classification-curator";
+import { cleanUrlText } from "@/lib/url/clean-url";
 
 export type ParseReagentInput = {
   name: string;
@@ -25,13 +33,35 @@ export type ParseReagentResult = {
   verificationReason: z.infer<typeof verifiedReagentParsedSchema>["verification"]["reason"];
   verificationWarnings: string[];
   rawLlmOutput?: string;
+  ai?: {
+    enabledSkills: string[];
+    enabledMcpServers: string[];
+    selfCheck: { ok: boolean; score: number; warnings: string[] };
+    canAutoLearn: boolean;
+    learningStatus?: string;
+    learningLogId?: string;
+  };
+  diagnostics?: ParseReagentDiagnostics;
+};
+
+export type ParseReagentDiagnostics = {
+  path: "native_verified" | "initial_draft_only" | "external_verified" | "fallback";
+  timingsMs: Partial<Record<"retrieval" | "prepareFlow" | "initialDraft" | "nativeVerify" | "externalSearch" | "externalVerify" | "finalize", number>>;
+  degradedStages: string[];
 };
 
 type ParseReagentDependencies = {
   client?: ReturnType<typeof getLlmClient>;
-  searchWeb?: typeof searchReagentWeb;
+  searchWeb?: (query: string) => ReturnType<typeof searchReagentWeb>;
   fetchPages?: typeof fetchVerificationPages;
+  llmConfig?: RuntimeLlmConfig;
+  flowContext?: AiFlowContext;
 };
+
+const INITIAL_DRAFT_TIMEOUT_MS = 18000;
+const NATIVE_VERIFY_TIMEOUT_MS = 25000;
+const EXTERNAL_VERIFY_TIMEOUT_MS = 18000;
+const FINALIZE_FLOW_TIMEOUT_MS = 5000;
 
 function previewText(text: string, limit = 600) {
   return text.length <= limit ? text : `${text.slice(0, limit)}...(truncated)`;
@@ -39,10 +69,6 @@ function previewText(text: string, limit = 600) {
 
 function heuristicFallback(input: { name: string; catalogNo?: string; note?: string | null }) {
   return buildHeuristicParse(input) as z.infer<typeof reagentParsedSchema>;
-}
-
-function parseJsonText(rawText: string) {
-  return JSON.parse(rawText);
 }
 
 function withVerification(
@@ -60,11 +86,6 @@ function buildVerificationQuery(input: ParseReagentInput) {
   return [input.name, input.catalogNo, input.note].filter(Boolean).join(" ");
 }
 
-function extractNativeSearchSources(response: unknown) {
-  const output = (response as { output?: Array<{ type?: string; action?: { sources?: Array<{ url?: string }> } }> })?.output ?? [];
-  return output.flatMap((item) => (item.type === "web_search_call" ? item.action?.sources ?? [] : [])).filter((item) => item?.url);
-}
-
 function buildVerificationPayload(
   parsed: z.infer<typeof reagentParsedSchema>,
   payload: z.infer<typeof verifiedReagentParsedSchema>["verification"],
@@ -72,13 +93,49 @@ function buildVerificationPayload(
   return withVerification(parsed, payload);
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timerId = setTimeout(() => reject(new Error(`${label}_TIMEOUT`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
+}
+
+function buildVerificationWarnings(reason: ParseReagentResult["verificationReason"]) {
+  switch (reason) {
+    case "external_search_unconfigured":
+      return ["未配置外部搜索能力，已保留初稿结果。"];
+    case "external_search_failed":
+      return ["外部搜索请求失败，已保留初稿结果。"];
+    case "external_search_no_results":
+      return ["未获取到可用外部证据，已保留初稿结果。"];
+    case "native_search_no_sources":
+      return ["原生联网搜索未返回可用来源，已保留初稿结果。"];
+    default:
+      return [];
+  }
+}
+
+function pushDegradedStage(diagnostics: ParseReagentDiagnostics, stage: string) {
+  if (!diagnostics.degradedStages.includes(stage)) {
+    diagnostics.degradedStages.push(stage);
+  }
+}
+
 async function generateInitialDraft(
   client: ReturnType<typeof getLlmClient>,
   model: string,
+  baseUrl: string | null | undefined,
   input: ParseReagentInput,
-  retrieval: ReturnType<typeof retrieveReagentKnowledge>,
+  retrieval: ReagentKnowledgeRetrievalResult,
 ) {
-  const response = await client.responses.create({
+  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
     model,
     input: [
       {
@@ -93,27 +150,26 @@ async function generateInitialDraft(
       { role: "user", content: JSON.stringify(input) },
     ],
     temperature: 0,
-  });
+  }), INITIAL_DRAFT_TIMEOUT_MS, "INITIAL_DRAFT");
 
-  const rawOutput = response.output_text || "";
-  const parsed = reagentParsedSchema.parse(normalizeLlmParsedPayload(parseJsonText(rawOutput)));
+  const rawOutput = result.text || "";
+  const parsed = reagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
   return { rawOutput, parsed };
 }
 
 async function verifyWithNativeWebSearch(
   client: ReturnType<typeof getLlmClient>,
   model: string,
+  baseUrl: string | null | undefined,
   input: ParseReagentInput,
   initialDraft: z.infer<typeof reagentParsedSchema> | null,
-  retrieval: ReturnType<typeof retrieveReagentKnowledge>,
+  retrieval: ReagentKnowledgeRetrievalResult,
 ) {
-  const toolType = getNativeWebSearchToolType({ baseUrl: process.env.OPENAI_BASE_URL, model });
+  const toolType = getNativeWebSearchToolType({ baseUrl, model });
   if (!toolType) return null;
 
-  const response = await client.responses.create({
+  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
     model,
-    tools: [{ type: toolType, search_context_size: "medium" }],
-    include: ["web_search_call.action.sources"],
     input: [
       {
         role: "system",
@@ -130,24 +186,25 @@ async function verifyWithNativeWebSearch(
       },
     ],
     temperature: 0,
-  });
+    includeSources: true,
+  }), NATIVE_VERIFY_TIMEOUT_MS, "NATIVE_VERIFY");
 
-  const rawOutput = response.output_text || "";
-  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseJsonText(rawOutput)));
-  const sources = extractNativeSearchSources(response);
-  return { rawOutput, parsed, sourceCount: sources.length };
+  const rawOutput = result.text || "";
+  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
+  return { rawOutput, parsed, sourceCount: result.sources.length };
 }
 
 async function verifyWithExternalEvidence(
   client: ReturnType<typeof getLlmClient>,
   model: string,
+  baseUrl: string | null | undefined,
   input: ParseReagentInput,
   initialDraft: z.infer<typeof reagentParsedSchema> | null,
-  retrieval: ReturnType<typeof retrieveReagentKnowledge>,
+  retrieval: ReagentKnowledgeRetrievalResult,
   externalEvidence: VerificationPage[],
 ) {
   const verificationMethod = externalEvidence.length ? "external_search" : "none";
-  const response = await client.responses.create({
+  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
     model,
     input: [
       {
@@ -166,11 +223,66 @@ async function verifyWithExternalEvidence(
       },
     ],
     temperature: 0,
-  });
+  }), EXTERNAL_VERIFY_TIMEOUT_MS, "EXTERNAL_VERIFY");
 
-  const rawOutput = response.output_text || "";
-  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseJsonText(rawOutput)));
+  const rawOutput = result.text || "";
+  const parsed = verifiedReagentParsedSchema.parse(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
   return { rawOutput, parsed };
+}
+
+async function finalizeResult(
+  result: ParseReagentResult,
+  options: {
+    flowContext?: AiFlowContext;
+    execution?: AiFlowExecution | null;
+    input: ParseReagentInput;
+    retrievalConfidence: number;
+    evidenceLines: string[];
+    sourceCount: number;
+  },
+): Promise<ParseReagentResult> {
+  if (!options.flowContext || !options.execution) {
+    return result;
+  }
+
+  try {
+    const startedAt = Date.now();
+    const finalized = await withTimeout(finalizeAiFlow({
+      context: options.flowContext,
+      domain: "REAGENT",
+      entityKey: `${options.input.name}::${options.input.catalogNo}`,
+      afterData: result.parsed,
+      evidenceLines: options.evidenceLines,
+      retrievalConfidence: options.retrievalConfidence,
+      sourceCount: options.sourceCount,
+      warnings: result.verificationWarnings,
+    }), FINALIZE_FLOW_TIMEOUT_MS, "FINALIZE_AI_FLOW");
+    if (result.diagnostics) {
+      result.diagnostics.timingsMs.finalize = Date.now() - startedAt;
+    }
+
+    return {
+      ...result,
+      ai: {
+        enabledSkills: finalized.execution.enabledSkills,
+        enabledMcpServers: finalized.execution.enabledMcpServers,
+        selfCheck: finalized.selfCheck,
+        canAutoLearn: finalized.canAutoLearn,
+        learningStatus: finalized.learning?.status,
+        learningLogId: finalized.learning?.log?.id,
+      },
+    };
+  } catch (error) {
+    if (result.diagnostics) {
+      result.diagnostics.timingsMs.finalize ??= 0;
+      pushDegradedStage(result.diagnostics, error instanceof Error && error.message.includes("TIMEOUT") ? "finalize_timeout" : "finalize_failed");
+    }
+    console.error("[reagent-parse] finalize ai flow failed", {
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return result;
+  }
 }
 
 export async function parseReagentInput(
@@ -180,25 +292,54 @@ export async function parseReagentInput(
   let structured: z.infer<typeof verifiedReagentParsedSchema>;
   let parseSource: "llm" | "fallback" = "llm";
   let rawLlmOutput = "";
-  const model = process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-  const retrieval = retrieveReagentKnowledge({
+  const llmConfig = dependencies?.llmConfig;
+  const model = llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
+  const activeBaseUrl = cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL);
+  const diagnostics: ParseReagentDiagnostics = {
+    path: "fallback",
+    timingsMs: {},
+    degradedStages: [],
+  };
+  const retrievalStartedAt = Date.now();
+  const retrieval = await retrieveReagentKnowledgeRuntime({
     name: input.name,
     catalogNo: input.catalogNo,
     note: input.note ?? undefined,
   });
-  const searchWeb = dependencies?.searchWeb ?? searchReagentWeb;
+  diagnostics.timingsMs.retrieval = Date.now() - retrievalStartedAt;
+  const prepareFlowStartedAt = Date.now();
+  const execution = dependencies?.flowContext ? await prepareAiFlow(dependencies.flowContext) : null;
+  diagnostics.timingsMs.prepareFlow = Date.now() - prepareFlowStartedAt;
+  const enhancedEvidenceLines =
+    execution?.enabledSkills.includes("reagent-classification-curator")
+      ? [...retrieval.evidenceLines, ...buildReagentSkillHints(retrieval)]
+      : retrieval.evidenceLines;
+  const retrievalContext = {
+    ...retrieval,
+    evidenceLines: enhancedEvidenceLines,
+  };
+  const searchWeb = dependencies?.searchWeb ?? ((query: string) => searchReagentWeb(query, {
+    enabled: llmConfig?.searchEnabled,
+    provider: llmConfig?.searchProvider,
+    apiKey: llmConfig?.searchApiKey,
+    baseURL: llmConfig?.searchBaseURL,
+  }));
   const fetchPages = dependencies?.fetchPages ?? fetchVerificationPages;
 
   try {
-    const client = dependencies?.client ?? getLlmClient();
+    const client = dependencies?.client ?? getLlmClient({ apiKey: llmConfig?.apiKey, baseURL: llmConfig?.baseURL });
     let initialDraft: z.infer<typeof reagentParsedSchema> | null = null;
     let initialError: unknown = null;
 
+    const initialDraftStartedAt = Date.now();
     try {
-      const initial = await generateInitialDraft(client, model, input, retrieval);
+      const initial = await generateInitialDraft(client, model, activeBaseUrl, input, retrievalContext);
+      diagnostics.timingsMs.initialDraft = Date.now() - initialDraftStartedAt;
       rawLlmOutput = initial.rawOutput;
       initialDraft = initial.parsed;
     } catch (error) {
+      diagnostics.timingsMs.initialDraft = Date.now() - initialDraftStartedAt;
+      pushDegradedStage(diagnostics, error instanceof Error && error.message.includes("TIMEOUT") ? "initial_draft_timeout" : "initial_draft_failed");
       initialError = error;
       console.error("[reagent-parse] initial draft failed", {
         model,
@@ -208,7 +349,9 @@ export async function parseReagentInput(
     }
 
     try {
-      const nativeVerified = await verifyWithNativeWebSearch(client, model, input, initialDraft, retrieval);
+      const startedAt = Date.now();
+      const nativeVerified = await verifyWithNativeWebSearch(client, model, activeBaseUrl, input, initialDraft, retrievalContext);
+      diagnostics.timingsMs.nativeVerify = Date.now() - startedAt;
       if (nativeVerified) {
         rawLlmOutput = nativeVerified.rawOutput || rawLlmOutput;
         structured = withVerification(nativeVerified.parsed, {
@@ -220,7 +363,8 @@ export async function parseReagentInput(
               ? nativeVerified.parsed.verification.warnings
               : [...nativeVerified.parsed.verification.warnings, "原生联网搜索未返回可用来源，已降级为未核验状态。"],
         });
-        return {
+        diagnostics.path = "native_verified";
+        return finalizeResult({
           parsed: structured,
           parseSource,
           verificationStatus: structured.verification.status,
@@ -228,9 +372,19 @@ export async function parseReagentInput(
           verificationReason: structured.verification.reason,
           verificationWarnings: structured.verification.warnings,
           rawLlmOutput: rawLlmOutput || undefined,
-        };
+          diagnostics,
+        }, {
+          flowContext: dependencies?.flowContext,
+          execution,
+          input,
+          retrievalConfidence: retrieval.retrievalConfidence,
+          evidenceLines: retrievalContext.evidenceLines,
+          sourceCount: nativeVerified.sourceCount,
+        });
       }
     } catch (error) {
+      diagnostics.timingsMs.nativeVerify ??= 0;
+      pushDegradedStage(diagnostics, error instanceof Error && error.message.includes("TIMEOUT") ? "native_verify_timeout" : "native_verify_failed");
       console.error("[reagent-parse] native verification failed", {
         model,
         errorName: error instanceof Error ? error.name : typeof error,
@@ -241,20 +395,45 @@ export async function parseReagentInput(
     let verificationPages: VerificationPage[] = [];
     let verificationReason: ParseReagentResult["verificationReason"] = "native_tool_unavailable";
     let externalSearchFailed = false;
-    const externalSearchConfigured = dependencies?.searchWeb ? true : isExternalSearchConfigured();
+    const externalSearchConfigured = dependencies?.searchWeb
+      ? true
+      : isExternalSearchConfigured({
+          enabled: llmConfig?.searchEnabled,
+          provider: llmConfig?.searchProvider,
+          apiKey: llmConfig?.searchApiKey,
+          baseURL: llmConfig?.searchBaseURL,
+        });
     try {
+      const startedAt = Date.now();
       if (!externalSearchConfigured) {
         verificationReason = "external_search_unconfigured";
       } else {
-        const searchResults = await searchWeb(buildVerificationQuery(input));
+        const searchResults =
+          execution?.enabledMcpServers.includes("search")
+            ? await invokeMcpTool("search_web", {
+                query: buildVerificationQuery(input),
+                config: {
+                  enabled: llmConfig?.searchEnabled,
+                  provider: llmConfig?.searchProvider,
+                  apiKey: llmConfig?.searchApiKey,
+                  baseURL: llmConfig?.searchBaseURL,
+                },
+              })
+            : await searchWeb(buildVerificationQuery(input));
         if (searchResults.length) {
-          verificationPages = await fetchPages(searchResults);
+          verificationPages =
+            execution?.enabledMcpServers.includes("fetch")
+              ? await invokeMcpTool("fetch_pages", { results: searchResults, limit: 3 })
+              : await fetchPages(searchResults);
           verificationReason = verificationPages.length ? "verified" : "external_search_no_results";
         } else {
           verificationReason = "external_search_no_results";
         }
       }
+      diagnostics.timingsMs.externalSearch = Date.now() - startedAt;
     } catch (error) {
+      diagnostics.timingsMs.externalSearch ??= 0;
+      pushDegradedStage(diagnostics, "external_search_failed");
       externalSearchFailed = true;
       verificationReason = "external_search_failed";
       console.error("[reagent-parse] external search failed", {
@@ -263,8 +442,85 @@ export async function parseReagentInput(
       });
     }
 
+    if (!verificationPages.length && initialDraft) {
+      structured = buildVerificationPayload(initialDraft, {
+        status: "unverified",
+        method: "none",
+        reason: verificationReason,
+        warnings: buildVerificationWarnings(verificationReason),
+      });
+      diagnostics.path = "initial_draft_only";
+      if (verificationReason !== "verified") {
+        pushDegradedStage(diagnostics, verificationReason);
+      }
+      return finalizeResult({
+        parsed: structured,
+        parseSource,
+        verificationStatus: structured.verification.status,
+        verificationMethod: structured.verification.method,
+        verificationReason: structured.verification.reason,
+        verificationWarnings: structured.verification.warnings,
+        rawLlmOutput: rawLlmOutput || undefined,
+        diagnostics,
+      }, {
+        flowContext: dependencies?.flowContext,
+        execution,
+        input,
+        retrievalConfidence: retrieval.retrievalConfidence,
+        evidenceLines: retrievalContext.evidenceLines,
+        sourceCount: 0,
+      });
+    }
+
+    if (!verificationPages.length) {
+      parseSource = "fallback";
+      structured = withVerification(
+        heuristicFallback({
+          name: input.name,
+          catalogNo: input.catalogNo,
+          note: input.note,
+        }),
+        {
+          status: "unverified",
+          method: "none",
+          reason: "fallback_used",
+          warnings: ["未获取到可用外部证据，且模型初稿不可用，已直接使用规则兜底。"],
+        },
+      );
+      diagnostics.path = "fallback";
+      pushDegradedStage(diagnostics, verificationReason);
+      pushDegradedStage(diagnostics, "fallback_used");
+      return finalizeResult({
+        parsed: structured,
+        parseSource,
+        verificationStatus: structured.verification.status,
+        verificationMethod: structured.verification.method,
+        verificationReason: structured.verification.reason,
+        verificationWarnings: structured.verification.warnings,
+        rawLlmOutput: rawLlmOutput || undefined,
+        diagnostics,
+      }, {
+        flowContext: dependencies?.flowContext,
+        execution,
+        input,
+        retrievalConfidence: retrieval.retrievalConfidence,
+        evidenceLines: retrievalContext.evidenceLines,
+        sourceCount: 0,
+      });
+    }
+
+    const externalVerifyStartedAt = Date.now();
     try {
-      const externallyVerified = await verifyWithExternalEvidence(client, model, input, initialDraft, retrieval, verificationPages);
+      const externallyVerified = await verifyWithExternalEvidence(
+        client,
+        model,
+        activeBaseUrl,
+        input,
+        initialDraft,
+        retrievalContext,
+        verificationPages,
+      );
+      diagnostics.timingsMs.externalVerify = Date.now() - externalVerifyStartedAt;
       rawLlmOutput = externallyVerified.rawOutput || rawLlmOutput;
       structured = withVerification(externallyVerified.parsed, {
         ...externallyVerified.parsed.verification,
@@ -289,7 +545,8 @@ export async function parseReagentInput(
                   : "未配置外部搜索能力，结果保留为未核验。",
               ],
       });
-      return {
+      diagnostics.path = "external_verified";
+      return finalizeResult({
         parsed: structured,
         parseSource,
         verificationStatus: structured.verification.status,
@@ -297,8 +554,18 @@ export async function parseReagentInput(
         verificationReason: structured.verification.reason,
         verificationWarnings: structured.verification.warnings,
         rawLlmOutput: rawLlmOutput || undefined,
-      };
+        diagnostics,
+      }, {
+        flowContext: dependencies?.flowContext,
+        execution,
+        input,
+        retrievalConfidence: retrieval.retrievalConfidence,
+        evidenceLines: retrievalContext.evidenceLines,
+        sourceCount: verificationPages.length,
+      });
     } catch (error) {
+      diagnostics.timingsMs.externalVerify = Date.now() - externalVerifyStartedAt;
+      pushDegradedStage(diagnostics, error instanceof Error && error.message.includes("TIMEOUT") ? "external_verify_timeout" : "external_verify_failed");
       if (initialDraft) {
         structured = buildVerificationPayload(initialDraft, {
           status: "unverified",
@@ -306,7 +573,8 @@ export async function parseReagentInput(
           reason: externalSearchConfigured ? "verification_model_failed" : "external_search_unconfigured",
           warnings: [externalSearchConfigured ? "联网纠错失败，已保留初稿结果。" : "未配置外部搜索能力，已保留初稿结果。"],
         });
-        return {
+        diagnostics.path = "initial_draft_only";
+        return finalizeResult({
           parsed: structured,
           parseSource,
           verificationStatus: structured.verification.status,
@@ -314,15 +582,25 @@ export async function parseReagentInput(
           verificationReason: structured.verification.reason,
           verificationWarnings: structured.verification.warnings,
           rawLlmOutput: rawLlmOutput || undefined,
-        };
+          diagnostics,
+        }, {
+          flowContext: dependencies?.flowContext,
+          execution,
+          input,
+          retrievalConfidence: retrieval.retrievalConfidence,
+          evidenceLines: retrievalContext.evidenceLines,
+          sourceCount: verificationPages.length,
+        });
       }
       throw error instanceof Error ? error : new Error(String(error ?? initialError ?? "VERIFY_FAILED"));
     }
   } catch (error) {
     parseSource = "fallback";
+    diagnostics.path = "fallback";
+    pushDegradedStage(diagnostics, "fallback_used");
     console.error("[reagent-parse] llm parse failed", {
       model,
-      baseURL: process.env.OPENAI_BASE_URL || null,
+      baseURL: activeBaseUrl,
       errorName: error instanceof Error ? error.name : typeof error,
       errorMessage: error instanceof Error ? error.message : String(error),
       retrievalMatches: retrieval.matchedEntries.length,
@@ -350,7 +628,7 @@ export async function parseReagentInput(
     );
   }
 
-  return {
+  return finalizeResult({
     parsed: structured,
     parseSource,
     verificationStatus: structured.verification.status,
@@ -358,5 +636,13 @@ export async function parseReagentInput(
     verificationReason: structured.verification.reason,
     verificationWarnings: structured.verification.warnings,
     rawLlmOutput: rawLlmOutput || undefined,
-  };
+    diagnostics,
+  }, {
+    flowContext: dependencies?.flowContext,
+    execution,
+    input,
+    retrievalConfidence: retrieval.retrievalConfidence,
+    evidenceLines: retrievalContext.evidenceLines,
+    sourceCount: 0,
+  });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { requestJson } from "@/lib/http";
+import { useEffect, useRef, useState } from "react";
+import { isRequestTimeoutError, requestJson } from "@/lib/http";
 
 type ParsedReagent = {
   category: "ANTIBODY" | "BUFFER" | "KIT" | "PRIMER" | "BIOLOGICAL" | "CHEMICAL" | "CONSUMABLE" | "OTHER";
@@ -36,6 +36,65 @@ type ParsedReagent = {
 };
 
 type VerificationReason = NonNullable<ParsedReagent["verification"]>["reason"];
+type ParseStage = "idle" | "queued" | "processing" | "slow" | "done" | "error";
+type ParseDiagnostics = {
+  parse?: {
+    path: "native_verified" | "initial_draft_only" | "external_verified" | "fallback";
+    timingsMs?: Partial<Record<"retrieval" | "prepareFlow" | "initialDraft" | "nativeVerify" | "externalSearch" | "externalVerify" | "finalize", number>>;
+    degradedStages?: string[];
+  } | null;
+  route?: {
+    stage?: "auth" | "labAccess" | "loadConfig" | "parse" | "saveDraft" | "request";
+    failedStage?: "auth" | "labAccess" | "loadConfig" | "parse" | "saveDraft" | "request";
+    timingsMs?: Partial<Record<"auth" | "labAccess" | "loadConfig" | "parse" | "saveDraft" | "total", number>>;
+  } | null;
+};
+
+const parseStageOrder: ParseStage[] = ["queued", "processing", "slow"];
+const encouragementMessages = [
+  "保持耐心，结果正在靠近。",
+  "每一步都算数。",
+  "稳一点，会更好。",
+  "继续，马上就好。",
+  "你已经在推进了。",
+  "好结果值得等待。",
+  "别急，答案在路上。",
+  "慢一点，也是在前进。",
+];
+
+function parseStageLabel(stage: ParseStage) {
+  switch (stage) {
+    case "queued":
+      return "请求已发送";
+    case "processing":
+      return "服务端正在解析";
+    case "slow":
+      return "仍在等待服务端返回";
+    case "done":
+      return "解析完成";
+    case "error":
+      return "解析失败";
+    default:
+      return "等待开始";
+  }
+}
+
+function parseStageDescription(stage: ParseStage) {
+  switch (stage) {
+    case "queued":
+      return "已收到点击，正在提交名称、货号和备注。";
+    case "processing":
+      return "后端可能正在执行模型解析、联网核验、网页抓取或结果草稿保存。";
+    case "slow":
+      return "这表示请求还没返回，不代表前端真的卡在某个固定步骤。";
+    case "done":
+      return "可以查看结果并决定是否确认入库。";
+    case "error":
+      return "请检查输入内容、模型配置或网络状态后重试。";
+    default:
+      return "提交后这里会展示处理过程。";
+  }
+}
 
 function verificationReasonLabel(reason: VerificationReason | null | undefined) {
   switch (reason) {
@@ -60,6 +119,45 @@ function verificationReasonLabel(reason: VerificationReason | null | undefined) 
   }
 }
 
+function formatMs(value: number | undefined) {
+  if (typeof value !== "number") return null;
+  return `${(value / 1000).toFixed(value >= 10000 ? 1 : 2)}s`;
+}
+
+function routeStageLabel(stage: ParseDiagnostics["route"] extends infer T ? T extends { stage?: infer S } ? S : never : never) {
+  switch (stage) {
+    case "auth":
+      return "登录鉴权";
+    case "labAccess":
+      return "实验室权限";
+    case "loadConfig":
+      return "加载模型配置";
+    case "parse":
+      return "模型解析";
+    case "saveDraft":
+      return "保存草稿";
+    default:
+      return "请求处理";
+  }
+}
+
+function summarizeDiagnostics(diagnostics: ParseDiagnostics | null) {
+  if (!diagnostics) return null;
+  const parts = [
+    diagnostics.route?.timingsMs?.total ? `总耗时 ${formatMs(diagnostics.route.timingsMs.total)}` : null,
+    diagnostics.route?.failedStage
+      ? `失败阶段 ${routeStageLabel(diagnostics.route.failedStage)}`
+      : diagnostics.route?.stage
+        ? `最后阶段 ${routeStageLabel(diagnostics.route.stage)}`
+        : null,
+    diagnostics.parse?.timingsMs?.initialDraft ? `初稿 ${formatMs(diagnostics.parse.timingsMs.initialDraft)}` : null,
+    diagnostics.parse?.timingsMs?.externalSearch ? `搜索 ${formatMs(diagnostics.parse.timingsMs.externalSearch)}` : null,
+    diagnostics.parse?.timingsMs?.externalVerify ? `验证 ${formatMs(diagnostics.parse.timingsMs.externalVerify)}` : null,
+    diagnostics.route?.timingsMs?.saveDraft ? `存草稿 ${formatMs(diagnostics.route.timingsMs.saveDraft)}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" | ") : null;
+}
+
 export function ReagentForm({ labId }: { labId: string }) {
   const [name, setName] = useState("");
   const [catalogNo, setCatalogNo] = useState("");
@@ -70,33 +168,98 @@ export function ReagentForm({ labId }: { labId: string }) {
   const [parseSource, setParseSource] = useState<"llm" | "fallback" | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"verified" | "unverified" | null>(null);
   const [verificationReason, setVerificationReason] = useState<VerificationReason | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [parseStage, setParseStage] = useState<ParseStage>("idle");
+  const [parseStartedAt, setParseStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [encouragementIndex, setEncouragementIndex] = useState(0);
+  const [diagnostics, setDiagnostics] = useState<ParseDiagnostics | null>(null);
+  const phaseTimersRef = useRef<number[]>([]);
+
+  function clearPhaseTimers() {
+    phaseTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    phaseTimersRef.current = [];
+  }
+
+  function startParseProgress() {
+    clearPhaseTimers();
+    setIsParsing(true);
+    setParseStage("queued");
+    setParseStartedAt(Date.now());
+    setElapsedSeconds(0);
+    setEncouragementIndex(0);
+    phaseTimersRef.current = [
+      window.setTimeout(() => setParseStage("processing"), 300),
+      window.setTimeout(() => setParseStage("slow"), 12000),
+    ];
+  }
+
+  function finishParseProgress(stage: "done" | "error") {
+    clearPhaseTimers();
+    setIsParsing(false);
+    setParseStage(stage);
+  }
+
+  useEffect(() => {
+    if (!isParsing || !parseStartedAt) return;
+    const timerId = window.setInterval(() => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - parseStartedAt) / 1000)));
+    }, 250);
+    return () => window.clearInterval(timerId);
+  }, [isParsing, parseStartedAt]);
+
+  useEffect(() => {
+    if (!isParsing) return;
+    const timerId = window.setInterval(() => {
+      setEncouragementIndex((prev) => (prev + 1) % encouragementMessages.length);
+    }, 2600);
+    return () => window.clearInterval(timerId);
+  }, [isParsing]);
+
+  useEffect(() => () => clearPhaseTimers(), []);
 
   async function onParse(e: { preventDefault(): void }) {
     e.preventDefault();
     setMsg(null);
+    setDraftId(null);
+    setParsed(null);
     setParseSource(null);
     setVerificationStatus(null);
     setVerificationReason(null);
+    setDiagnostics(null);
+    startParseProgress();
     try {
       const { response, data } = await requestJson<{
-        draftId?: string;
+        draftId?: string | null;
+        draftSaveFailed?: boolean;
+        warning?: string;
         parseSource?: "llm" | "fallback";
         verificationStatus?: "verified" | "unverified";
         verificationReason?: VerificationReason;
         parsed?: ParsedReagent;
         error?: string;
+        code?: string;
+        detail?: string;
+        stage?: ParseDiagnostics["route"] extends infer T ? T extends { stage?: infer S } ? S : never : never;
+        diagnostics?: ParseDiagnostics;
       }>("/api/reagents/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ labId, name, catalogNo, note, lang: "zh" }),
+        timeoutMs: 90000,
       });
       if (response.status === 401) {
+        finishParseProgress("error");
         setMsg("登录状态已失效，正在跳转到登录页");
         window.location.href = "/login";
         return;
       }
       if (!response.ok) {
-        setMsg(data?.error ?? "解析失败");
+        finishParseProgress("error");
+        setDiagnostics(data?.diagnostics ?? null);
+        const diagnosticSummary = summarizeDiagnostics(data?.diagnostics ?? null);
+        setMsg([data?.error ?? "解析失败", data?.detail, diagnosticSummary].filter(Boolean).join(" | "));
         return;
       }
       setDraftId(data?.draftId ?? null);
@@ -104,18 +267,25 @@ export function ReagentForm({ labId }: { labId: string }) {
       setParseSource(data?.parseSource ?? null);
       setVerificationStatus(data?.verificationStatus ?? data?.parsed?.verification?.status ?? null);
       setVerificationReason(data?.verificationReason ?? data?.parsed?.verification?.reason ?? null);
-      if (data?.parseSource === "fallback") {
+      setDiagnostics(data?.diagnostics ?? null);
+      finishParseProgress("done");
+      if (data?.draftSaveFailed) {
+        const diagnosticSummary = summarizeDiagnostics(data?.diagnostics ?? null);
+        setMsg([data?.warning ?? "解析成功，但保存草稿失败，当前结果暂不能确认入库。", data?.detail, diagnosticSummary].filter(Boolean).join(" | "));
+      } else if (data?.parseSource === "fallback") {
         setMsg("模型解析失败，已使用规则兜底分类。");
       } else {
         setMsg(null);
       }
-    } catch {
-      setMsg("网络异常，请稍后重试");
+    } catch (error) {
+      finishParseProgress("error");
+      setMsg(isRequestTimeoutError(error) ? "请求超时，请检查模型配置、搜索配置或网络后重试" : "网络异常，请稍后重试");
     }
   }
 
   async function onConfirm() {
     if (!draftId || !parsed) return;
+    setIsConfirming(true);
     try {
       const { response, data } = await requestJson<{
         reagentId?: string;
@@ -158,6 +328,8 @@ export function ReagentForm({ labId }: { labId: string }) {
       setMsg(`已新增入库: ${data?.reagentId}`);
     } catch {
       setMsg("网络异常，请稍后重试");
+    } finally {
+      setIsConfirming(false);
     }
   }
 
@@ -166,7 +338,7 @@ export function ReagentForm({ labId }: { labId: string }) {
       <section className="app-panel px-6 py-6">
         <div className="mb-5">
           <p className="section-kicker">Step 1</p>
-          <h2 className="mt-3 text-2xl font-semibold text-white">输入原始试剂信息</h2>
+          <h2 className="mt-3 text-2xl font-semibold text-slate-900">输入原始试剂信息</h2>
           <p className="section-copy mt-2 text-sm">模型会结合名称、货号和补充备注生成结构化建议，最终仍需人工确认。</p>
         </div>
         <form onSubmit={onParse} className="space-y-4">
@@ -208,59 +380,103 @@ export function ReagentForm({ labId }: { labId: string }) {
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
-          <button className="button-primary w-full" type="submit">
-            调用模型解析
+          <button className="button-primary w-full" type="submit" disabled={isParsing}>
+            {isParsing ? `处理中 (${elapsedSeconds}s)` : "调用模型解析"}
           </button>
+          <p className="text-xs text-slate-500">
+            点击后会立即显示处理进度；若启用了联网核验，等待时间通常会更长一些。
+          </p>
         </form>
       </section>
 
       <section className="app-panel px-6 py-6">
         <div className="mb-5">
           <p className="section-kicker">Step 2 / 3</p>
-          <h2 className="mt-3 text-2xl font-semibold text-white">结构化结果与确认入库</h2>
+          <h2 className="mt-3 text-2xl font-semibold text-slate-900">结构化结果与确认入库</h2>
           <p className="section-copy mt-2 text-sm">优先展示人可读摘要，原始 JSON 保留为调试信息。</p>
         </div>
 
-        {parsed ? (
+        {isParsing ? (
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-blue-200 bg-blue-50 px-5 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-blue-900">{parseStageLabel(parseStage)}</p>
+                  <p className="mt-1 text-sm text-blue-800">{parseStageDescription(parseStage)}</p>
+                </div>
+                <span className="status-pill">已等待 {elapsedSeconds}s</span>
+              </div>
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 transition-all">
+                {encouragementMessages[encouragementIndex]}
+              </div>
+              <div className="mt-4 space-y-2">
+                {parseStageOrder.map((stage) => {
+                  const currentIndex = parseStageOrder.indexOf(parseStage);
+                  const stageIndex = parseStageOrder.indexOf(stage);
+                  const isActive = currentIndex === stageIndex;
+                  const isDone = currentIndex > stageIndex;
+                  return (
+                    <div
+                      key={stage}
+                      className={`rounded-2xl border px-4 py-3 text-sm ${
+                        isDone
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : isActive
+                            ? "border-blue-200 bg-white text-blue-900"
+                            : "border-slate-200 bg-white text-slate-500"
+                      }`}
+                    >
+                      {isDone ? "已完成" : isActive ? "进行中" : "等待中"}：{parseStageLabel(stage)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
+              正在等待模型返回结构化结果，这里稍后会自动切换为可读摘要与确认入库入口。
+            </div>
+          </div>
+        ) : parsed ? (
           <div className="space-y-4">
             <div className="data-grid">
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">类别</p>
-                <p className="mt-2 font-medium text-white">{parsed.category}</p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">类别</p>
+                <p className="mt-2 font-medium text-slate-900">{parsed.category}</p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">子类</p>
-                <p className="mt-2 font-medium text-white">{parsed.subCategory || "未识别"}</p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">子类</p>
+                <p className="mt-2 font-medium text-slate-900">{parsed.subCategory || "未识别"}</p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">厂商</p>
-                <p className="mt-2 font-medium text-white">{parsed.vendor || "未识别"}</p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">厂商</p>
+                <p className="mt-2 font-medium text-slate-900">{parsed.vendor || "未识别"}</p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">实验标签</p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">实验标签</p>
                 {parsed.experimentTags?.length ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {parsed.experimentTags.map((tag) => (
-                      <span key={tag} className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
+                      <span key={tag} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700">
                         {tag}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-zinc-300">未识别，可后续补充多个标签</p>
+                  <p className="mt-2 text-sm text-slate-500">未识别，可后续补充多个标签</p>
                 )}
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">抗体信息</p>
-                <p className="mt-2 text-sm text-white">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">抗体信息</p>
+                <p className="mt-2 text-sm text-slate-900">
                   {parsed.antibodyMeta
                     ? [parsed.antibodyMeta.role, parsed.antibodyMeta.targetName, parsed.antibodyMeta.hostSpecies].filter(Boolean).join(" / ")
                     : "无"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
-                <p className="text-sm text-zinc-400">引物信息</p>
-                <p className="mt-2 text-sm text-white">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm text-slate-500">引物信息</p>
+                <p className="mt-2 text-sm text-slate-900">
                   {parsed.primerMeta
                     ? [parsed.primerMeta.targetName, parsed.primerMeta.isReferenceGene ? "内参" : null].filter(Boolean).join(" / ")
                     : "无"}
@@ -268,33 +484,42 @@ export function ReagentForm({ labId }: { labId: string }) {
               </div>
             </div>
 
-            {parseSource ? (
-              <p className={parseSource === "llm" ? "status-pill" : "warning-panel text-sm"}>
-                解析来源：{parseSource === "llm" ? "LLM" : "Fallback"}
-              </p>
-            ) : null}
-            {verificationStatus ? (
-              <p className={verificationStatus === "verified" ? "success-panel text-sm" : "glass-badge"}>
-                联网核验：{verificationStatus === "verified" ? "已核验" : "未核验"}
-              </p>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {parseSource ? (
+                <span className={parseSource === "llm" ? "status-pill" : "warning-panel text-sm"}>
+                  解析来源：{parseSource === "llm" ? "LLM" : "Fallback"}
+                </span>
+              ) : null}
+              {verificationStatus ? (
+                <span className={verificationStatus === "verified" ? "success-panel text-sm" : "glass-badge"}>
+                  联网核验：{verificationStatus === "verified" ? "已核验" : "未核验"}
+                </span>
+              ) : null}
+              {parseStage === "done" ? <span className="glass-badge">本次解析耗时 {elapsedSeconds}s</span> : null}
+            </div>
             {verificationReasonLabel(verificationReason) ? (
-              <p className={verificationStatus === "verified" ? "text-sm text-emerald-200" : "warning-panel text-sm"}>
+              <p className={verificationStatus === "verified" ? "text-sm text-emerald-700" : "warning-panel text-sm"}>
                 {verificationReasonLabel(verificationReason)}
               </p>
             ) : null}
+            {parseSource === "llm" ? (
+              <p className="text-sm text-slate-500">
+                本次已完成模型解析；如果启用了联网核验，结果中已包含搜索/纠偏后的最终状态。
+              </p>
+            ) : null}
+            {summarizeDiagnostics(diagnostics) ? <p className="text-xs text-slate-500">诊断：{summarizeDiagnostics(diagnostics)}</p> : null}
 
-            <details className="rounded-2xl border border-white/8 bg-black/10 px-4 py-4">
-              <summary className="cursor-pointer text-sm font-medium text-zinc-200">查看原始 JSON</summary>
-              <pre className="mt-4 overflow-auto text-xs text-zinc-300">{JSON.stringify(parsed, null, 2)}</pre>
+            <details className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">查看原始 JSON</summary>
+              <pre className="mt-4 overflow-auto text-xs text-slate-600">{JSON.stringify(parsed, null, 2)}</pre>
             </details>
 
-            <button type="button" onClick={onConfirm} className="button-primary w-full">
-              确认入库
+            <button type="button" onClick={onConfirm} className="button-primary w-full" disabled={isConfirming || !draftId || !parsed}>
+              {isConfirming ? "确认入库中..." : draftId ? "确认入库" : "草稿未保存，暂不能入库"}
             </button>
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-white/10 px-5 py-8 text-sm text-zinc-400">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
             提交原始信息后，这里会显示结构化分类、实验标签、抗体 / 引物摘要与确认入库入口。
           </div>
         )}

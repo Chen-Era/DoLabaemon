@@ -6,6 +6,10 @@ import { ruleCatalog, type ExperimentTag } from "@/lib/rules/catalog";
 import { checkWbAntibodyCompatibility } from "@/lib/rules/wb-antibody-check";
 import { resolveExperimentInput } from "@/lib/experiment/resolve";
 import type { ExperimentResolution } from "@/lib/experiment-knowledge/types";
+import type { ExperimentKnowledgeEntry } from "@/lib/experiment-knowledge/types";
+import type { UserLlmConfigInput } from "@/lib/llm/runtime-config";
+import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
+import type { ReagentKnowledgeEntry } from "@/lib/reagent-knowledge/types";
 import {
   buildHeuristicParse,
   type HeuristicParsedReagent,
@@ -13,6 +17,8 @@ import {
   type ParsedPrimerMeta,
   type ReagentCategory,
 } from "@/lib/reagent-tagging";
+import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
+import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
 
 type Role = "PI" | "ADMIN" | "MEMBER";
 
@@ -56,6 +62,41 @@ type DemoExperimentResolveDraft = {
   isConfirmed: boolean;
 };
 
+type DemoLlmConfig = UserLlmConfigInput & {
+  userId: string;
+};
+
+type DemoLabAiPolicy = {
+  labId: string;
+  allowAutoLearn: boolean;
+  allowedRoles: Role[];
+  enabledKnowledgeDomains: string[];
+};
+
+type DemoKnowledgeMutationLog = {
+  id: string;
+  labId: string;
+  userId: string;
+  flowType: string;
+  domain: string;
+  entityKey: string;
+  status: string;
+  beforeData?: unknown;
+  afterData?: unknown;
+  evidenceSummary: string[];
+  modelName?: string | null;
+  rolledBackAt?: string | null;
+  createdAt: string;
+};
+
+type DemoReagentKnowledgeEntry = ReagentKnowledgeEntry & {
+  source?: string;
+};
+
+type DemoExperimentKnowledgeEntry = ExperimentKnowledgeEntry & {
+  source?: string;
+};
+
 type DemoStoreShape = {
   users: DemoUser[];
   labs: DemoLab[];
@@ -64,6 +105,11 @@ type DemoStoreShape = {
   reagents: DemoReagent[];
   drafts: DemoDraft[];
   experimentResolveDrafts: DemoExperimentResolveDraft[];
+  llmConfigs: DemoLlmConfig[];
+  aiPolicies: DemoLabAiPolicy[];
+  knowledgeMutationLogs: DemoKnowledgeMutationLog[];
+  reagentKnowledgeEntries: DemoReagentKnowledgeEntry[];
+  experimentKnowledgeEntries: DemoExperimentKnowledgeEntry[];
 };
 
 const DEMO_DATA_DIR = path.join(process.cwd(), ".data");
@@ -107,6 +153,18 @@ function createDefaultStore(): DemoStoreShape {
     reagents: [],
     drafts: [],
     experimentResolveDrafts: [],
+    llmConfigs: [],
+    aiPolicies: [
+      {
+        labId: demoLabId,
+        allowAutoLearn: false,
+        allowedRoles: ["PI"],
+        enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
+      },
+    ],
+    knowledgeMutationLogs: [],
+    reagentKnowledgeEntries: reagentKnowledgeCatalog as DemoReagentKnowledgeEntry[],
+    experimentKnowledgeEntries: experimentKnowledgeCatalog as DemoExperimentKnowledgeEntry[],
   };
 }
 
@@ -130,6 +188,11 @@ function readStore(): DemoStoreShape {
     reagents: Array.isArray(parsed.reagents) ? parsed.reagents : [],
     drafts: Array.isArray(parsed.drafts) ? parsed.drafts : [],
     experimentResolveDrafts: Array.isArray(parsed.experimentResolveDrafts) ? parsed.experimentResolveDrafts : [],
+    llmConfigs: Array.isArray(parsed.llmConfigs) ? parsed.llmConfigs : [],
+    aiPolicies: Array.isArray(parsed.aiPolicies) ? parsed.aiPolicies : base.aiPolicies,
+    knowledgeMutationLogs: Array.isArray(parsed.knowledgeMutationLogs) ? parsed.knowledgeMutationLogs : [],
+    reagentKnowledgeEntries: Array.isArray(parsed.reagentKnowledgeEntries) ? parsed.reagentKnowledgeEntries : base.reagentKnowledgeEntries,
+    experimentKnowledgeEntries: Array.isArray(parsed.experimentKnowledgeEntries) ? parsed.experimentKnowledgeEntries : base.experimentKnowledgeEntries,
   };
 }
 
@@ -161,6 +224,137 @@ export function demoRequireUser(req?: Request) {
     email: matchedUser.email,
     name: matchedUser.displayName ?? matchedUser.email,
   };
+}
+
+export function demoGetLlmConfig(userId: string) {
+  const store = readStore();
+  return store.llmConfigs.find((item) => item.userId === userId) ?? null;
+}
+
+export function demoUpsertLlmConfig(userId: string, input: UserLlmConfigInput) {
+  const store = readStore();
+  const current = store.llmConfigs.find((item) => item.userId === userId);
+  const next: DemoLlmConfig = { ...current, userId, ...input };
+  const existingIndex = store.llmConfigs.findIndex((item) => item.userId === userId);
+  if (existingIndex >= 0) {
+    store.llmConfigs[existingIndex] = next;
+  } else {
+    store.llmConfigs.push(next);
+  }
+  writeStore(store);
+  return next;
+}
+
+export function demoGetLabMembership(userId: string, labId: string) {
+  const store = readStore();
+  return store.memberships.find((item) => item.userId === userId && item.labId === labId) ?? null;
+}
+
+export function demoGetLabAiPolicy(labId: string) {
+  const store = readStore();
+  return (
+    store.aiPolicies.find((item) => item.labId === labId) ?? {
+      labId,
+      allowAutoLearn: false,
+      allowedRoles: ["PI"],
+      enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
+    }
+  );
+}
+
+export function demoUpsertLabAiPolicy(input: DemoLabAiPolicy) {
+  const store = readStore();
+  const existingIndex = store.aiPolicies.findIndex((item) => item.labId === input.labId);
+  if (existingIndex >= 0) {
+    store.aiPolicies[existingIndex] = input;
+  } else {
+    store.aiPolicies.push(input);
+  }
+  writeStore(store);
+  return input;
+}
+
+export function demoCreateKnowledgeMutationLog(
+  input: Omit<DemoKnowledgeMutationLog, "id" | "createdAt" | "rolledBackAt"> & { rolledBackAt?: string | null },
+) {
+  const store = readStore();
+  const next: DemoKnowledgeMutationLog = {
+    id: uid("knowledge-log"),
+    createdAt: new Date().toISOString(),
+    rolledBackAt: input.rolledBackAt ?? null,
+    ...input,
+  };
+  store.knowledgeMutationLogs.unshift(next);
+  writeStore(store);
+  return next;
+}
+
+export function demoListKnowledgeMutationLogs(labId: string) {
+  const store = readStore();
+  return store.knowledgeMutationLogs.filter((item) => item.labId === labId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export function demoGetKnowledgeMutationLog(logId: string) {
+  const store = readStore();
+  return store.knowledgeMutationLogs.find((item) => item.id === logId) ?? null;
+}
+
+export function demoRollbackKnowledgeMutationLog(logId: string) {
+  const store = readStore();
+  const matched = store.knowledgeMutationLogs.find((item) => item.id === logId);
+  if (!matched) {
+    return { error: "LOG_NOT_FOUND" as const };
+  }
+  matched.status = "ROLLED_BACK";
+  matched.rolledBackAt = new Date().toISOString();
+  writeStore(store);
+  return matched;
+}
+
+export function demoListReagentKnowledgeEntries() {
+  const store = readStore();
+  return store.reagentKnowledgeEntries;
+}
+
+export function demoListExperimentKnowledgeEntries() {
+  const store = readStore();
+  return store.experimentKnowledgeEntries;
+}
+
+export function demoUpsertReagentKnowledgeEntry(entry: DemoReagentKnowledgeEntry) {
+  const store = readStore();
+  const index = store.reagentKnowledgeEntries.findIndex((item) => item.id === entry.id);
+  if (index >= 0) {
+    store.reagentKnowledgeEntries[index] = entry;
+  } else {
+    store.reagentKnowledgeEntries.push(entry);
+  }
+  writeStore(store);
+  return entry;
+}
+
+export function demoUpsertExperimentKnowledgeEntry(entry: DemoExperimentKnowledgeEntry) {
+  const store = readStore();
+  const index = store.experimentKnowledgeEntries.findIndex((item) => item.id === entry.id);
+  if (index >= 0) {
+    store.experimentKnowledgeEntries[index] = entry;
+  } else {
+    store.experimentKnowledgeEntries.push(entry);
+  }
+  writeStore(store);
+  return entry;
+}
+
+export function demoDeleteReagentKnowledgeEntry(id: string) {
+  const store = readStore();
+  store.reagentKnowledgeEntries = store.reagentKnowledgeEntries.filter((item) => item.id !== id);
+  writeStore(store);
+}
+
+export function demoDeleteExperimentKnowledgeEntry(id: string) {
+  const store = readStore();
+  store.experimentKnowledgeEntries = store.experimentKnowledgeEntries.filter((item) => item.id !== id);
+  writeStore(store);
 }
 
 export async function demoLogin(input: { email: string; password: string }) {
@@ -201,6 +395,12 @@ export async function demoRegister(input: { email: string; password: string; dis
   store.users.push(user);
   store.labs.push({ id: labId, name: input.labName });
   store.memberships.push({ userId, labId, role: "PI" });
+  store.aiPolicies.push({
+    labId,
+    allowAutoLearn: false,
+    allowedRoles: ["PI"],
+    enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
+  });
   writeStore(store);
   return { userId, labId };
 }
@@ -233,6 +433,12 @@ export function demoCreateLab(input: { userId: string; name: string }) {
   const labId = uid("lab");
   store.labs.push({ id: labId, name: labName });
   store.memberships.push({ userId: input.userId, labId, role: "PI" });
+  store.aiPolicies.push({
+    labId,
+    allowAutoLearn: false,
+    allowedRoles: ["PI"],
+    enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
+  });
   writeStore(store);
   return { labId };
 }
@@ -373,7 +579,13 @@ export function demoCheckExperiment(input: {
     warnings,
     compatibilityIssues:
       input.experimentType === "WB"
-        ? checkWbAntibodyCompatibility(reagents.flatMap((reagent) => (reagent.antibodyMeta ? [reagent.antibodyMeta] : [])))
+        ? checkWbAntibodyCompatibility(
+            reagents
+              .flatMap((reagent) => (reagent.antibodyMeta ? [reagent.antibodyMeta] : []))
+              .filter(
+                (meta): meta is DemoAntibodyMeta & { role: "PRIMARY" | "SECONDARY" } => meta.role === "PRIMARY" || meta.role === "SECONDARY",
+              ),
+          )
         : [],
     resolvedExperimentType: input.experimentType,
     resolutionSource: input.resolution?.resolutionSource ?? "DIRECT",
@@ -390,12 +602,14 @@ export async function demoResolveExperiment(input: {
   experimentContext?: string;
   direction?: string;
   lang?: "zh" | "en";
+  llmConfig?: RuntimeLlmConfig;
 }) {
   const resolution = await resolveExperimentInput({
     customExperimentName: input.customExperimentName,
     experimentContext: input.experimentContext,
     directionCode: input.direction,
     lang: input.lang,
+    llmConfig: input.llmConfig,
   });
   const store = readStore();
   let draftId: string | undefined;

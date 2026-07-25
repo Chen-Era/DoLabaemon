@@ -35,7 +35,7 @@ export default function NewReagentPage() {
     <div className="space-y-6">
       <section className="app-panel-strong px-6 py-6 md:px-8">
         <p className="section-kicker">Ingestion Workspace</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">新增试剂</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">新增试剂</h1>
         <p className="section-copy mt-3 max-w-2xl text-sm md:text-base">
           按照“原始信息输入、模型解析、人工确认入库”的顺序组织录入流程，让试剂知识更容易复用。
         </p>

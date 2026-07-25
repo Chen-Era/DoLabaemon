@@ -1,3 +1,4 @@
+import type { NextApiRequest } from "next";
 import { cookies } from "next/headers";
 import { getToken } from "next-auth/jwt";
 import { isDemoMode } from "@/lib/demo-mode";
@@ -34,7 +35,7 @@ export async function requireUserFromRequest(req?: Request) {
     .join("; ");
 
   const token = await getToken({
-    req: { headers: { cookie: cookieHeader } } as { headers: { cookie: string } },
+    req: { headers: { cookie: cookieHeader } } as NextApiRequest,
     secret: process.env.NEXTAUTH_SECRET,
   });
 

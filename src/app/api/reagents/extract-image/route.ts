@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLlmClient } from "@/lib/llm/client";
+import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { isDemoMode } from "@/lib/demo-mode";
 import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
@@ -19,8 +20,8 @@ function buildImagePrompt(lang: "zh" | "en") {
   return "请把这张试剂清单图片转成可编辑纯文本，尽量保持原始行顺序，并保留厂家、货号、抗体宿主/适用种属兼容性及备注等细节。不要总结，只输出文本内容。";
 }
 
-function getVisionModel() {
-  return process.env.OPENAI_VISION_MODEL || process.env.OPENAI_IMAGE_MODEL || process.env.OPENAI_MODEL || "MiniMax-VL-01";
+function getVisionModel(config?: { visionModel?: string | null; model?: string | null }) {
+  return config?.visionModel || config?.model || process.env.OPENAI_VISION_MODEL || process.env.OPENAI_IMAGE_MODEL || process.env.OPENAI_MODEL || "MiniMax-VL-01";
 }
 
 function isLikelyVisionRefusal(text: string) {
@@ -48,8 +49,9 @@ export async function POST(req: Request) {
       await assertLabAccess(user.id, parsed.data.labId);
     }
 
-    const client = getLlmClient();
-    const model = getVisionModel();
+    const llmConfig = await getRuntimeLlmConfigForUser(user.id);
+    const client = getLlmClient({ apiKey: llmConfig.apiKey, baseURL: llmConfig.baseURL });
+    const model = getVisionModel({ visionModel: llmConfig.visionModel, model: llmConfig.model });
     const response = await client.chat.completions.create({
       model,
       messages: [

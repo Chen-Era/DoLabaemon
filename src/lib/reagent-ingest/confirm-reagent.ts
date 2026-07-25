@@ -13,11 +13,13 @@ export type ConfirmReagentResult =
       afterQuantity: number;
     };
 
+type IncrementedConfirmReagentResult = Extract<ConfirmReagentResult, { action: "incremented" }>;
+
 export function normalizeExistingQuantity(quantity: number | null | undefined) {
   return quantity ?? 1;
 }
 
-export function buildIncrementResult(reagentId: string, quantity: number | null | undefined): ConfirmReagentResult {
+export function buildIncrementResult(reagentId: string, quantity: number | null | undefined): IncrementedConfirmReagentResult {
   const beforeQuantity = normalizeExistingQuantity(quantity);
   return {
     action: "incremented",

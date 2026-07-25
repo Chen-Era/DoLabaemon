@@ -14,10 +14,10 @@ export function CheckResult(props: {
   const statusText = blocked ? "未通过" : "通过";
   const confidenceText = props.confidenceLabel === "HIGH" ? "高" : props.confidenceLabel === "MEDIUM" ? "中" : "低";
   const tone = blocked
-    ? "border-[rgba(242,127,143,0.36)] bg-[rgba(242,127,143,0.12)] text-[#ffd8df]"
+    ? "border-red-200 bg-red-50 text-red-700"
     : hasWarnings
-      ? "border-[rgba(242,190,87,0.32)] bg-[rgba(242,190,87,0.1)] text-[#ffe7a8]"
-      : "border-[rgba(51,211,166,0.32)] bg-[rgba(51,211,166,0.1)] text-[#d7fff2]";
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : "border-emerald-200 bg-emerald-50 text-emerald-700";
   const title = blocked ? "不可开展" : hasWarnings ? "可尝试但有风险" : "可开展";
   const summary = blocked
     ? `当前不建议直接开展。先补齐最低必需项：${props.minMissing.join("；") || "无"}`
@@ -50,9 +50,9 @@ export function CheckResult(props: {
 
       <div className="data-grid">
         {cards.map((card) => (
-          <div key={card.title} className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4 text-sm">
-            <p className="text-zinc-400">{card.title}</p>
-            <p className="mt-3 leading-7 text-white">{card.value}</p>
+          <div key={card.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm">
+            <p className="text-slate-500">{card.title}</p>
+            <p className="mt-3 leading-7 text-slate-900">{card.value}</p>
           </div>
         ))}
       </div>

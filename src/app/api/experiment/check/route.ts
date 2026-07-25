@@ -5,6 +5,7 @@ import { assertLabAccess } from "@/lib/permissions";
 import { runExperimentCheck } from "@/lib/rules/engine";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoCheckExperiment } from "@/lib/demo-store";
+import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { resolveExperimentInput } from "@/lib/experiment/resolve";
 import { experimentTypeCatalog } from "@/lib/rules/catalog";
 
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
     if (isDemoMode()) {
+      const llmConfig = await getRuntimeLlmConfigForUser(user.id);
       const resolution =
         parsed.data.inputMode === "MANUAL"
           ? await resolveExperimentInput({
@@ -46,6 +48,7 @@ export async function POST(req: Request) {
               experimentContext: parsed.data.experimentContext,
               directionCode: parsed.data.direction,
               lang: parsed.data.lang,
+              llmConfig,
             })
           : null;
       return NextResponse.json(
@@ -60,6 +63,7 @@ export async function POST(req: Request) {
       );
     }
     await assertLabAccess(user.id, parsed.data.labId);
+    const llmConfig = await getRuntimeLlmConfigForUser(user.id);
     const resolution =
       parsed.data.inputMode === "MANUAL"
         ? await resolveExperimentInput({
@@ -67,6 +71,7 @@ export async function POST(req: Request) {
             experimentContext: parsed.data.experimentContext,
             directionCode: parsed.data.direction,
             lang: parsed.data.lang,
+            llmConfig,
           })
         : null;
     const experimentCode =

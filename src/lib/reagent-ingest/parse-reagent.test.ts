@@ -3,14 +3,34 @@ import assert from "node:assert/strict";
 import { parseReagentInput } from "@/lib/reagent-ingest/parse-reagent";
 
 function createFakeClient(outputs: string[]) {
+  const nextOutput = async () => {
+    const next = outputs.shift();
+    if (next === undefined) {
+      throw new Error("NO_MORE_FAKE_OUTPUTS");
+    }
+    return next;
+  };
   return {
     responses: {
       create: async () => {
-        const next = outputs.shift();
-        if (next === undefined) {
-          throw new Error("NO_MORE_FAKE_OUTPUTS");
-        }
+        const next = await nextOutput();
         return { output_text: next, output: [] };
+      },
+    },
+    chat: {
+      completions: {
+        create: async () => {
+          const next = await nextOutput();
+          return {
+            choices: [
+              {
+                message: {
+                  content: next,
+                },
+              },
+            ],
+          };
+        },
       },
     },
   } as const;
@@ -93,11 +113,13 @@ test("parseReagentInput recovers invalid first-pass output with external verific
       assert.equal(result.verificationReason, "verified");
       assert.equal(result.parsed.vendor, "Abcam");
       assert.equal(result.parsed.verification.status, "verified");
+      assert.equal(result.diagnostics?.path, "external_verified");
+      assert.ok(typeof result.diagnostics?.timingsMs.externalVerify === "number");
     },
   );
 });
 
-test("parseReagentInput keeps initial draft when verification fails", async () => {
+test("parseReagentInput keeps initial draft when no external evidence is available", async () => {
   await withEnv(
     {
       OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
@@ -135,7 +157,52 @@ test("parseReagentInput keeps initial draft when verification fails", async () =
       assert.equal(result.verificationStatus, "unverified");
       assert.equal(result.parsed.category, "BUFFER");
       assert.equal(result.parsed.verification.method, "none");
-      assert.equal(result.verificationReason, "verification_model_failed");
+      assert.equal(result.verificationReason, "external_search_no_results");
+      assert.equal(result.diagnostics?.path, "initial_draft_only");
+      assert.ok(result.diagnostics?.degradedStages.includes("external_search_no_results"));
+    },
+  );
+});
+
+test("parseReagentInput skips second llm call when no external evidence is available", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BUFFER",
+          subCategory: "Culture Medium",
+          vendor: "Gibco",
+          confidence: 0.91,
+          warnings: [],
+          experimentTags: ["CELL_CULTURE_MEDIUM"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "DMEM",
+          catalogNo: "11965092",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.verificationStatus, "unverified");
+      assert.equal(result.verificationMethod, "none");
+      assert.equal(result.verificationReason, "external_search_no_results");
+      assert.equal(result.parsed.category, "BUFFER");
+      assert.equal(result.diagnostics?.path, "initial_draft_only");
     },
   );
 });
@@ -167,6 +234,170 @@ test("parseReagentInput falls back only after llm and verification paths fail", 
       assert.equal(result.verificationMethod, "none");
       assert.equal(result.verificationReason, "fallback_used");
       assert.ok(result.parsed.warnings.some((warning) => warning.includes("兜底")));
+      assert.equal(result.diagnostics?.path, "fallback");
+      assert.ok(result.diagnostics?.degradedStages.includes("fallback_used"));
+    },
+  );
+});
+
+test("parseReagentInput falls back directly when initial draft is unavailable and no external evidence exists", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient(["bad-json"]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Puromycin",
+          catalogNo: "P8833",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "fallback");
+      assert.equal(result.verificationStatus, "unverified");
+      assert.equal(result.verificationMethod, "none");
+      assert.equal(result.verificationReason, "fallback_used");
+      assert.equal(result.diagnostics?.path, "fallback");
+      assert.ok(result.diagnostics?.degradedStages.includes("external_search_no_results"));
+      assert.ok(result.diagnostics?.degradedStages.includes("fallback_used"));
+      assert.equal(result.diagnostics?.timingsMs.externalVerify, undefined);
+    },
+  );
+});
+
+test("parseReagentInput records external verify timing when verification model fails after evidence retrieval", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "Abcam",
+          confidence: 0.9,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+        "bad-json-again",
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Recombinant human BMP2 protein",
+          catalogNo: "ab12345",
+          note: "bone remodeling",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [{ title: "Abcam BMP2 protein ab12345", url: "https://www.abcam.com/ab12345", snippet: "Abcam product page", domain: "www.abcam.com" }],
+          fetchPages: async () => [
+            {
+              title: "Abcam BMP2 protein ab12345",
+              url: "https://www.abcam.com/ab12345",
+              domain: "www.abcam.com",
+              snippet: "Abcam product page",
+              excerpt: "Recombinant human BMP2 protein catalog ab12345 from Abcam.",
+            },
+          ],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.verificationStatus, "unverified");
+      assert.equal(result.verificationReason, "verification_model_failed");
+      assert.equal(result.diagnostics?.path, "initial_draft_only");
+      assert.ok(typeof result.diagnostics?.timingsMs.externalVerify === "number");
+      assert.ok((result.diagnostics?.timingsMs.externalVerify ?? 0) >= 0);
+      assert.ok(result.diagnostics?.degradedStages.includes("external_verify_failed"));
+    },
+  );
+});
+
+test("parseReagentInput records initial draft timing when first-pass model output fails", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient(["bad-json"]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Puromycin",
+          catalogNo: "P8833",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "fallback");
+      assert.ok(typeof result.diagnostics?.timingsMs.initialDraft === "number");
+      assert.ok((result.diagnostics?.timingsMs.initialDraft ?? 0) >= 0);
+      assert.ok(result.diagnostics?.degradedStages.includes("initial_draft_failed"));
+    },
+  );
+});
+
+test("parseReagentInput parses think-wrapped fenced model output instead of falling back", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const draftJson = JSON.stringify({
+        category: "BUFFER",
+        subCategory: "Culture Medium",
+        vendor: "Gibco",
+        confidence: 0.9,
+        warnings: [],
+        experimentTags: ["CELL_CULTURE_MEDIUM"],
+        antibodyMeta: null,
+        primerMeta: null,
+      });
+      const client = createFakeClient([
+        `<think>DMEM 是常用细胞培养基，应归为 BUFFER，标签 CELL_CULTURE_MEDIUM。</think>\n\`\`\`json\n${draftJson}\n\`\`\``,
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "DMEM",
+          catalogNo: "11965092",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.parsed.category, "BUFFER");
+      assert.equal(result.parsed.vendor, "Gibco");
+      assert.deepEqual(result.parsed.experimentTags, ["CELL_CULTURE_MEDIUM"]);
+      assert.equal(result.diagnostics?.path, "initial_draft_only");
+      assert.ok(!result.diagnostics?.degradedStages.includes("initial_draft_failed"));
     },
   );
 });

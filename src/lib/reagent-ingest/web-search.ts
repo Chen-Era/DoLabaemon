@@ -1,8 +1,17 @@
+import { cleanUrlText } from "@/lib/url/clean-url";
+
 export type ReagentSearchResult = {
   title: string;
   url: string;
   snippet: string;
   domain: string;
+};
+
+export type ReagentSearchConfig = {
+  enabled?: boolean;
+  provider?: string | null;
+  apiKey?: string | null;
+  baseURL?: string | null;
 };
 
 type SearchProvider = "tavily" | "serper";
@@ -19,18 +28,20 @@ function buildDomain(url: string) {
   }
 }
 
-function isSearchEnabled() {
+function isSearchEnabled(config?: ReagentSearchConfig) {
+  if (typeof config?.enabled === "boolean") return config.enabled;
   return process.env.REAGENT_SEARCH_ENABLED !== "false";
 }
 
-function getConfiguredProvider(): SearchProvider | null {
-  const provider = cleanText(process.env.REAGENT_SEARCH_PROVIDER).toLowerCase();
+function getConfiguredProvider(config?: ReagentSearchConfig): SearchProvider | null {
+  const provider = cleanText(config?.provider ?? process.env.REAGENT_SEARCH_PROVIDER).toLowerCase();
   if (provider === "tavily" || provider === "serper") return provider;
   return null;
 }
 
-async function searchWithTavily(query: string, apiKey: string): Promise<ReagentSearchResult[]> {
-  const response = await fetch(process.env.REAGENT_SEARCH_BASE_URL || "https://api.tavily.com/search", {
+async function searchWithTavily(query: string, apiKey: string, baseURL?: string | null): Promise<ReagentSearchResult[]> {
+  const resolvedBaseUrl = cleanUrlText(baseURL) ?? cleanUrlText(process.env.REAGENT_SEARCH_BASE_URL) ?? "https://api.tavily.com/search";
+  const response = await fetch(resolvedBaseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -67,8 +78,9 @@ async function searchWithTavily(query: string, apiKey: string): Promise<ReagentS
     .filter((item) => item.url);
 }
 
-async function searchWithSerper(query: string, apiKey: string): Promise<ReagentSearchResult[]> {
-  const response = await fetch(process.env.REAGENT_SEARCH_BASE_URL || "https://google.serper.dev/search", {
+async function searchWithSerper(query: string, apiKey: string, baseURL?: string | null): Promise<ReagentSearchResult[]> {
+  const resolvedBaseUrl = cleanUrlText(baseURL) ?? cleanUrlText(process.env.REAGENT_SEARCH_BASE_URL) ?? "https://google.serper.dev/search";
+  const response = await fetch(resolvedBaseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -112,19 +124,20 @@ function dedupeResults(results: ReagentSearchResult[]) {
   });
 }
 
-export function isExternalSearchConfigured() {
-  return Boolean(isSearchEnabled() && getConfiguredProvider() && cleanText(process.env.REAGENT_SEARCH_API_KEY));
+export function isExternalSearchConfigured(config?: ReagentSearchConfig) {
+  return Boolean(isSearchEnabled(config) && getConfiguredProvider(config) && cleanText(config?.apiKey ?? process.env.REAGENT_SEARCH_API_KEY));
 }
 
-export async function searchReagentWeb(query: string): Promise<ReagentSearchResult[]> {
-  if (!isSearchEnabled()) return [];
+export async function searchReagentWeb(query: string, config?: ReagentSearchConfig): Promise<ReagentSearchResult[]> {
+  if (!isSearchEnabled(config)) return [];
 
-  const provider = getConfiguredProvider();
-  const apiKey = cleanText(process.env.REAGENT_SEARCH_API_KEY);
+  const provider = getConfiguredProvider(config);
+  const apiKey = cleanText(config?.apiKey ?? process.env.REAGENT_SEARCH_API_KEY);
+  const baseURL = cleanUrlText(config?.baseURL ?? process.env.REAGENT_SEARCH_BASE_URL);
   if (!provider || !apiKey || !cleanText(query)) {
     return [];
   }
 
-  const results = provider === "tavily" ? await searchWithTavily(query, apiKey) : await searchWithSerper(query, apiKey);
+  const results = provider === "tavily" ? await searchWithTavily(query, apiKey, baseURL) : await searchWithSerper(query, apiKey, baseURL);
   return dedupeResults(results);
 }

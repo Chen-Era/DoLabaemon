@@ -1,0 +1,14 @@
+.git
+.github
+.next
+.trae
+coverage
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+README.md
+UI.png

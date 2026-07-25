@@ -92,7 +92,7 @@ export default function LabsPage() {
         <p className="section-kicker">Lab Workspace</p>
         <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white">我的实验室</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">我的实验室</h1>
             <p className="section-copy mt-3 max-w-2xl text-sm md:text-base">
               在同一实验室上下文中共享库存、发送邀请并维护实验准备的协作边界。
             </p>
@@ -108,14 +108,14 @@ export default function LabsPage() {
         <section className="app-panel px-6 py-6">
           <div className="mb-5">
             <p className="section-kicker">Membership</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">协作中的实验室</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">协作中的实验室</h2>
           </div>
           <div className="space-y-3">
             {items.map((it) => (
-              <article key={it.lab.id} className="rounded-2xl border border-white/8 bg-white/3 px-4 py-4">
+              <article key={it.lab.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="font-medium text-white">{it.lab.name}</p>
+                    <p className="font-medium text-slate-900">{it.lab.name}</p>
                     <p className="section-copy mt-1 text-sm">当前角色：{it.role}</p>
                   </div>
                   <span className="status-pill">{it.role}</span>
@@ -123,7 +123,7 @@ export default function LabsPage() {
               </article>
             ))}
             {!items.length ? (
-              <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-sm text-zinc-400">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
                 暂无实验室数据。
               </div>
             ) : null}
@@ -133,7 +133,7 @@ export default function LabsPage() {
         <section className="app-panel px-6 py-6">
           <div className="mb-5">
             <p className="section-kicker">Create Lab</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">新建实验室</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">新建实验室</h2>
             <p className="section-copy mt-2 text-sm">为当前账号创建新的实验室工作区，创建者自动成为 PI。</p>
           </div>
           <div className="space-y-4">
@@ -163,7 +163,7 @@ export default function LabsPage() {
         <section className="app-panel px-6 py-6">
           <div className="mb-5">
             <p className="section-kicker">Join Lab</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">通过邀请码加入</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">通过邀请码加入</h2>
             <p className="section-copy mt-2 text-sm">切换到另一个账号后，粘贴邀请 ID 即可加入实验室。</p>
           </div>
           <div className="space-y-4">
@@ -193,7 +193,7 @@ export default function LabsPage() {
         <section className="app-panel px-6 py-6 md:col-span-2">
           <div className="mb-5">
             <p className="section-kicker">Invite Member</p>
-            <h2 className="mt-3 text-2xl font-semibold text-white">邀请成员加入实验室</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">邀请成员加入实验室</h2>
             <p className="section-copy mt-2 text-sm">PI / Admin 可向成员发送邀请；对方切换到目标账号后，用返回的邀请 ID 直接加入。</p>
           </div>
           <div className="space-y-4">

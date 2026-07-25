@@ -5,6 +5,7 @@ import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoResolveExperiment } from "@/lib/demo-store";
+import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { resolveExperimentInput } from "@/lib/experiment/resolve";
 
 const schema = z.object({
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
     }
 
     if (isDemoMode()) {
+      const llmConfig = await getRuntimeLlmConfigForUser(user.id);
       return NextResponse.json(
         await demoResolveExperiment({
           labId: parsed.data.labId,
@@ -33,16 +35,26 @@ export async function POST(req: Request) {
           experimentContext: parsed.data.experimentContext,
           direction: parsed.data.direction,
           lang: parsed.data.lang,
+          llmConfig,
         }),
       );
     }
 
-    await assertLabAccess(user.id, parsed.data.labId);
+    const membership = await assertLabAccess(user.id, parsed.data.labId);
+    const llmConfig = await getRuntimeLlmConfigForUser(user.id);
     const resolution = await resolveExperimentInput({
       customExperimentName: parsed.data.customExperimentName,
       experimentContext: parsed.data.experimentContext,
       directionCode: parsed.data.direction,
       lang: parsed.data.lang,
+      llmConfig,
+      flowContext: {
+        flow: "experiment-resolve",
+        labId: parsed.data.labId,
+        userId: user.id,
+        role: membership.role,
+        llmConfig,
+      },
     });
 
     let draftId: string | undefined;

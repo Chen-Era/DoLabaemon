@@ -43,13 +43,14 @@ enum RuleMatcherType {
 }
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  passwordHash String
-  displayName  String?
-  createdAt    DateTime    @default(now())
-  memberships  LabMember[]
-  llmConfig    UserLlmConfig?
+  id            String                 @id @default(cuid())
+  email         String                 @unique
+  passwordHash  String
+  displayName   String?
+  createdAt     DateTime               @default(now())
+  memberships   LabMember[]
+  llmConfig     UserLlmConfig?
+  knowledgeLogs KnowledgeMutationLog[]
 }
 
 model UserLlmConfig {
@@ -63,18 +64,24 @@ model UserLlmConfig {
   searchProvider    String?
   searchApiKey      String?
   searchBaseUrl     String?
+  enabledSkills     String[] @default([])
+  enabledMcpServers String[] @default([])
+  selfCheckEnabled  Boolean  @default(true)
+  autoLearnEnabled  Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Lab {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   name        String
   members     LabMember[]
   reagents    Reagent[]
   checks      ExperimentCheckRun[]
   invitations Invitation[]
+  aiPolicy    LabAiPolicy?
+  knowledgeLogs KnowledgeMutationLog[]
 }
 
 model LabMember {
@@ -218,4 +225,79 @@ model ExperimentCheckItem {
   isMissing   Boolean
   matchedName String?
   checkRun    ExperimentCheckRun @relation(fields: [checkRunId], references: [id], onDelete: Cascade)
+}
+
+model LabAiPolicy {
+  id                      String   @id @default(cuid())
+  labId                   String   @unique
+  allowAutoLearn          Boolean  @default(false)
+  allowedRoles            LabRole[] @default([PI])
+  enabledKnowledgeDomains String[] @default(["REAGENT", "EXPERIMENT"])
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  lab                     Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeMutationLog {
+  id              String   @id @default(cuid())
+  labId           String
+  userId          String
+  flowType        String
+  domain          String
+  entityKey       String
+  status          String
+  beforeData      Json?
+  afterData       Json?
+  evidenceSummary String[]
+  modelName       String?
+  rolledBackAt    DateTime?
+  createdAt       DateTime @default(now())
+  lab             Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([labId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ReagentKnowledgeEntry {
+  id               String   @id
+  canonicalName    String
+  aliases          String[] @default([])
+  category         ReagentCategory
+  subCategory      String?
+  experimentTags   String[] @default([])
+  namePatterns     String[] @default([])
+  requiredKeywords String[] @default([])
+  excludedKeywords String[] @default([])
+  vendorHints      String[] @default([])
+  evidenceType     String
+  confidenceHint   Float
+  notes            String?
+  source           String   @default("SYSTEM")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([canonicalName])
+}
+
+model ExperimentKnowledgeEntry {
+  id                         String   @id
+  canonicalName              String
+  aliases                    String[] @default([])
+  normalizedCode             String
+  descriptionZh              String
+  descriptionEn              String
+  supportedDirections        String[] @default([])
+  workflowStages             Json
+  requiredReagentTemplates   Json
+  recommendedReagentTemplates Json
+  evidenceKeywords           String[] @default([])
+  excludedKeywords           String[] @default([])
+  relatedExperimentTags      String[] @default([])
+  source                     String   @default("SYSTEM")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([canonicalName])
+  @@index([normalizedCode])
 }

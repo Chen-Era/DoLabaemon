@@ -1,6 +1,6 @@
 import type { ExperimentTag, MatcherTypeValue, RuleLevelValue } from "@/lib/rules/catalog";
 
-export type ExperimentKnowledgeSource = "SYSTEM" | "CURATED" | "SUGGESTED";
+export type ExperimentKnowledgeSource = "SYSTEM" | "CURATED" | "SUGGESTED" | "LEARNED";
 
 export type ExperimentKnowledgeTemplate = {
   nameZh: string;
@@ -72,4 +72,18 @@ export type ExperimentResolution = {
   needsConfirmation: boolean;
   warnings: string[];
   suggestion?: ExperimentResolutionSuggestion | null;
+  ai?: {
+    execution: {
+      enabledSkills: string[];
+      enabledMcpServers: string[];
+      selfCheckEnabled: boolean;
+      autoLearnEnabled: boolean;
+    };
+    selfCheck: { ok: boolean; score: number; warnings: string[] };
+    canAutoLearn: boolean;
+    learning?: {
+      status: string;
+      log: { id: string };
+    } | null;
+  };
 };

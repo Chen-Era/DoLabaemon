@@ -14,12 +14,18 @@ type ReagentVerificationPromptInput = {
   externalEvidence?: VerificationPageInput[];
 };
 
+function previewText(text: string | undefined, limit: number) {
+  const normalized = (text ?? "").trim();
+  return normalized.length <= limit ? normalized : `${normalized.slice(0, limit)}...`;
+}
+
 function stringifyEvidence(evidence: VerificationPageInput[] | undefined) {
   if (!evidence?.length) return "None.";
   return evidence
+    .slice(0, 2)
     .map(
       (item, index) =>
-        `[${index + 1}] ${item.title} | ${item.domain} | ${item.url}\nSnippet: ${item.snippet || "N/A"}\nExcerpt: ${item.excerpt || "N/A"}`,
+        `[${index + 1}] ${previewText(item.title, 120) || "Untitled"} | ${item.domain} | ${item.url}\nSnippet: ${previewText(item.snippet, 220) || "N/A"}\nExcerpt: ${previewText(item.excerpt, 600) || "N/A"}`,
     )
     .join("\n\n");
 }

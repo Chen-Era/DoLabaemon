@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoParseReagent } from "@/lib/demo-store";
+import { toSafeJsonValue } from "@/lib/json/safe-json";
 import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
+import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { extractBatchRows } from "@/lib/reagent-ingest/extract-batch-rows";
 import { parseReagentInput } from "@/lib/reagent-ingest/parse-reagent";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 
 const schema = z.object({
   labId: z.string().min(1),
@@ -14,9 +18,32 @@ const schema = z.object({
   lang: z.enum(["zh", "en"]).default("zh"),
 });
 
+const BATCH_PARSE_CONCURRENCY = 4;
+
 function mergeNotes(parts: Array<string | null | undefined>) {
   const cleaned = parts.map((part) => part?.trim()).filter(Boolean);
   return cleaned.length ? cleaned.join(" | ") : undefined;
+}
+
+function buildMissingCatalogError(row: Awaited<ReturnType<typeof extractBatchRows>>[number]) {
+  const searchStatus = row.supplementation?.searchStatus;
+  if (searchStatus === "request_failed") {
+    return "缺少货号，且联网补齐失败，请检查搜索配置或网络后重试";
+  }
+  if (searchStatus === "no_results") {
+    return "缺少货号，联网未补到可用货号，请手工补充货号";
+  }
+  if (searchStatus === "evidence_inconclusive") {
+    return "缺少货号，已检索到线索但无法可靠补齐，请手工补充货号";
+  }
+  return "缺少货号，暂不能入库";
+}
+
+function buildParseFailureError(row: Awaited<ReturnType<typeof extractBatchRows>>[number]) {
+  if (row.supplementation?.searchStatus === "request_failed") {
+    return "该条试剂解析失败，且联网补齐阶段也发生异常，请检查搜索配置、模型配置或网络";
+  }
+  return "该条试剂解析失败，请检查名称或货号格式";
 }
 
 export async function POST(req: Request) {
@@ -27,20 +54,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    if (!isDemoMode()) {
-      await assertLabAccess(user.id, parsed.data.labId);
-    }
+    const membership = isDemoMode() ? null : await assertLabAccess(user.id, parsed.data.labId);
+    const llmConfig = isDemoMode() ? null : await getRuntimeLlmConfigForUser(user.id);
 
     const extractedRows = await extractBatchRows(parsed.data.rawText, parsed.data.lang, {
       allowLlm: !isDemoMode(),
+      llmConfig: llmConfig ?? undefined,
     });
 
     if (!extractedRows.length) {
       return NextResponse.json({ error: "No reagent rows extracted", code: "EMPTY_BATCH" }, { status: 400 });
     }
 
-    const items = await Promise.all(
-      extractedRows.map(async (row, index) => {
+    const items = await mapWithConcurrency(extractedRows, BATCH_PARSE_CONCURRENCY, async (row, index) => {
         const note = mergeNotes([row.note, row.antibodyCompatibilityText, row.vendor ? `Vendor: ${row.vendor}` : null]);
         const payload = {
           name: row.name,
@@ -55,7 +81,7 @@ export async function POST(req: Request) {
           return {
             rowId: `row-${index + 1}`,
             rawInput: payload,
-            error: "缺少货号，暂不能入库",
+            error: buildMissingCatalogError(row),
           };
         }
 
@@ -86,14 +112,25 @@ export async function POST(req: Request) {
             catalogNo: row.catalogNo,
             note,
             lang: parsed.data.lang,
+          }, {
+            llmConfig: llmConfig ?? undefined,
+            flowContext: llmConfig && membership
+              ? {
+                  flow: "reagent-parse",
+                  labId: parsed.data.labId,
+                  userId: user.id,
+                  role: membership.role,
+                  llmConfig,
+                }
+              : undefined,
           });
 
           const draft = await prisma.reagentParseDraft.create({
             data: {
               labId: parsed.data.labId,
               userId: user.id,
-              rawInput: payload,
-              parsedOutput: result.parsed,
+              rawInput: toSafeJsonValue(payload) as Prisma.InputJsonValue,
+              parsedOutput: toSafeJsonValue(result.parsed) as Prisma.InputJsonValue,
               confidence: result.parsed.confidence,
               warnings: result.parsed.warnings,
             },
@@ -108,6 +145,7 @@ export async function POST(req: Request) {
             verificationStatus: result.verificationStatus,
             verificationMethod: result.verificationMethod,
             verificationReason: result.verificationReason,
+            ai: result.ai,
           };
         } catch (error) {
           console.error("[reagent-batch-parse] row failed", {
@@ -118,11 +156,10 @@ export async function POST(req: Request) {
           return {
             rowId: `row-${index + 1}`,
             rawInput: payload,
-            error: "该条试剂解析失败，请检查名称或货号格式",
+            error: buildParseFailureError(row),
           };
         }
-      }),
-    );
+      });
 
     return NextResponse.json({ items });
   } catch (error) {

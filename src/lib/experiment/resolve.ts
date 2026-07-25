@@ -1,16 +1,24 @@
-import { getLlmClient } from "@/lib/llm/client";
+import { generateLlmText, getLlmClient } from "@/lib/llm/client";
+import { parseLlmJson } from "@/lib/llm/json-output";
 import { normalizeLlmParsedPayload } from "@/lib/llm/normalize";
+import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { buildExperimentResolvePrompt } from "@/lib/llm/prompts/experiment-resolve";
 import { experimentResolveSchema } from "@/lib/llm/schemas";
-import { retrieveExperimentKnowledge } from "@/lib/experiment-knowledge/retrieval";
-import type { ExperimentResolution, ExperimentResolutionSuggestion } from "@/lib/experiment-knowledge/types";
+import { retrieveExperimentKnowledgeRuntime } from "@/lib/experiment-knowledge/runtime";
+import type { ExperimentKnowledgeRetrievalResult, ExperimentResolution, ExperimentResolutionSuggestion } from "@/lib/experiment-knowledge/types";
 import { experimentTypeCatalog } from "@/lib/rules/catalog";
+import { finalizeAiFlow, prepareAiFlow } from "@/lib/ai-orchestrator/run-flow";
+import type { AiFlowContext } from "@/lib/ai-orchestrator/types";
+import { buildExperimentSkillHints } from "@/lib/skills/builtin/experiment-type-curator";
+import { cleanUrlText } from "@/lib/url/clean-url";
 
 type ResolveInput = {
   customExperimentName: string;
   experimentContext?: string | null;
   directionCode?: string | null;
   lang?: "zh" | "en";
+  llmConfig?: RuntimeLlmConfig;
+  flowContext?: AiFlowContext;
 };
 
 type LooseSuggestionShape = {
@@ -52,7 +60,7 @@ function findDirectCatalogMatch(customExperimentName: string) {
   return null;
 }
 
-function fallbackSuggestion(input: ResolveInput, retrieval: ReturnType<typeof retrieveExperimentKnowledge>): ExperimentResolutionSuggestion {
+function fallbackSuggestion(input: ResolveInput, retrieval: ExperimentKnowledgeRetrievalResult): ExperimentResolutionSuggestion {
   const bestMatch = retrieval.matchedEntries[0]?.entry;
   return {
     proposedExperimentName: bestMatch?.canonicalName ?? input.customExperimentName.trim(),
@@ -130,11 +138,16 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
     };
   }
 
-  const retrieval = retrieveExperimentKnowledge({
+  const retrieval = await retrieveExperimentKnowledgeRuntime({
     customExperimentName: input.customExperimentName,
     experimentContext: input.experimentContext,
     directionCode: input.directionCode,
   });
+  const execution = input.flowContext ? await prepareAiFlow(input.flowContext) : null;
+  const enhancedEvidenceLines =
+    execution?.enabledSkills.includes("experiment-type-curator")
+      ? [...retrieval.evidenceLines, ...buildExperimentSkillHints(retrieval)]
+      : retrieval.evidenceLines;
 
   const bestMatch = retrieval.matchedEntries[0]?.entry;
   if (bestMatch && retrieval.retrievalConfidence >= 0.82) {
@@ -150,11 +163,11 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
 
   let suggestion = fallbackSuggestion(input, retrieval);
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = input.llmConfig?.apiKey ?? process.env.OPENAI_API_KEY;
     if (apiKey) {
-      const client = getLlmClient();
-      const model = process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-      const response = await client.responses.create({
+      const client = getLlmClient({ apiKey: input.llmConfig?.apiKey, baseURL: input.llmConfig?.baseURL });
+      const model = input.llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
+      const result = await generateLlmText(client, { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) }, {
         model,
         input: [
           {
@@ -164,7 +177,7 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
               workflowHints: retrieval.workflowHints,
               requiredTemplateHints: retrieval.requiredTemplateHints,
               recommendedTemplateHints: retrieval.recommendedTemplateHints,
-              evidenceLines: retrieval.evidenceLines,
+              evidenceLines: enhancedEvidenceLines,
             }),
           },
           {
@@ -178,8 +191,8 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
         ],
         temperature: 0,
       });
-      const rawOutput = response.output_text || "{}";
-      suggestion = experimentResolveSchema.parse(normalizeLlmParsedPayload(normalizeLooseSuggestion(JSON.parse(rawOutput))));
+      const rawOutput = result.text || "{}";
+      suggestion = experimentResolveSchema.parse(normalizeLlmParsedPayload(normalizeLooseSuggestion(parseLlmJson(rawOutput) as LooseSuggestionShape)));
     }
   } catch (error) {
     console.error("[experiment-resolve] llm suggestion failed", {
@@ -191,6 +204,20 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
   }
 
   return {
+    ...(input.flowContext
+      ? {
+          ai: await finalizeAiFlow({
+            context: input.flowContext,
+            domain: "EXPERIMENT",
+            entityKey: suggestion.matchedExistingCode ?? suggestion.proposedExperimentCode ?? input.customExperimentName,
+            afterData: suggestion,
+            evidenceLines: enhancedEvidenceLines,
+            retrievalConfidence: retrieval.retrievalConfidence,
+            sourceCount: 0,
+            warnings: suggestion.warnings,
+          }),
+        }
+      : {}),
     resolvedExperimentType: suggestion.matchedExistingCode ?? null,
     resolutionSource: "MODEL_SUGGESTION",
     resolutionConfidence: suggestion.confidence,
