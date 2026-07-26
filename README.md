@@ -1,28 +1,86 @@
-# Dorlabaemon
+<p align="center">
+  <img src="https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=A%20friendly%20blue%20robot%20cat%20with%20a%20bell%2C%20holding%20a%20test%20tube%20and%20a%20beaker%2C%20laboratory%20theme%2C%20clean%20minimal%20style%2C%20flat%20illustration&image_size=square_hd" alt="Dorlabaemon Logo" width="120" />
+</p>
 
-面向实验室科研人员的智能试剂管理与实验可行性判断系统，中文品牌记忆点为“哆LabA梦”。
+<h1 align="center">Dorlabaemon 🧪 哆LabA梦</h1>
 
-## 功能
+<p align="center">
+  <strong>AI 驱动的智能实验室试剂管理与实验可行性判断系统</strong>
+</p>
 
-- 试剂入库：输入名称、货号，调用大模型进行结构化分类，人工确认后入库。
-- 试剂知识增强：入库时补充细粒度实验用途标签、抗体靶点/宿主信息、引物靶点与内参标记。
-- 标签覆盖常见场景：细胞培养、筛选抗生素、转染/转导、WB、qPCR、IF、ELISA、流式、外泌体分离等。
-- 试剂整理：按实验室共享库存，支持多选并导出到剪贴板。
-- 试剂整理：支持按名称、货号、标签、靶点筛选库存，并可多选导出。
-- 实验判定：按 `WB/qPCR/IF/ELISA/FLOW + 研究方向` 判断是否满足实验条件。
-- 手动输入实验名：可直接输入实验名称或流程上下文，系统先匹配已有规则，低匹配时返回候选实验模板与试剂配置，供人工确认。
-- 规则能力：
-- 通用规则按“最低必需项 + 推荐补充项”输出。
-- 新增细粒度标签已接入推荐规则，例如 WB 转印膜/蛋白定量/还原剂，qPCR 细胞培养基/血清，IF 细胞骨架染料/细胞器染料，外泌体分离试剂等。
-- WB：裂解/上样/一抗/二抗/检测底物 + 内参抗体，一二抗种属匹配冲突检测。
-- qPCR：RNA 提取、逆转录、qPCR 扩增体系、目标引物、内参引物、无核酸酶水。
-- IF：固定、透化、封闭、一抗、荧光二抗、核染、封片/抗淬灭介质。
-- ELISA：包被、封闭、洗板、检测抗体、显色底物。
-- FLOW：荧光抗体、染色缓冲液，推荐补充活死染和 marker 一抗。
-- 方向规则示例：自噬/分泌性自噬（LC3/p62），外泌体（至少 1 个 tetraspanin + 1 个 TSG101/ALIX，Calnexin 为推荐污染排查项）。
-- 解析链路：IDE skill 与项目运行时共享实验知识资产；运行时模型不会直接调用 IDE skill，而是读取同一份结构化知识进行增强。
-- 运行时增强：网页端现已可配置服务器发布的 skill、MCP 搜索/抓取/自检能力，并在试剂解析与实验解析链路中返回 AI 自检和学习日志摘要。
-- 权限隔离：实验室内共享，实验室间数据隔离；PI/Admin 可邀请成员。
+<p align="center">
+  <a href="https://github.com/Chen-Era/DoLabaemon/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Chen-Era/DoLabaemon?color=blue" alt="License" /></a>
+  <a href="https://github.com/Chen-Era/DoLabaemon/releases"><img src="https://img.shields.io/github/v/release/Chen-Era/DoLabaemon?include_prereleases&color=green" alt="Release" /></a>
+  <a href="https://github.com/Chen-Era/DoLabaemon/tree/main/docs"><img src="https://img.shields.io/badge/docs-complete-brightgreen?logo=readthedocs" alt="Docs" /></a>
+  <br/>
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Electron-40-47848F?logo=electron" alt="Electron" />
+  <img src="https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma" alt="Prisma" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss" alt="Tailwind" />
+  <img src="https://img.shields.io/badge/PostgreSQL-∞-4169E1?logo=postgresql" alt="PostgreSQL" />
+  <br/>
+  <a href="https://dorlabaemon.era.ac.cn"><img src="https://img.shields.io/badge/demo-live-ff69b4?style=flat" alt="Live Demo" /></a>
+  <a href="#一键启动本地-postgresql--docker"><img src="https://img.shields.io/badge/docker-quick_start-2496ED?logo=docker" alt="Docker" /></a>
+</p>
+
+<p align="center">
+  <a href="https://star-history.com/#Chen-Era/DoLabaemon&Date">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Chen-Era/DoLabaemon&type=Date&theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Chen-Era/DoLabaemon&type=Date" />
+      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Chen-Era/DoLabaemon&type=Date" width="600" />
+    </picture>
+  </a>
+</p>
+
+---
+
+## ✨ 亮点
+
+| 亮点 | 说明 |
+|------|------|
+| 🤖 **AI 智能解析** | 输入试剂名称/货号即可自动结构化分类，联网核验纠错，告别手工填表 |
+| 🧬 **实验可行性判断** | 支持 WB / qPCR / IF / ELISA / FLOW 五大核心实验，自动判定试剂是否满足实验条件 |
+| 🏷️ **细粒度知识标签** | 覆盖抗体靶点/宿主、引物序列、内参标记、细胞培养/转染/筛选等多维度标签 |
+| 🔬 **专业方向规则** | 内置自噬、外泌体等研究方向的专属判定链（如外泌体需 tetraspanin + TSG101/ALIX） |
+| 🔄 **AI 自检与持续学习** | 可配置的 Skill / MCP 链路，解析结果附带自检日志，支持自动学习写回知识库 |
+| 🖥️ **桌面端 + Web 端** | 基于 Electron 的原生桌面客户端 + Next.js Web 应用，一套代码双端运行 |
+| 👥 **多实验室权限隔离** | 实验室内共享库存，实验室间数据严格隔离，PI/Admin 可邀请成员 |
+| ⚡ **DEMO 模式 30 秒启动** | 无需 PostgreSQL/Docker，一个环境变量即可体验核心功能 |
+| 📦 **Docker 一键部署** | 提供完整 Docker Compose 生产部署方案，含 Caddy/Nginx 反代配置 |
+| 🎯 **批量操作** | 多选试剂一键导出剪贴板，按名称/货号/标签/靶点灵活筛选 |
+
+## 📋 详细实验规则
+
+### 五大核心实验判定链
+
+| 实验 | 必需试剂 | 推荐补充 | 特色能力 |
+|------|---------|---------|---------|
+| **WB** | 裂解液、上样缓冲液、一抗、二抗、检测底物、内参抗体 | 转印膜、蛋白定量试剂、还原剂 | 一二抗种属匹配冲突检测 |
+| **qPCR** | RNA 提取试剂、逆转录酶、qPCR Mix、目标引物、内参引物、无核酸酶水 | 细胞培养基、血清 | 引物靶点与内参标记校验 |
+| **IF** | 固定液、透化剂、封闭液、一抗、荧光二抗、核染液、封片/抗淬灭介质 | 细胞骨架染料、细胞器染料 | 多通道荧光兼容性检测 |
+| **ELISA** | 包被缓冲液、封闭液、洗板液、检测抗体、显色底物 | — | 包被-抗体配对逻辑 |
+| **FLOW** | 荧光抗体、染色缓冲液 | 活死染色、Marker 一抗 | 多色补偿冲突预警 |
+
+### 研究方向专属规则
+
+- **自噬/分泌性自噬**：必须包含 LC3 / p62 抗体
+- **外泌体**：至少 1 个 Tetraspanin（CD9/CD63/CD81）+ 1 个 TSG101/ALIX；Calnexin 为推荐污染排查项
+- **骨转移方向**：支持骨相关标志物与通路抗体补充推荐
+
+> 通用规则按"最低必需项 + 推荐补充项"结构输出，低匹配时返回候选实验模板与试剂配置供人工确认。
+
+## 📁 文档
+
+| 文档 | 说明 |
+|------|------|
+| [系统架构](docs/architecture.md) | 整体系统架构与模块设计 |
+| [API 文档](docs/api.md) | 后端 API 接口说明 |
+| [桌面客户端](docs/desktop-client.md) | Electron 桌面端构建与配置 |
+| [服务器部署](docs/deployment-server.md) | Docker / Caddy / Nginx 生产部署 |
+| [规则设计](docs/rule-design.md) | 实验判定规则引擎设计 |
 
 ## 最快启动（推荐先用 DEMO 模式）
 
