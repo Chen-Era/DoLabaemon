@@ -1,0 +1,140 @@
+{
+  "provenance": "All identifiers verified live on 2026-07-26 against OLS4 (ebi.ac.uk) and the NLM MeSH descriptor lookup API. Do not add identifiers that are not in this file or newly verified through the same endpoints.",
+  "versions": { "OBI": "2025 release series", "CHMO": "2025 release series", "MESH": "2026" },
+  "uriPatterns": {
+    "OBI": "http://purl.obolibrary.org/obo/OBI_<id7>",
+    "CHMO": "http://purl.obolibrary.org/obo/CHMO_<id7>",
+    "MESH": "http://id.nlm.nih.gov/mesh/<descriptorId>"
+  },
+  "presets": {
+    "SAMPLE_PREPARATION": [
+      { "scheme": "OBI", "termId": "OBI:0000073", "termLabel": "sample preparation for assay", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D013048", "termLabel": "Specimen Handling", "relation": "RELATED" }
+    ],
+    "CELL_CULTURE": [
+      { "scheme": "OBI", "termId": "OBI:0001876", "termLabel": "cell culture", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D018929", "termLabel": "Cell Culture Techniques", "relation": "RELATED" }
+    ],
+    "TISSUE_MODEL": [
+      { "scheme": "MESH", "termId": "D046509", "termLabel": "Tissue Culture Techniques", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D009940", "termLabel": "Organoids", "relation": "RELATED" }
+    ],
+    "NUCLEIC_ACID_EXTRACTION": [
+      { "scheme": "OBI", "termId": "OBI:0666667", "termLabel": "nucleic acid extraction", "relation": "EXACT" }
+    ],
+    "PCR_AMPLIFICATION": [
+      { "scheme": "OBI", "termId": "OBI:0000415", "termLabel": "polymerase chain reaction", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D016133", "termLabel": "Polymerase Chain Reaction", "relation": "EXACT" }
+    ],
+    "MOLECULAR_CLONING": [
+      { "scheme": "MESH", "termId": "D003001", "termLabel": "Cloning, Molecular", "relation": "EXACT" },
+      { "scheme": "OBI", "termId": "OBI:0000738", "termLabel": "restriction enzyme based cloning", "relation": "RELATED" }
+    ],
+    "GENE_DELIVERY": [
+      { "scheme": "OBI", "termId": "OBI:0001152", "termLabel": "transfection", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D014162", "termLabel": "Transfection", "relation": "RELATED" }
+    ],
+    "GENE_EDITING": [
+      { "scheme": "MESH", "termId": "D000072669", "termLabel": "Gene Editing", "relation": "EXACT" }
+    ],
+    "NUCLEIC_ACID_HYBRIDIZATION": [
+      { "scheme": "OBI", "termId": "OBI:0302903", "termLabel": "nucleic acid hybridization", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D009693", "termLabel": "Nucleic Acid Hybridization", "relation": "EXACT" }
+    ],
+    "PROTEIN_ANALYSIS": [
+      { "scheme": "OBI", "termId": "OBI:0000854", "termLabel": "western blot assay", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D004591", "termLabel": "Electrophoresis, Polyacrylamide Gel", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D015153", "termLabel": "Blotting, Western", "relation": "RELATED" }
+    ],
+    "IMMUNOASSAY": [
+      { "scheme": "MESH", "termId": "D007118", "termLabel": "Immunoassay", "relation": "EXACT" },
+      { "scheme": "OBI", "termId": "OBI:0000661", "termLabel": "enzyme-linked immunosorbent assay", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D004797", "termLabel": "Enzyme-Linked Immunosorbent Assay", "relation": "RELATED" }
+    ],
+    "PROTEIN_PURIFICATION": [
+      { "scheme": "CHMO", "termId": "CHMO:0001006", "termLabel": "affinity chromatography", "relation": "RELATED" },
+      { "scheme": "CHMO", "termId": "CHMO:0001000", "termLabel": "chromatography", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D002846", "termLabel": "Chromatography, Affinity", "relation": "RELATED" }
+    ],
+    "MICROSCOPY": [
+      { "scheme": "CHMO", "termId": "CHMO:0000067", "termLabel": "microscopy", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D008853", "termLabel": "Microscopy", "relation": "EXACT" }
+    ],
+    "HISTOLOGY": [
+      { "scheme": "MESH", "termId": "D006652", "termLabel": "Histological Techniques", "relation": "BROAD" },
+      { "scheme": "OBI", "termId": "OBI:0001986", "termLabel": "immunohistochemistry", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D007150", "termLabel": "Immunohistochemistry", "relation": "RELATED" }
+    ],
+    "FLOW_CYTOMETRY": [
+      { "scheme": "OBI", "termId": "OBI:0000916", "termLabel": "flow cytometry assay", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D005434", "termLabel": "Flow Cytometry", "relation": "EXACT" }
+    ],
+    "CELL_BASED_ASSAY": [
+      { "scheme": "OBI", "termId": "OBI:0003583", "termLabel": "cell viability assay", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D001681", "termLabel": "Biological Assay", "relation": "BROAD" }
+    ],
+    "MICROBIAL_CULTURE": [
+      { "scheme": "MESH", "termId": "D008828", "termLabel": "Microbiological Techniques", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D003470", "termLabel": "Culture Media", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D008826", "termLabel": "Microbial Sensitivity Tests", "relation": "RELATED" }
+    ],
+    "INFECTION_ASSAY": [
+      { "scheme": "OBI", "termId": "OBI:0001187", "termLabel": "infectious agent detection assay", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D008826", "termLabel": "Microbial Sensitivity Tests", "relation": "RELATED" }
+    ],
+    "SPECTROSCOPY": [
+      { "scheme": "CHMO", "termId": "CHMO:0000228", "termLabel": "spectroscopy", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D013057", "termLabel": "Spectrum Analysis", "relation": "EXACT" }
+    ],
+    "CHROMATOGRAPHY": [
+      { "scheme": "CHMO", "termId": "CHMO:0001000", "termLabel": "chromatography", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D002845", "termLabel": "Chromatography", "relation": "EXACT" }
+    ],
+    "MASS_SPECTROMETRY": [
+      { "scheme": "CHMO", "termId": "CHMO:0000470", "termLabel": "mass spectrometry", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D013058", "termLabel": "Mass Spectrometry", "relation": "EXACT" }
+    ],
+    "BIOPHYSICAL_MEASUREMENT": [
+      { "scheme": "CHMO", "termId": "CHMO:0000624", "termLabel": "surface plasmon resonance spectroscopy", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D020349", "termLabel": "Surface Plasmon Resonance", "relation": "RELATED" },
+      { "scheme": "CHMO", "termId": "CHMO:0000323", "termLabel": "circular dichroism spectroscopy", "relation": "RELATED" }
+    ],
+    "SEQUENCING": [
+      { "scheme": "OBI", "termId": "OBI:0600047", "termLabel": "sequencing assay", "relation": "EXACT" },
+      { "scheme": "MESH", "termId": "D017422", "termLabel": "Sequence Analysis, DNA", "relation": "RELATED" }
+    ],
+    "OMICS_SAMPLE_PREP": [
+      { "scheme": "OBI", "termId": "OBI:0000073", "termLabel": "sample preparation for assay", "relation": "BROAD" },
+      { "scheme": "MESH", "termId": "D023281", "termLabel": "Genomics", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D040901", "termLabel": "Proteomics", "relation": "RELATED" }
+    ],
+    "STRUCTURAL_ANALYSIS": [
+      { "scheme": "MESH", "termId": "D018360", "termLabel": "Crystallography, X-Ray", "relation": "RELATED" },
+      { "scheme": "CHMO", "termId": "CHMO:0000591", "termLabel": "nuclear magnetic resonance spectroscopy", "relation": "RELATED" },
+      { "scheme": "MESH", "termId": "D020285", "termLabel": "Cryoelectron Microscopy", "relation": "RELATED" }
+    ],
+    "ANIMAL_PROCEDURE": [
+      { "scheme": "MESH", "termId": "D032761", "termLabel": "Animal Experimentation", "relation": "BROAD" }
+    ],
+    "FIELD_SAMPLING": [
+      { "scheme": "MESH", "termId": "D004784", "termLabel": "Environmental Monitoring", "relation": "BROAD" }
+    ]
+  },
+  "techniqueSpecific": {
+    "DIRECT_ELISA": [{ "scheme": "OBI", "termId": "OBI:0000661", "termLabel": "enzyme-linked immunosorbent assay", "relation": "EXACT" }],
+    "INDIRECT_ELISA": [{ "scheme": "OBI", "termId": "OBI:0000661", "termLabel": "enzyme-linked immunosorbent assay", "relation": "EXACT" }],
+    "SANDWICH_ELISA": [{ "scheme": "OBI", "termId": "OBI:0000661", "termLabel": "enzyme-linked immunosorbent assay", "relation": "EXACT" }],
+    "COMPETITIVE_ELISA": [{ "scheme": "OBI", "termId": "OBI:0000661", "termLabel": "enzyme-linked immunosorbent assay", "relation": "EXACT" }],
+    "WESTERN_BLOT": [{ "scheme": "OBI", "termId": "OBI:0000854", "termLabel": "western blot assay", "relation": "EXACT" }],
+    "SEMI_QUANTITATIVE_WESTERN_BLOT": [{ "scheme": "OBI", "termId": "OBI:0000854", "termLabel": "western blot assay", "relation": "EXACT" }],
+    "CONFOCAL_MICROSCOPY": [{ "scheme": "CHMO", "termId": "CHMO:0000103", "termLabel": "confocal microscopy", "relation": "EXACT" }],
+    "GAS_CHROMATOGRAPHY": [{ "scheme": "CHMO", "termId": "CHMO:0001002", "termLabel": "gas chromatography", "relation": "EXACT" }],
+    "CENTRIFUGATION": [{ "scheme": "OBI", "termId": "OBI:0302886", "termLabel": "centrifugation", "relation": "EXACT" }],
+    "PATCH_CLAMP": [{ "scheme": "OBI", "termId": "OBI:0002177", "termLabel": "patch clamp assay", "relation": "EXACT" }],
+    "WHOLE_GENOME_SEQUENCING": [{ "scheme": "OBI", "termId": "OBI:0002117", "termLabel": "whole genome sequencing assay", "relation": "EXACT" }],
+    "QPCR": [{ "scheme": "OBI", "termId": "OBI:0000893", "termLabel": "real time polymerase chain reaction assay", "relation": "EXACT" }],
+    "CRYO_ELECTRON_MICROSCOPY": [{ "scheme": "CHMO", "termId": "CHMO:0002413", "termLabel": "cryogenic electron microscopy", "relation": "EXACT" }]
+  },
+  "techniqueSpecificNotes": "Keys in techniqueSpecific are hints; match them to actual blueprint codes (codes may differ slightly, e.g. REAL_TIME_QPCR). Apply only when the blueprint name clearly matches the term label; otherwise keep the preset-level mapping. Extra verified MeSH descriptors available: D060888 Real-Time Polymerase Chain Reaction, D059014 High-Throughput Nucleotide Sequencing, D000073336 Whole Genome Sequencing, D017423 Sequence Analysis, RNA, D002851 Chromatography High Pressure Liquid, D002849 Chromatography Gas, D000097922 Liquid Chromatography-Mass Spectrometry, D018613 Microscopy Confocal, D019906 Nuclear Magnetic Resonance Biomolecular, D015153 Blotting Western, D007150 Immunohistochemistry, D002498 Centrifugation, D004586 Electrophoresis, D018408 Patch-Clamp Techniques.",
+  "fallback": { "scheme": "OBI", "termId": "OBI:0000070", "termLabel": "assay", "relation": "BROAD", "note": "Use only when no preset-level or specific verified term fits." }
+}

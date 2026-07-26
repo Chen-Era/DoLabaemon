@@ -1,0 +1,289 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { evaluateTechniqueReadiness } from "@/lib/experiment-techniques/check";
+import { repositoryTechniqueByCode } from "@/lib/experiment-techniques/catalog";
+import { experimentTechniqueSchema } from "@/lib/experiment-techniques/types";
+import type {
+  ExperimentTechnique,
+  TechniqueRequirement,
+} from "@/lib/experiment-techniques/types";
+import type { InventoryCapability } from "@/lib/experiment-techniques/check";
+
+const BASE_CODE = "SANDWICH_ELISA";
+const PROFILE_CODE = "QPCR";
+
+function leafFixture(code: string = BASE_CODE): ExperimentTechnique {
+  const technique = repositoryTechniqueByCode.get(code);
+  assert.ok(technique, `repository catalog must contain ${code}`);
+  assert.equal(technique.isAbstract, false, `${code} must be a leaf technique`);
+  const clone = structuredClone(technique);
+  const parsed = experimentTechniqueSchema.safeParse(clone);
+  assert.ok(parsed.success, `fixture ${code} must pass experimentTechniqueSchema`);
+  return clone;
+}
+
+/** Inventory that satisfies every AUTO_INVENTORY requirement via capabilityTags. */
+function makeInventory(requirements: TechniqueRequirement[]): InventoryCapability[] {
+  return requirements
+    .filter((requirement) => requirement.verificationMode === "AUTO_INVENTORY")
+    .map((requirement) => ({
+      id: `inv-${requirement.id}`,
+      name: requirement.matcherValues[0] ?? requirement.label.en,
+      capabilityTags: [...requirement.capabilityTags],
+      searchableValues: [...requirement.matcherValues],
+    }));
+}
+
+function manualConfirmationIds(requirements: TechniqueRequirement[]): string[] {
+  return requirements
+    .filter((requirement) => requirement.verificationMode === "MANUAL_CONFIRMATION")
+    .map((requirement) => requirement.id);
+}
+
+function makeReadyInput(technique: ExperimentTechnique, profileCode: string | null = null) {
+  const profile = profileCode
+    ? technique.profiles.find((item) => item.code === profileCode)
+    : null;
+  const requirements = [
+    ...technique.requirements,
+    ...(profile?.additionalRequirements ?? []),
+  ];
+  return {
+    technique,
+    profileCode,
+    inventory: makeInventory(requirements),
+    confirmedRequirementIds: requirements
+      .filter(
+        (requirement) =>
+          requirement.verificationMode === "MANUAL_CONFIRMATION" ||
+          requirement.level === "CONDITIONAL",
+      )
+      .map((requirement) => requirement.id),
+  };
+}
+
+function conditionalRequirement(): TechniqueRequirement {
+  return {
+    id: "fixture:conditional:biospecimen-permit",
+    kind: "SAMPLE",
+    level: "CONDITIONAL",
+    verificationMode: "MANUAL_CONFIRMATION",
+    label: { zh: "特殊样本许可", en: "Special specimen permit" },
+    capabilityTags: [],
+    matcherValues: [],
+    condition: {
+      zh: "仅当样本属于受监管类别时适用。",
+      en: "Applies only when the specimen is in a regulated category.",
+    },
+  };
+}
+
+describe("evaluateTechniqueReadiness fixture", () => {
+  it("clones a real leaf technique that passes the schema", () => {
+    const fixture = leafFixture();
+    assert.equal(fixture.code, BASE_CODE);
+    assert.equal(fixture.status, "PUBLISHED");
+    const kinds = new Set(fixture.requirements.map((item) => item.kind));
+    for (const kind of ["REAGENT", "CONSUMABLE", "INSTRUMENT", "SAMPLE", "CONTROL", "SOFTWARE"]) {
+      assert.ok(kinds.has(kind as TechniqueRequirement["kind"]), `fixture covers ${kind}`);
+    }
+  });
+});
+
+describe("evaluateTechniqueReadiness status matrix", () => {
+  it("returns READY when inventory matches AUTO_INVENTORY reagents and all manual requirements are confirmed", () => {
+    const technique = leafFixture();
+    const result = evaluateTechniqueReadiness(makeReadyInput(technique));
+    assert.equal(result.status, "READY");
+    assert.deepEqual(result.reasons, []);
+    assert.ok(result.items.length > 0);
+    for (const item of result.items) {
+      assert.ok(
+        item.state === "MATCHED" || item.state === "CONFIRMED",
+        `item ${item.requirementId} should be MATCHED/CONFIRMED, got ${item.state}`,
+      );
+    }
+  });
+
+  it("returns BLOCKED when a required AUTO_INVENTORY reagent is missing from inventory", () => {
+    const technique = leafFixture();
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: [],
+      confirmedRequirementIds: manualConfirmationIds(technique.requirements),
+    });
+    assert.equal(result.status, "BLOCKED");
+    assert.ok(
+      result.items.some(
+        (item) =>
+          item.kind === "REAGENT" &&
+          item.level === "REQUIRED" &&
+          item.verificationMode === "AUTO_INVENTORY" &&
+          item.state === "MISSING",
+      ),
+      "expected at least one MISSING required AUTO_INVENTORY reagent",
+    );
+    assert.ok(result.reasons.length > 0);
+  });
+
+  it("returns NEEDS_CONFIRMATION when a manual REQUIRED requirement is not confirmed", () => {
+    const technique = leafFixture();
+    const confirmed = manualConfirmationIds(technique.requirements);
+    const withheld = confirmed[0];
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: makeInventory(technique.requirements),
+      confirmedRequirementIds: confirmed.filter((id) => id !== withheld),
+    });
+    assert.equal(result.status, "NEEDS_CONFIRMATION");
+    const item = result.items.find((entry) => entry.requirementId === withheld);
+    assert.equal(item?.state, "UNCONFIRMED");
+  });
+});
+
+describe("evaluateTechniqueReadiness UNSUPPORTED branches", () => {
+  it("returns UNSUPPORTED when status is not PUBLISHED", () => {
+    const technique = leafFixture();
+    technique.status = "DEPRECATED";
+    const result = evaluateTechniqueReadiness(makeReadyInput(technique));
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /PUBLISHED/);
+  });
+
+  it("returns UNSUPPORTED when the technique isAbstract (navigation family)", () => {
+    const technique = leafFixture();
+    technique.isAbstract = true;
+    const result = evaluateTechniqueReadiness(makeReadyInput(technique));
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /family|abstract|leaf/i);
+  });
+
+  it("returns UNSUPPORTED when requirements are empty", () => {
+    const technique = leafFixture();
+    technique.requirements = [];
+    const result = evaluateTechniqueReadiness({ technique });
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /no resource requirements/i);
+  });
+
+  it("returns UNSUPPORTED when a requirement kind dimension is missing", () => {
+    const technique = leafFixture();
+    technique.requirements = technique.requirements.filter(
+      (requirement) => requirement.kind !== "SOFTWARE",
+    );
+    const result = evaluateTechniqueReadiness(makeReadyInput(technique));
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /incomplete resource dimensions/i);
+    assert.match(result.reasons.join(" "), /SOFTWARE/);
+  });
+
+  it("returns UNSUPPORTED when profileCode does not exist on the technique", () => {
+    const technique = leafFixture();
+    const result = evaluateTechniqueReadiness({
+      ...makeReadyInput(technique),
+      profileCode: "NO_SUCH_PROFILE",
+    });
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /Unknown profile/);
+  });
+
+  it("returns UNSUPPORTED when the technique object fails structural validation", () => {
+    const technique = leafFixture();
+    const broken = { ...technique } as Record<string, unknown>;
+    delete broken.name;
+    const result = evaluateTechniqueReadiness({
+      technique: broken as unknown as ExperimentTechnique,
+    });
+    assert.equal(result.status, "UNSUPPORTED");
+    assert.match(result.reasons.join(" "), /structural validation/i);
+  });
+});
+
+describe("evaluateTechniqueReadiness CONDITIONAL requirements", () => {
+  it("unconfirmed CONDITIONAL requirement leads to NEEDS_CONFIRMATION", () => {
+    const technique = leafFixture();
+    technique.requirements.push(conditionalRequirement());
+    const input = makeReadyInput(technique);
+    input.confirmedRequirementIds = input.confirmedRequirementIds.filter(
+      (id) => id !== "fixture:conditional:biospecimen-permit",
+    );
+    const result = evaluateTechniqueReadiness(input);
+    assert.equal(result.status, "NEEDS_CONFIRMATION");
+    const item = result.items.find(
+      (entry) => entry.requirementId === "fixture:conditional:biospecimen-permit",
+    );
+    assert.equal(item?.state, "UNCONFIRMED");
+  });
+
+  it("confirmed CONDITIONAL requirement allows READY with state CONFIRMED", () => {
+    const technique = leafFixture();
+    technique.requirements.push(conditionalRequirement());
+    const result = evaluateTechniqueReadiness(makeReadyInput(technique));
+    assert.equal(result.status, "READY");
+    const item = result.items.find(
+      (entry) => entry.requirementId === "fixture:conditional:biospecimen-permit",
+    );
+    assert.equal(item?.state, "CONFIRMED");
+  });
+
+  it("CONDITIONAL requirement listed as not-applicable allows READY with state NOT_APPLICABLE", () => {
+    const technique = leafFixture();
+    technique.requirements.push(conditionalRequirement());
+    const input = makeReadyInput(technique);
+    input.confirmedRequirementIds = input.confirmedRequirementIds.filter(
+      (id) => id !== "fixture:conditional:biospecimen-permit",
+    );
+    const result = evaluateTechniqueReadiness({
+      ...input,
+      notApplicableRequirementIds: ["fixture:conditional:biospecimen-permit"],
+    });
+    assert.equal(result.status, "READY");
+    const item = result.items.find(
+      (entry) => entry.requirementId === "fixture:conditional:biospecimen-permit",
+    );
+    assert.equal(item?.state, "NOT_APPLICABLE");
+  });
+});
+
+describe("evaluateTechniqueReadiness profile additionalRequirements", () => {
+  it("merges profile additionalRequirements into the checked items", () => {
+    const technique = leafFixture(PROFILE_CODE);
+    assert.ok(technique.profiles.length > 0, `${PROFILE_CODE} fixture must declare profiles`);
+    const profile = technique.profiles.find(
+      (candidate) => candidate.additionalRequirements.length > 0,
+    );
+    assert.ok(profile, `${PROFILE_CODE} fixture must have a profile with additionalRequirements`);
+
+    const withoutProfile = evaluateTechniqueReadiness(makeReadyInput(technique));
+    const withProfile = evaluateTechniqueReadiness(makeReadyInput(technique, profile.code));
+
+    const baseIds = new Set(withoutProfile.items.map((item) => item.requirementId));
+    for (const requirement of profile.additionalRequirements) {
+      assert.ok(
+        !baseIds.has(requirement.id),
+        `profile requirement ${requirement.id} must not appear without profileCode`,
+      );
+    }
+    const mergedIds = new Set(withProfile.items.map((item) => item.requirementId));
+    for (const requirement of technique.requirements) {
+      assert.ok(mergedIds.has(requirement.id), `base requirement ${requirement.id} retained`);
+    }
+    for (const requirement of profile.additionalRequirements) {
+      assert.ok(
+        mergedIds.has(requirement.id),
+        `profile requirement ${requirement.id} merged when profileCode=${profile.code}`,
+      );
+    }
+    assert.equal(
+      withProfile.items.length,
+      technique.requirements.length + profile.additionalRequirements.length,
+    );
+    assert.equal(withProfile.profileCode, profile.code);
+    assert.equal(
+      withProfile.status,
+      "READY",
+      `fully satisfied profile check should be READY, got ${withProfile.status}: ${withProfile.reasons.join(" | ")}`,
+    );
+  });
+});

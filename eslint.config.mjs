@@ -13,6 +13,29 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["desktop/**/*.cjs"],
+    rules: {
+      // Electron's main and preload entry points execute before the renderer
+      // and must remain CommonJS because package.json has no ESM module type.
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
+    rules: {
+      // Rest-destructure omission (`const { contentHash: _h, ...rest } = obj`) and
+      // underscore-prefixed placeholders are intentional discard patterns here.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          ignoreRestSiblings: true,
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

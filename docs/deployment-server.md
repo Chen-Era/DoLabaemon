@@ -100,6 +100,20 @@ docker compose -f docker-compose.prod.yml exec app npx prisma migrate deploy
 docker compose -f docker-compose.prod.yml exec app npm run db:seed
 ```
 
+同步实验技术知识库（335 项技术与证据来源；镜像已包含 `scripts/`）：
+
+```bash
+docker compose -f docker-compose.prod.yml exec app npm run knowledge:validate -- --strict
+docker compose -f docker-compose.prod.yml exec app npm run knowledge:sync
+```
+
+`knowledge:validate --strict` 必须零错误零警告；`knowledge:sync` 输出中
+`formalCount` 应等于技术总数、`warningCount` 应为 0。若存在带策展警告的条目，
+同步默认以退出码 1 拦截（不会把非正式内容标记为正式发布）；确认后可加
+`--allow-warnings` 降级执行。
+
+每次拉取新代码重建镜像后，迁移与知识同步都需要按上面顺序重跑一次。
+
 查看运行状态：
 
 ```bash

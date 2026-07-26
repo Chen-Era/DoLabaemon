@@ -1,0 +1,65 @@
+name: Desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify desktop client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run desktop:test
+
+  package-macos:
+    name: Build macOS DMG
+    needs: verify
+    runs-on: macos-latest
+    env:
+      # Internal artifacts are intentionally unsigned. Configure Developer ID
+      # signing and notarization before publishing outside the organization.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:dist:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dorlabaemon-macOS-DMG
+          path: dist/desktop/*.dmg
+          if-no-files-found: error
+
+  package-windows:
+    name: Build Windows installer
+    needs: verify
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dorlabaemon-Windows-EXE
+          path: dist/desktop/*.exe
+          if-no-files-found: error

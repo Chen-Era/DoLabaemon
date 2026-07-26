@@ -3,9 +3,15 @@
 - `POST /api/reagents/parse`: 输入试剂基础信息，返回 LLM 解析草稿
 - `POST /api/reagents/confirm`: 确认草稿并入库
 - `GET /api/reagents/list?labId=...`: 获取实验室试剂列表
-- `POST /api/experiment/resolve`: 手动输入实验名称，返回已匹配类型或候选实验模板
-- `POST /api/experiment/check`: 返回最低缺失、推荐缺失、兼容性风险
-- `POST /api/experiment/confirm`: 确认一个模型生成的实验解析草稿
+- `GET /api/experiment-techniques?labId=...&page=...&pageSize=...`: 分页获取已发布实验技术目录摘要
+- `GET /api/experiment-techniques/[code]`: 获取单个已发布实验技术详情
+- `POST /api/experiment-techniques/resolve`: 输入实验名称/别名，返回精确自动匹配或待人工选择的候选
+- `POST /api/experiment-checks`: 对指定技术（可选 profile）执行库存就绪检查
+- `GET/POST /api/experiment-techniques/drafts`: 查询或创建实验室级技术草稿
+- `POST /api/experiment-techniques/drafts/[draftId]/submit`: 提交草稿进入审核
+- `POST /api/experiment-techniques/drafts/[draftId]/review`: PI/ADMIN 审核草稿（通过或驳回）
+- `POST /api/experiment-techniques/drafts/[draftId]/publish`: 发布已通过审核的草稿为不可变修订
+- `POST /api/experiment-techniques/[code]/rollback`: 将技术回滚到历史修订（生成新修订，PI/ADMIN）
 - `POST /api/labs/invite`: 邀请成员加入实验室
 - `GET /api/labs/my`: 获取当前用户可访问实验室
 - `GET/POST /api/settings/llm`: 读取或保存用户级模型、搜索、skill、MCP、自检与自动学习配置
@@ -31,16 +37,18 @@
 - `primerMeta`: 引物靶点与是否为内参引物
 - `ai`: 运行时 skill/MCP、自检结果与自动学习日志摘要
 
+## Experiment Technique Resolve Output
+
+- `autoSelectedCode`: 精确命中 code/名称/别名时自动选定的技术代码，否则为 `null`
+- `candidates`: 候选技术摘要列表（模糊命中总是需要人工选择）
+- `requiresHumanSelection`: 是否存在多个精确候选需要人工确认
+
 ## Experiment Check Output
 
-- `status`: `PASS` 或 `BLOCKED`
-- `minMissing`: 最低必需缺失项
-- `recommendedMissing`: 推荐补充缺失项
-- `warnings`: 前置实验缺失、规则覆盖不足等提醒
-- `compatibilityIssues`: 目前包含 `WB` 一抗/二抗种属兼容性风险
-- `resolvedExperimentType`: 手动输入实验名称最终归一到的正式实验类型
-- `resolutionSource`: `DIRECT`、`ALIAS_MATCH` 或 `MODEL_SUGGESTION`
-- `resolutionConfidence`: 实验名称解析置信度
-- `needsConfirmation`: 若为 `true`，表示当前结果仍是候选建议，不会自动进入正式实验目录
-- `suggestion`: 低匹配时返回候选实验模板，包含流程阶段、最低必需试剂和推荐试剂
-- `ai`: 运行时 skill/MCP、自检结果与自动学习日志摘要
+- `status`: `READY`、`BLOCKED`、`NEEDS_CONFIRMATION` 或 `UNSUPPORTED`
+  - `READY`：所有必需资源均已自动匹配或人工确认
+  - `BLOCKED`：存在缺失的可自动校验必需试剂
+  - `NEEDS_CONFIRMATION`：必需或条件资源仍需人工确认
+  - `UNSUPPORTED`：技术未发布、为导航族节点、资源维度不完整或需求模型为空
+- `items`: 逐项资源核查结果（`MATCHED`/`MISSING`/`CONFIRMED`/`UNCONFIRMED`/`NOT_APPLICABLE`）
+- `reasons`: 状态判定理由

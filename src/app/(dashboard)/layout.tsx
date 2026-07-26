@@ -40,7 +40,7 @@ const navGroups: NavGroup[] = [
   {
     label: "管理",
     items: [
-      { href: "/knowledge", label: "变更记录", icon: KnowledgeIcon },
+      { href: "/knowledge", label: "实验知识库", icon: KnowledgeIcon },
       { href: "/settings", label: "设置", icon: SettingsIcon },
     ],
   },
@@ -51,7 +51,7 @@ const allNavItems = navGroups.flatMap((group) => group.items);
 const pageMeta = [
   { href: "/reagents/new", title: "录入试剂" },
   { href: "/experiment-check", title: "实验检查" },
-  { href: "/knowledge", title: "变更记录" },
+  { href: "/knowledge", title: "实验知识库" },
   { href: "/settings", title: "设置" },
   { href: "/reagents", title: "试剂清单" },
   { href: "/labs", title: "实验室" },

@@ -1,6 +1,8 @@
 {
   "name": "lab-reagent-system",
   "version": "0.1.0",
+  "description": "Dorlabaemon laboratory reagent management desktop client",
+  "author": "Era",
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
@@ -9,7 +11,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "node --test --import tsx \"src/**/*.test.ts\"",
+    "test": "node scripts/run-tests-isolated.mjs",
+    "knowledge:validate": "tsx scripts/knowledge-validate.ts",
+    "knowledge:sync": "tsx scripts/knowledge-sync.ts",
     "desktop:dev": "electron .",
     "desktop:test": "node --test desktop/url-policy.test.cjs",
     "desktop:verify": "node desktop/verify-desktop-build.cjs",

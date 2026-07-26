@@ -11,6 +11,7 @@ directories:
 files:
   - desktop/**
   - package.json
+  - "!node_modules/**"
   - "!desktop/**/*.ts"
   - "!desktop/**/*.map"
   - "!desktop/**/*.test.*"
@@ -20,7 +21,6 @@ asar: true
 asarUnpack:
   - "**/*.node"
 compression: normal
-publish: never
 
 mac:
   category: public.app-category.productivity

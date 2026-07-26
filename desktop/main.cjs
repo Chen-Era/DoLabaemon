@@ -14,11 +14,21 @@ app.enableSandbox();
 let mainWindow;
 let serverUrl;
 
-function denyPermissions() {
-  session.defaultSession.setPermissionCheckHandler(() => false);
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false);
-  });
+function configurePermissions(trustedUrl) {
+  const allowsClipboardWrite = (permission, requestingOrigin) =>
+    permission === 'clipboard-sanitized-write' &&
+    isSameOriginNavigation(requestingOrigin, trustedUrl);
+
+  session.defaultSession.setPermissionCheckHandler(
+    (_webContents, permission, requestingOrigin) =>
+      allowsClipboardWrite(permission, requestingOrigin),
+  );
+  session.defaultSession.setPermissionRequestHandler(
+    (webContents, permission, callback, details) => {
+      const requestingOrigin = details.requestingUrl || webContents.getURL();
+      callback(allowsClipboardWrite(permission, requestingOrigin));
+    },
+  );
 }
 
 function openSafeExternalUrl(url) {
@@ -109,7 +119,7 @@ function start() {
     return;
   }
 
-  denyPermissions();
+  configurePermissions(serverUrl);
   mainWindow = createMainWindow(serverUrl);
 }
 

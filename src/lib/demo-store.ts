@@ -7,6 +7,7 @@ import { checkWbAntibodyCompatibility } from "@/lib/rules/wb-antibody-check";
 import { resolveExperimentInput } from "@/lib/experiment/resolve";
 import type { ExperimentResolution } from "@/lib/experiment-knowledge/types";
 import type { ExperimentKnowledgeEntry } from "@/lib/experiment-knowledge/types";
+import type { ExperimentTechnique } from "@/lib/experiment-techniques/types";
 import type { UserLlmConfigInput } from "@/lib/llm/runtime-config";
 import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import type { ReagentKnowledgeEntry } from "@/lib/reagent-knowledge/types";
@@ -97,6 +98,36 @@ type DemoExperimentKnowledgeEntry = ExperimentKnowledgeEntry & {
   source?: string;
 };
 
+export type DemoTechniqueDraft = {
+  id: string;
+  labId: string;
+  createdById: string;
+  baseCode: string | null;
+  baseRevision: number | null;
+  status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "REJECTED";
+  source: "CURATED" | "AI_DRAFT";
+  payload: unknown;
+  reviewerId: string | null;
+  reviewNote: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DemoTechniqueRevision = {
+  id: string;
+  code: string;
+  revision: number;
+  snapshot: ExperimentTechnique;
+  contentHash: string;
+  changeSummary: string;
+  restoredFromRevision: number | null;
+  labId: string | null;
+  publishedById: string | null;
+  createdAt: string;
+};
+
 type DemoStoreShape = {
   users: DemoUser[];
   labs: DemoLab[];
@@ -110,10 +141,16 @@ type DemoStoreShape = {
   knowledgeMutationLogs: DemoKnowledgeMutationLog[];
   reagentKnowledgeEntries: DemoReagentKnowledgeEntry[];
   experimentKnowledgeEntries: DemoExperimentKnowledgeEntry[];
+  techniqueDrafts: DemoTechniqueDraft[];
+  techniqueOverrides: ExperimentTechnique[];
+  techniqueRevisions: DemoTechniqueRevision[];
 };
 
-const DEMO_DATA_DIR = path.join(process.cwd(), ".data");
-const DEMO_STORE_PATH = path.join(DEMO_DATA_DIR, "demo-store.json");
+const configuredDemoStorePath = process.env.LAB_REAGENT_DEMO_STORE_PATH?.trim();
+const DEMO_STORE_PATH = configuredDemoStorePath
+  ? path.resolve(configuredDemoStorePath)
+  : path.join(process.cwd(), ".data", "demo-store.json");
+const DEMO_DATA_DIR = path.dirname(DEMO_STORE_PATH);
 const DEMO_DEFAULT_EMAIL = "demo@lab.local";
 const DEMO_DEFAULT_PASSWORD = "demo123456";
 
@@ -165,6 +202,9 @@ function createDefaultStore(): DemoStoreShape {
     knowledgeMutationLogs: [],
     reagentKnowledgeEntries: reagentKnowledgeCatalog as DemoReagentKnowledgeEntry[],
     experimentKnowledgeEntries: experimentKnowledgeCatalog as DemoExperimentKnowledgeEntry[],
+    techniqueDrafts: [],
+    techniqueOverrides: [],
+    techniqueRevisions: [],
   };
 }
 
@@ -193,6 +233,9 @@ function readStore(): DemoStoreShape {
     knowledgeMutationLogs: Array.isArray(parsed.knowledgeMutationLogs) ? parsed.knowledgeMutationLogs : [],
     reagentKnowledgeEntries: Array.isArray(parsed.reagentKnowledgeEntries) ? parsed.reagentKnowledgeEntries : base.reagentKnowledgeEntries,
     experimentKnowledgeEntries: Array.isArray(parsed.experimentKnowledgeEntries) ? parsed.experimentKnowledgeEntries : base.experimentKnowledgeEntries,
+    techniqueDrafts: Array.isArray(parsed.techniqueDrafts) ? parsed.techniqueDrafts : [],
+    techniqueOverrides: Array.isArray(parsed.techniqueOverrides) ? parsed.techniqueOverrides : [],
+    techniqueRevisions: Array.isArray(parsed.techniqueRevisions) ? parsed.techniqueRevisions : [],
   };
 }
 
@@ -355,6 +398,102 @@ export function demoDeleteExperimentKnowledgeEntry(id: string) {
   const store = readStore();
   store.experimentKnowledgeEntries = store.experimentKnowledgeEntries.filter((item) => item.id !== id);
   writeStore(store);
+}
+
+export function demoListTechniqueDrafts(labId: string) {
+  const store = readStore();
+  return store.techniqueDrafts
+    .filter((draft) => draft.labId === labId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+export function demoGetTechniqueDraft(draftId: string) {
+  return readStore().techniqueDrafts.find((draft) => draft.id === draftId) ?? null;
+}
+
+export function demoCreateTechniqueDraft(
+  input: Omit<DemoTechniqueDraft, "id" | "createdAt" | "updatedAt">,
+) {
+  const store = readStore();
+  const now = new Date().toISOString();
+  const draft: DemoTechniqueDraft = {
+    ...input,
+    id: uid("technique-draft"),
+    createdAt: now,
+    updatedAt: now,
+  };
+  store.techniqueDrafts.unshift(draft);
+  writeStore(store);
+  return draft;
+}
+
+export function demoUpdateTechniqueDraft(
+  draftId: string,
+  updates: Partial<Omit<DemoTechniqueDraft, "id" | "labId" | "createdById" | "createdAt">>,
+) {
+  const store = readStore();
+  const draft = store.techniqueDrafts.find((item) => item.id === draftId);
+  if (!draft) return null;
+  Object.assign(draft, updates, { updatedAt: new Date().toISOString() });
+  writeStore(store);
+  return draft;
+}
+
+export function demoListTechniqueOverrides() {
+  return readStore().techniqueOverrides;
+}
+
+export function demoUpsertTechniqueOverride(
+  technique: ExperimentTechnique,
+  meta?: {
+    changeSummary?: string;
+    restoredFromRevision?: number | null;
+    labId?: string | null;
+    publishedById?: string | null;
+  },
+) {
+  const store = readStore();
+  const index = store.techniqueOverrides.findIndex(
+    (item) => item.code === technique.code,
+  );
+  if (index >= 0) store.techniqueOverrides[index] = technique;
+  else store.techniqueOverrides.push(technique);
+  const hasRevisionRecord = store.techniqueRevisions.some(
+    (item) => item.code === technique.code && item.revision === technique.revision,
+  );
+  if (!hasRevisionRecord) {
+    store.techniqueRevisions.push({
+      id: uid("technique-revision"),
+      code: technique.code,
+      revision: technique.revision,
+      snapshot: technique,
+      contentHash: technique.contentHash,
+      changeSummary: meta?.changeSummary ?? "Demo override published.",
+      restoredFromRevision: meta?.restoredFromRevision ?? null,
+      labId: meta?.labId ?? null,
+      publishedById: meta?.publishedById ?? null,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  writeStore(store);
+  return technique;
+}
+
+export function demoListTechniqueRevisions(code: string): DemoTechniqueRevision[] {
+  return readStore()
+    .techniqueRevisions.filter((item) => item.code === code)
+    .sort((left, right) => left.revision - right.revision);
+}
+
+export function demoGetTechniqueRevision(
+  code: string,
+  revision: number,
+): DemoTechniqueRevision | null {
+  return (
+    readStore().techniqueRevisions.find(
+      (item) => item.code === code && item.revision === revision,
+    ) ?? null
+  );
 }
 
 export async function demoLogin(input: { email: string; password: string }) {

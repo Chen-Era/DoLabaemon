@@ -1,417 +1,517 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { CheckResult, ConfidenceMeter, MarkerList } from "@/components/experiment/check-result";
-import { AlertIcon, ExperimentIcon } from "@/components/common/app-icons";
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+import { ExperimentIcon, SearchIcon } from "@/components/common/app-icons";
 import { requestJson } from "@/lib/http";
-import { experimentTypeCatalog } from "@/lib/rules/catalog";
 
 type Lab = { role: string; lab: { id: string; name: string } };
 
-type ExperimentCheckResponse = {
-  error?: string;
-  status: string;
-  confidenceLabel: string;
-  minMissing: string[];
-  recommendedMissing: string[];
-  warnings: string[];
-  compatibilityIssues: string[];
-  resolvedExperimentType?: string | null;
-  resolutionSource?: string | null;
-  resolutionConfidence?: number | null;
-  needsConfirmation?: boolean;
-  suggestion?: {
-    proposedExperimentName: string;
-    proposedExperimentCode?: string | null;
-    matchedExistingCode?: string | null;
-    workflowStages: string[];
-    minRequiredItems: Array<{ name: string; matcherType: string; matcherValues: string[] }>;
-    recommendedItems: Array<{ name: string; matcherType: string; matcherValues: string[] }>;
-    warnings: string[];
-    rationale?: string | null;
-    confidence: number;
-  } | null;
+type Requirement = {
+  id: string;
+  kind: "REAGENT" | "CONSUMABLE" | "INSTRUMENT" | "SAMPLE" | "CONTROL" | "SOFTWARE";
+  level: "REQUIRED" | "RECOMMENDED" | "CONDITIONAL";
+  verificationMode: "AUTO_INVENTORY" | "MANUAL_CONFIRMATION";
+  label: { zh: string; en: string };
 };
 
-type Suggestion = NonNullable<ExperimentCheckResponse["suggestion"]>;
+type TechniqueDetail = {
+  code: string;
+  slug: string;
+  revision: number;
+  status: string;
+  name: { zh: string; en: string };
+  scope: { zh: string; en: string };
+  categoryCode: string;
+  requirements: Requirement[];
+  profiles: Array<{
+    code: string;
+    name: { zh: string; en: string };
+    description: { zh: string; en: string };
+    additionalRequirements: Requirement[];
+  }>;
+};
 
-function ChipList({ items }: { items: string[] }) {
-  if (!items.length) {
-    return <p className="text-sm text-stone-400">无</p>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map((item) => (
-        <span key={item} className="chip">
-          {item}
-        </span>
-      ))}
-    </div>
-  );
-}
+type TechniqueSummary = {
+  code: string;
+  slug: string;
+  status: string;
+  name: { zh: string; en: string };
+  aliases: string[];
+  category: { zh: string; en: string };
+  riskLevel: string;
+};
 
-function SuggestionView({ suggestion }: { suggestion: Suggestion }) {
-  const notes = [suggestion.rationale, ...suggestion.warnings].filter((note): note is string => Boolean(note));
-  return (
-    <div className="space-y-5">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-white text-amber-700">
-            <AlertIcon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="status-pill warning">待确认</span>
-              <span className="text-xs font-medium text-amber-800">可能匹配</span>
-            </div>
-            <p className="mt-1.5 text-lg font-semibold text-amber-900 [overflow-wrap:anywhere]">
-              {suggestion.proposedExperimentName}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-amber-800">
-              系统还不能确定你输入的是哪种实验，先给出几个可能的模板。确认后再保存为正式类型。
-            </p>
-          </div>
-        </div>
-      </div>
+type SearchResponse = {
+  items: TechniqueSummary[];
+  total: number;
+  page: number;
+  pageCount: number;
+};
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-        <div>
-          <dt className="text-xs text-stone-400">建议匹配为</dt>
-          <dd className="mt-0.5 text-xs font-medium text-stone-700 [overflow-wrap:anywhere]">
-            {suggestion.matchedExistingCode || suggestion.proposedExperimentCode || "新实验候选"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-400">匹配可信度</dt>
-          <dd className="mt-0.5">
-            <ConfidenceMeter value={suggestion.confidence} />
-          </dd>
-        </div>
-      </dl>
+type CheckItem = {
+  requirementId: string;
+  label: string;
+  kind: string;
+  level: string;
+  verificationMode: string;
+  state: "MATCHED" | "MISSING" | "CONFIRMED" | "UNCONFIRMED" | "NOT_APPLICABLE";
+  matchedName?: string;
+};
 
-      <div className="subtle-divider" />
+type CheckResult = {
+  techniqueCode: string;
+  profileCode: string | null;
+  status: "BLOCKED" | "NEEDS_CONFIRMATION" | "READY" | "UNSUPPORTED";
+  items: CheckItem[];
+  reasons: string[];
+  checkRunId?: string | null;
+  error?: string;
+};
 
-      <section>
-        <BlockHeading title="流程阶段" count={suggestion.workflowStages.length} />
-        <ChipList items={suggestion.workflowStages} />
-      </section>
+const kindLabels: Record<string, string> = {
+  REAGENT: "试剂",
+  CONSUMABLE: "耗材",
+  INSTRUMENT: "仪器",
+  SAMPLE: "样本",
+  CONTROL: "对照",
+  SOFTWARE: "软件",
+};
 
-      <div className="subtle-divider" />
-
-      <section>
-        <BlockHeading title="最低必需试剂" count={suggestion.minRequiredItems.length} />
-        <ChipList items={suggestion.minRequiredItems.map((item) => item.name)} />
-      </section>
-
-      <div className="subtle-divider" />
-
-      <section>
-        <BlockHeading title="推荐补充试剂" count={suggestion.recommendedItems.length} />
-        <ChipList items={suggestion.recommendedItems.map((item) => item.name)} />
-      </section>
-
-      <div className="subtle-divider" />
-
-      <section>
-        <BlockHeading title="说明与警告" count={notes.length} />
-        {notes.length ? <MarkerList items={notes} markerClass="bg-amber-600" /> : <p className="text-sm text-stone-400">无</p>}
-      </section>
-    </div>
-  );
-}
-
-function BlockHeading({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="mb-2 flex items-center justify-between gap-2">
-      <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
-      <span className="glass-badge">{count}</span>
-    </div>
-  );
-}
-
-function ResultSkeleton() {
-  return (
-    <div className="space-y-4" aria-live="polite">
-      <p className="flex items-center gap-2 text-sm text-stone-500">
-        <span className="skeleton inline-block h-4 w-4 shrink-0" aria-hidden="true" />
-        正在核对库存和实验条件…
-      </p>
-      <div className="skeleton h-24" />
-      <div className="grid grid-cols-2 gap-3">
-        <div className="skeleton h-12" />
-        <div className="skeleton h-12" />
-      </div>
-      <div className="space-y-2">
-        <div className="skeleton h-4 w-1/3" />
-        <div className="skeleton h-4 w-2/3" />
-        <div className="skeleton h-4 w-1/2" />
-      </div>
-    </div>
-  );
-}
+const resultStyles: Record<CheckResult["status"], { title: string; className: string; copy: string }> = {
+  BLOCKED: {
+    title: "BLOCKED · 缺少必需试剂",
+    className: "border-rose-200 bg-rose-50 text-rose-900",
+    copy: "至少一项可由库存自动验证的必需试剂未匹配，当前不可开展。",
+  },
+  NEEDS_CONFIRMATION: {
+    title: "NEEDS_CONFIRMATION · 等待人工确认",
+    className: "border-amber-200 bg-amber-50 text-amber-900",
+    copy: "试剂检查未阻断，但仍有必需仪器、耗材、样本、对照或软件需要确认。",
+  },
+  READY: {
+    title: "READY · 资源已就绪",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    copy: "全部必需资源已由库存验证或人工确认。",
+  },
+  UNSUPPORTED: {
+    title: "UNSUPPORTED · 暂不支持",
+    className: "border-slate-300 bg-slate-100 text-slate-800",
+    copy: "技术未发布、结构无效或资源要求不完整；零规则绝不会返回通过。",
+  },
+};
 
 export default function ExperimentCheckPage() {
   const [labs, setLabs] = useState<Lab[]>([]);
   const [labId, setLabId] = useState("");
-  const [inputMode, setInputMode] = useState<"STANDARD" | "MANUAL">("STANDARD");
-  const [experimentType, setExperimentType] = useState("WB");
-  const [customExperimentName, setCustomExperimentName] = useState("");
-  const [experimentContext, setExperimentContext] = useState("");
-  const [direction, setDirection] = useState("AUTOPHAGY");
-  const [prerequisite, setPrerequisite] = useState("");
-  const [result, setResult] = useState<ExperimentCheckResponse | null>(null);
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState<TechniqueSummary[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<TechniqueDetail | null>(null);
+  const [profileCode, setProfileCode] = useState("");
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<CheckResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [checkError, setCheckError] = useState<string | null>(null);
 
   useEffect(() => {
-    void requestJson<{ items?: Lab[]; error?: string }>("/api/labs/my")
-      .then(({ response, data }) => {
+    void requestJson<{ items?: Lab[] }>("/api/labs/my").then(
+      ({ response, data }) => {
         if (response.status === 401) {
           window.location.href = "/login";
           return;
         }
-        if (!response.ok) {
-          setCheckError(data?.error ?? "读取实验室失败，请稍后再试。");
-          return;
-        }
-        const nextLabs = data?.items ?? [];
-        setLabs(nextLabs);
-        if (nextLabs.length) {
-          setLabId(nextLabs[0].lab.id);
-        }
-      })
-      .catch(() => setCheckError("网络异常，暂时无法读取实验室。"));
+        const items = data?.items ?? [];
+        setLabs(items);
+        setLabId(items[0]?.lab.id ?? "");
+      },
+    );
   }, []);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!labId) {
-      setCheckError("请先选择实验室。");
+  const search = useCallback(async (value: string) => {
+    setSearching(true);
+    const params = new URLSearchParams({
+      q: value.trim(),
+      page: "1",
+      pageSize: "20",
+      status: "PUBLISHED",
+    });
+    const { response, data } = await requestJson<SearchResponse>(
+      `/api/experiment-techniques?${params.toString()}`,
+    );
+    if (response.ok) setCandidates(data?.items ?? []);
+    setSearching(false);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void search(query), 180);
+    return () => window.clearTimeout(timer);
+  }, [query, search]);
+
+  async function chooseTechnique(code: string) {
+    setError(null);
+    const { response, data } = await requestJson<{
+      technique?: TechniqueDetail;
+      error?: string;
+    }>(`/api/experiment-techniques/${encodeURIComponent(code)}`);
+    if (!response.ok || !data?.technique) {
+      setError(data?.error ?? "读取技术详情失败。");
       return;
     }
-    setCheckError(null);
-    setSubmitting(true);
-    try {
-      const payload =
-        inputMode === "STANDARD"
-          ? { labId, inputMode, experimentType, direction, prerequisite, lang: "zh" }
-          : { labId, inputMode, customExperimentName, experimentContext, direction, prerequisite, lang: "zh" };
-      const { response, data } = await requestJson<ExperimentCheckResponse>("/api/experiment/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      if (response.ok && data) {
-        setResult(data);
-      } else {
-        setResult(null);
-        setCheckError(data?.error ?? "检查失败，请稍后再试。");
-      }
-    } catch {
-      setResult(null);
-      setCheckError("网络异常，暂时无法检查实验准备。");
-    } finally {
-      setSubmitting(false);
-    }
+    setSelected(data.technique);
+    setProfileCode("");
+    setConfirmedIds(new Set());
+    setResult(null);
   }
 
-  function segmentedClass(active: boolean) {
-    return `rounded-md border px-3 py-1.5 text-sm transition ${
-      active
-        ? "border-stone-200 bg-white font-semibold text-stone-900"
-        : "border-transparent font-medium text-stone-500 hover:text-stone-900"
-    }`;
+  async function resolveInput() {
+    if (!query.trim()) return;
+    setSearching(true);
+    const { response, data } = await requestJson<{
+      autoSelectedCode?: string | null;
+      candidates?: TechniqueSummary[];
+      error?: string;
+    }>("/api/experiment-techniques/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: query.trim(), limit: 8 }),
+    });
+    setSearching(false);
+    if (!response.ok) {
+      setError(data?.error ?? "名称解析失败。");
+      return;
+    }
+    if (data?.autoSelectedCode) {
+      await chooseTechnique(data.autoSelectedCode);
+      return;
+    }
+    setError("未得到唯一精确命中，请从排序候选中人工选择。");
+  }
+
+  const activeProfile = selected?.profiles.find(
+    (profile) => profile.code === profileCode,
+  );
+  const requirements = useMemo(
+    () => [
+      ...(selected?.requirements ?? []),
+      ...(activeProfile?.additionalRequirements ?? []),
+    ],
+    [activeProfile, selected],
+  );
+
+  const groupedRequirements = useMemo(() => {
+    const groups = new Map<string, Requirement[]>();
+    for (const requirement of requirements) {
+      const group = groups.get(requirement.kind) ?? [];
+      group.push(requirement);
+      groups.set(requirement.kind, group);
+    }
+    return [...groups.entries()];
+  }, [requirements]);
+
+  function toggleConfirmation(id: string) {
+    setConfirmedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setResult(null);
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!labId || !selected) {
+      setError("请先选择实验室和具体技术。");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    const { response, data } = await requestJson<CheckResult>(
+      "/api/experiment-checks",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          labId,
+          techniqueCode: selected.code,
+          profileCode: profileCode || null,
+          confirmedRequirementIds: [...confirmedIds],
+        }),
+      },
+    );
+    setSubmitting(false);
+    if (!response.ok || !data) {
+      setError(data?.error ?? "检查失败。");
+      return;
+    }
+    setResult(data);
   }
 
   return (
     <div className="space-y-6">
       <header className="page-header">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-900">检查实验准备</h1>
-        <p className="section-copy mt-1.5 max-w-2xl text-sm">核对库存和必要条件，快速判断实验是否可开展。</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+          实验资源检查
+        </h1>
+        <p className="section-copy mt-1.5 max-w-3xl text-sm">
+          从服务端技术目录选择叶子技术，自动匹配库存试剂，并人工确认非库存资源。
+        </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start">
-        <section className="app-panel px-5 py-5">
-          <div className="mb-4">
-            <h2 className="text-base font-semibold text-stone-900">实验信息</h2>
+      <form
+        onSubmit={onSubmit}
+        className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)_24rem] xl:items-start"
+      >
+        <section className="app-panel overflow-hidden">
+          <div className="border-b border-slate-200 p-4">
+            <h2 className="font-semibold text-slate-950">1. 选择技术</h2>
           </div>
-          <form onSubmit={onSubmit} className="space-y-5">
+          <div className="space-y-4 p-4">
             <div>
-              <label className="field-label" htmlFor="check-lab">
-                实验室
-              </label>
-              <select id="check-lab" className="input-base" value={labId} onChange={(e) => setLabId(e.target.value)}>
-                {labs.map((x) => (
-                  <option key={x.lab.id} value={x.lab.id}>
-                    {x.lab.name}
+              <label className="field-label" htmlFor="check-lab">实验室</label>
+              <select
+                id="check-lab"
+                className="input-base"
+                value={labId}
+                onChange={(event) => setLabId(event.target.value)}
+              >
+                {labs.map((item) => (
+                  <option key={item.lab.id} value={item.lab.id}>
+                    {item.lab.name}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div className="subtle-divider" />
-
-            <div className="space-y-3">
-              <div>
-                <label className="field-label">输入方式</label>
-                <div
-                  className="grid grid-cols-2 gap-1 rounded-lg border border-stone-300 bg-stone-100 p-1"
-                  role="group"
-                  aria-label="输入方式"
-                >
-                  <button
-                    type="button"
-                    className={segmentedClass(inputMode === "STANDARD")}
-                    aria-pressed={inputMode === "STANDARD"}
-                    onClick={() => {
-                      setInputMode("STANDARD");
-                      setResult(null);
-                    }}
-                  >
-                    标准实验类型
-                  </button>
-                  <button
-                    type="button"
-                    className={segmentedClass(inputMode === "MANUAL")}
-                    aria-pressed={inputMode === "MANUAL"}
-                    onClick={() => {
-                      setInputMode("MANUAL");
-                      setResult(null);
-                    }}
-                  >
-                    手动输入实验名
-                  </button>
-                </div>
+            <div>
+              <label className="field-label" htmlFor="technique-search">
+                中英文名称、code 或别名
+              </label>
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  id="technique-search"
+                  className="input-base pl-9"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="如 RT-qPCR、FACS、夹心 ELISA"
+                />
               </div>
-              <div>
-                <label className="field-label" htmlFor="check-experiment">
-                  {inputMode === "STANDARD" ? "实验类型" : "实验名称"}
-                </label>
-                {inputMode === "STANDARD" ? (
+              <button
+                type="button"
+                className="button-secondary mt-2 w-full"
+                disabled={!query.trim() || searching}
+                onClick={() => void resolveInput()}
+              >
+                {searching ? "解析中…" : "按严格规则解析"}
+              </button>
+            </div>
+
+            <div className="max-h-[33rem] space-y-2 overflow-y-auto pr-1">
+              {candidates.map((candidate) => (
+                <button
+                  key={candidate.code}
+                  type="button"
+                  onClick={() => void chooseTechnique(candidate.code)}
+                  className={`w-full rounded-lg border p-3 text-left transition ${
+                    selected?.code === candidate.code
+                      ? "border-teal-500 bg-teal-50"
+                      : "border-slate-200 hover:border-teal-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono text-[10px] font-semibold text-teal-700">
+                      {candidate.code}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{candidate.riskLevel}</span>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {candidate.name.zh}
+                  </p>
+                  <p className="text-xs text-slate-500">{candidate.name.en}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="app-panel overflow-hidden">
+          <div className="border-b border-slate-200 p-4">
+            <h2 className="font-semibold text-slate-950">2. 核对具体要求</h2>
+          </div>
+          {!selected ? (
+            <div className="p-10 text-center text-sm text-slate-500">
+              从左侧候选中选择边界清晰的叶子技术。
+            </div>
+          ) : (
+            <div className="space-y-5 p-5">
+              <div className="rounded-xl bg-slate-950 p-4 text-white">
+                <p className="font-mono text-xs text-teal-200">
+                  {selected.code} · r{selected.revision}
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">{selected.name.zh}</h3>
+                <p className="text-sm text-slate-300">{selected.name.en}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{selected.scope.zh}</p>
+                <Link
+                  href={`/knowledge/techniques/${encodeURIComponent(selected.code)}`}
+                  className="mt-3 inline-block text-xs font-semibold text-teal-200 hover:text-white"
+                >
+                  查看完整知识条目 →
+                </Link>
+              </div>
+
+              {selected.profiles.length ? (
+                <div>
+                  <label className="field-label" htmlFor="profile">应用 Profile（可选）</label>
                   <select
-                    id="check-experiment"
+                    id="profile"
                     className="input-base"
-                    value={experimentType}
-                    onChange={(e) => setExperimentType(e.target.value)}
+                    value={profileCode}
+                    onChange={(event) => {
+                      setProfileCode(event.target.value);
+                      setConfirmedIds(new Set());
+                      setResult(null);
+                    }}
                   >
-                    {experimentTypeCatalog.map((item) => (
-                      <option key={item.code} value={item.code}>
-                        {item.nameZh}
+                    <option value="">通用要求</option>
+                    {selected.profiles.map((profile) => (
+                      <option key={profile.code} value={profile.code}>
+                        {profile.name.zh}
                       </option>
                     ))}
                   </select>
-                ) : (
-                  <input
-                    id="check-experiment"
-                    className="input-base"
-                    placeholder="例如：蛋白免疫印迹、ELISA、细胞因子分泌检测"
-                    value={customExperimentName}
-                    onChange={(e) => setCustomExperimentName(e.target.value)}
-                  />
-                )}
-              </div>
-              {inputMode === "MANUAL" ? (
-                <div>
-                  <label className="field-label" htmlFor="check-context">
-                    实验备注（选填）
-                  </label>
-                  <textarea
-                    id="check-context"
-                    className="input-base min-h-28"
-                    placeholder="例如：检测细胞上清中 IL-6 分泌；样本来自成骨诱导后的条件培养基"
-                    value={experimentContext}
-                    onChange={(e) => setExperimentContext(e.target.value)}
-                  />
+                  {activeProfile ? (
+                    <p className="field-hint">{activeProfile.description.zh}</p>
+                  ) : null}
                 </div>
               ) : null}
-            </div>
 
-            <div className="subtle-divider" />
-
-            <div className="space-y-3">
-              <div>
-                <label className="field-label" htmlFor="check-direction">
-                  研究方向
-                </label>
-                <select
-                  id="check-direction"
-                  className="input-base"
-                  value={direction}
-                  onChange={(e) => setDirection(e.target.value)}
-                >
-                  <option value="AUTOPHAGY">自噬</option>
-                  <option value="SECRETORY_AUTOPHAGY">分泌性自噬</option>
-                  <option value="EXOSOME">外泌体</option>
-                </select>
+              <div className="space-y-5">
+                {groupedRequirements.map(([kind, items]) => (
+                  <section key={kind}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        {kindLabels[kind] ?? kind}
+                      </h3>
+                      <span className="text-xs text-slate-400">{items.length} 项</span>
+                    </div>
+                    <div className="space-y-2">
+                      {items.map((requirement) => {
+                        const automatic =
+                          requirement.verificationMode === "AUTO_INVENTORY";
+                        return (
+                          <label
+                            key={requirement.id}
+                            className={`flex gap-3 rounded-lg border p-3 ${
+                              automatic
+                                ? "border-cyan-200 bg-cyan-50/60"
+                                : confirmedIds.has(requirement.id)
+                                  ? "border-emerald-300 bg-emerald-50"
+                                  : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 accent-teal-700"
+                              checked={
+                                automatic || confirmedIds.has(requirement.id)
+                              }
+                              disabled={automatic}
+                              onChange={() => toggleConfirmation(requirement.id)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-slate-800">
+                                {requirement.label.zh}
+                              </span>
+                              <span className="mt-1 block text-xs text-slate-500">
+                                {requirement.level} ·{" "}
+                                {automatic ? "库存自动验证" : "人工确认"}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
-              <div>
-                <label className="field-label" htmlFor="check-prerequisite">
-                  前置实验（可选）
-                </label>
-                <input
-                  id="check-prerequisite"
-                  className="input-base"
-                  placeholder="例如：已经完成细胞处理或样本提取"
-                  value={prerequisite}
-                  onChange={(e) => setPrerequisite(e.target.value)}
-                />
-                <p className="field-hint">没有前置实验可留空。</p>
-              </div>
-            </div>
 
-            <button className="button-primary w-full" type="submit" disabled={submitting || !labId}>
-              {submitting ? (
-                "检查中…"
-              ) : (
-                <>
-                  <ExperimentIcon className="h-4 w-4" />
-                  开始检查
-                </>
-              )}
-            </button>
-          </form>
-        </section>
-
-        <section className="app-panel px-5 py-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-stone-900">检查结果</h2>
-            </div>
-            {submitting ? (
-              <span className="status-pill warning">检查中</span>
-            ) : result ? (
-              <span className="status-pill success">已完成</span>
-            ) : (
-              <span className="glass-badge">待提交</span>
-            )}
-          </div>
-
-          {submitting ? (
-            <ResultSkeleton />
-          ) : checkError ? (
-            <div className="danger-panel text-sm" role="alert">
-              {checkError}
-            </div>
-          ) : result?.needsConfirmation && result.suggestion ? (
-            <SuggestionView suggestion={result.suggestion} />
-          ) : result ? (
-            <CheckResult {...result} />
-          ) : (
-            <div className="rounded-lg border border-dashed border-stone-300">
-              <div className="empty-state">
-                <ExperimentIcon className="mx-auto mb-3 h-7 w-7 text-stone-300" />
-                <p>
-                  选择实验类型，或手动输入实验名称，即可检查库存和必要条件。
-                </p>
-              </div>
+              <button
+                type="submit"
+                className="button-primary w-full"
+                disabled={!labId || submitting}
+              >
+                <ExperimentIcon className="h-4 w-4" />
+                {submitting ? "检查中…" : "运行资源检查"}
+              </button>
             </div>
           )}
         </section>
+
+        <section className="app-panel overflow-hidden">
+          <div className="border-b border-slate-200 p-4">
+            <h2 className="font-semibold text-slate-950">3. 检查结果</h2>
+          </div>
+          <div className="p-4">
+            {error ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+                {error}
+              </div>
+            ) : null}
+            {!result && !error ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                结果固定为 BLOCKED、NEEDS_CONFIRMATION、READY 或 UNSUPPORTED。
+              </div>
+            ) : null}
+            {result ? <ResultPanel result={result} /> : null}
+          </div>
+        </section>
+      </form>
+    </div>
+  );
+}
+
+function ResultPanel({ result }: { result: CheckResult }) {
+  const style = resultStyles[result.status];
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-xl border p-4 ${style.className}`}>
+        <p className="font-semibold">{style.title}</p>
+        <p className="mt-2 text-sm leading-6">{style.copy}</p>
       </div>
+      {result.reasons.length ? (
+        <ul className="list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
+          {result.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+        </ul>
+      ) : null}
+      <div className="space-y-2">
+        {result.items.map((item) => (
+          <div key={item.requirementId} className="rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-slate-800">{item.label}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                item.state === "MATCHED" || item.state === "CONFIRMED"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : item.state === "MISSING"
+                    ? "bg-rose-50 text-rose-700"
+                    : "bg-amber-50 text-amber-700"
+              }`}>
+                {item.state}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {kindLabels[item.kind] ?? item.kind} · {item.level}
+              {item.matchedName ? ` · ${item.matchedName}` : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+      {result.checkRunId ? (
+        <p className="break-all font-mono text-[10px] text-slate-400">
+          audit: {result.checkRunId}
+        </p>
+      ) : null}
     </div>
   );
 }

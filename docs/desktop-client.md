@@ -21,7 +21,7 @@
   不可变的 `window.dorlabaemonDesktop.isDesktopClient` 标识，不提供 Node/IPC 功能。
 - 应用只保留同源导航；跨源的同窗口跳转会被阻止。请求新窗口的安全 `http(s)` 链接会
   由系统默认浏览器打开，非 `http(s)` 或含 URL 凭据的链接会被拒绝；网页权限请求默认
-  拒绝，也不允许 `<webview>`。
+  拒绝，唯一例外是同源页面发起的安全文本复制权限，也不允许 `<webview>`。
 - 桌面端不保存或代理 `OPENAI_API_KEY`、`REAGENT_SEARCH_API_KEY`、
   `DATABASE_URL` 等服务器秘密。不要通过命令行、构建环境变量或安装包把这些值传给
   客户端。
@@ -161,7 +161,13 @@ favicon `src/app/favicon.ico`。`desktop:dist:mac` 当前会用 favicon 通过 `
 
 ## CI 发布要求
 
-建议把打包工作流限制为受保护 tag（例如 `v*`）或受保护 release 分支，并设置最小权限：
+建议把打包工作流限制为受保护 tag（例如 `desktop-v*`）或受保护 release 分支，并设置最小权限：
+
+仓库已提供 [desktop-packages.yml](../.github/workflows/desktop-packages.yml)：手动触发或推送
+`desktop-v*` tag 时，它先在 Linux 执行检查，再在 macOS 和 Windows runner 分别生成 DMG
+和 EXE，并将它们作为 GitHub Actions artifacts 上传。该工作流显式生成**未签名的内部测试
+包**，不会发布 Release；正式对外发布前必须按以下要求接入受保护环境中的签名、公证和
+发布步骤。
 
 1. Linux runner 执行 `npm ci`、`npm run lint`、`npm run test`；构建时使用锁定的
    `package-lock.json`。

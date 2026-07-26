@@ -27,3 +27,9 @@ export function canInvite(role: LabRole) {
 export function canManageAiPolicy(role: LabRole | "PI" | "ADMIN" | "MEMBER") {
   return role === "PI" || role === "ADMIN";
 }
+
+export function canReviewExperimentTechniques(
+  role: LabRole | "PI" | "ADMIN" | "MEMBER",
+) {
+  return role === "PI" || role === "ADMIN";
+}

@@ -42,15 +42,58 @@ enum RuleMatcherType {
   PRIMER_REFERENCE
 }
 
+enum TechniqueStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  DEPRECATED
+}
+
+enum TechniqueSource {
+  SYSTEM
+  CURATED
+  AI_DRAFT
+}
+
+enum TechniqueDraftStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum TechniqueRequirementKind {
+  REAGENT
+  CONSUMABLE
+  INSTRUMENT
+  SAMPLE
+  CONTROL
+  SOFTWARE
+}
+
+enum TechniqueRequirementLevel {
+  REQUIRED
+  RECOMMENDED
+  CONDITIONAL
+}
+
+enum TechniqueVerificationMode {
+  AUTO_INVENTORY
+  MANUAL_CONFIRMATION
+}
+
 model User {
-  id            String                 @id @default(cuid())
-  email         String                 @unique
-  passwordHash  String
-  displayName   String?
-  createdAt     DateTime               @default(now())
-  memberships   LabMember[]
-  llmConfig     UserLlmConfig?
-  knowledgeLogs KnowledgeMutationLog[]
+  id                 String                        @id @default(cuid())
+  email              String                        @unique
+  passwordHash       String
+  displayName        String?
+  createdAt          DateTime                      @default(now())
+  memberships        LabMember[]
+  llmConfig          UserLlmConfig?
+  knowledgeLogs      KnowledgeMutationLog[]
+  techniqueDrafts    ExperimentTechniqueDraft[]    @relation("TechniqueDraftCreator")
+  techniqueReviews   ExperimentTechniqueDraft[]    @relation("TechniqueDraftReviewer")
+  techniqueRevisions ExperimentTechniqueRevision[] @relation("TechniqueRevisionPublisher")
 }
 
 model UserLlmConfig {
@@ -74,14 +117,16 @@ model UserLlmConfig {
 }
 
 model Lab {
-  id          String                @id @default(cuid())
-  name        String
-  members     LabMember[]
-  reagents    Reagent[]
-  checks      ExperimentCheckRun[]
-  invitations Invitation[]
-  aiPolicy    LabAiPolicy?
-  knowledgeLogs KnowledgeMutationLog[]
+  id                 String                        @id @default(cuid())
+  name               String
+  members            LabMember[]
+  reagents           Reagent[]
+  checks             ExperimentCheckRun[]
+  invitations        Invitation[]
+  aiPolicy           LabAiPolicy?
+  knowledgeLogs      KnowledgeMutationLog[]
+  techniqueDrafts    ExperimentTechniqueDraft[]
+  techniqueRevisions ExperimentTechniqueRevision[]
 }
 
 model LabMember {
@@ -139,11 +184,11 @@ model AntibodyMeta {
 }
 
 model PrimerMeta {
-  id              String   @id @default(cuid())
-  reagentId        String   @unique
-  targetName       String?
-  isReferenceGene  Boolean  @default(false)
-  reagent          Reagent  @relation(fields: [reagentId], references: [id], onDelete: Cascade)
+  id              String  @id @default(cuid())
+  reagentId       String  @unique
+  targetName      String?
+  isReferenceGene Boolean @default(false)
+  reagent         Reagent @relation(fields: [reagentId], references: [id], onDelete: Cascade)
 }
 
 model ExperimentType {
@@ -207,6 +252,9 @@ model ExperimentCheckRun {
   userId              String
   experimentCode      String
   directionCode       String?
+  profileCode         String?
+  techniqueRevision   Int?
+  confirmedRequirementIds String[]              @default([])
   prerequisite        String?
   confidenceLabel     String
   status              String
@@ -221,6 +269,11 @@ model ExperimentCheckItem {
   id          String             @id @default(cuid())
   checkRunId  String
   level       RuleLevel
+  requirementId String?
+  requirementKind String?
+  requirementLevel String?
+  verificationMode String?
+  state String?
   displayName String
   isMissing   Boolean
   matchedName String?
@@ -228,18 +281,18 @@ model ExperimentCheckItem {
 }
 
 model LabAiPolicy {
-  id                      String   @id @default(cuid())
-  labId                   String   @unique
-  allowAutoLearn          Boolean  @default(false)
+  id                      String    @id @default(cuid())
+  labId                   String    @unique
+  allowAutoLearn          Boolean   @default(false)
   allowedRoles            LabRole[] @default([PI])
-  enabledKnowledgeDomains String[] @default(["REAGENT", "EXPERIMENT"])
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  lab                     Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
+  enabledKnowledgeDomains String[]  @default(["REAGENT", "EXPERIMENT"])
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  lab                     Lab       @relation(fields: [labId], references: [id], onDelete: Cascade)
 }
 
 model KnowledgeMutationLog {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   labId           String
   userId          String
   flowType        String
@@ -251,53 +304,218 @@ model KnowledgeMutationLog {
   evidenceSummary String[]
   modelName       String?
   rolledBackAt    DateTime?
-  createdAt       DateTime @default(now())
-  lab             Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  lab             Lab       @relation(fields: [labId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([labId, createdAt])
   @@index([userId, createdAt])
 }
 
 model ReagentKnowledgeEntry {
-  id               String   @id
+  id               String          @id
   canonicalName    String
-  aliases          String[] @default([])
+  aliases          String[]        @default([])
   category         ReagentCategory
   subCategory      String?
-  experimentTags   String[] @default([])
-  namePatterns     String[] @default([])
-  requiredKeywords String[] @default([])
-  excludedKeywords String[] @default([])
-  vendorHints      String[] @default([])
+  experimentTags   String[]        @default([])
+  namePatterns     String[]        @default([])
+  requiredKeywords String[]        @default([])
+  excludedKeywords String[]        @default([])
+  vendorHints      String[]        @default([])
   evidenceType     String
   confidenceHint   Float
   notes            String?
-  source           String   @default("SYSTEM")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  source           String          @default("SYSTEM")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([canonicalName])
 }
 
 model ExperimentKnowledgeEntry {
-  id                         String   @id
-  canonicalName              String
-  aliases                    String[] @default([])
-  normalizedCode             String
-  descriptionZh              String
-  descriptionEn              String
-  supportedDirections        String[] @default([])
-  workflowStages             Json
-  requiredReagentTemplates   Json
+  id                          String   @id
+  canonicalName               String
+  aliases                     String[] @default([])
+  normalizedCode              String
+  descriptionZh               String
+  descriptionEn               String
+  supportedDirections         String[] @default([])
+  workflowStages              Json
+  requiredReagentTemplates    Json
   recommendedReagentTemplates Json
-  evidenceKeywords           String[] @default([])
-  excludedKeywords           String[] @default([])
-  relatedExperimentTags      String[] @default([])
-  source                     String   @default("SYSTEM")
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  evidenceKeywords            String[] @default([])
+  excludedKeywords            String[] @default([])
+  relatedExperimentTags       String[] @default([])
+  source                      String   @default("SYSTEM")
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   @@index([canonicalName])
   @@index([normalizedCode])
+}
+
+model ExperimentTechnique {
+  id                     String                        @id @default(cuid())
+  code                   String                        @unique
+  slug                   String                        @unique
+  revision               Int                           @default(1)
+  status                 TechniqueStatus
+  source                 TechniqueSource
+  contentHash            String
+  isAbstract             Boolean                       @default(false)
+  parentCode             String?
+  nameZh                 String
+  nameEn                 String
+  aliases                String[]                      @default([])
+  categoryCode           String
+  subcategoryCode        String
+  principleZh            String
+  principleEn            String
+  scopeZh                String
+  scopeEn                String
+  sampleTypes            String[]                      @default([])
+  inputTypes             String[]                      @default([])
+  outputTypes            String[]                      @default([])
+  readoutModes           String[]                      @default([])
+  throughput             String
+  destructive            Boolean                       @default(false)
+  workflowStages         Json
+  keyParameters          Json
+  qcMetrics              Json
+  limitations            Json
+  troubleshooting        Json
+  safety                 Json
+  ontologyMappings       Json
+  ontologyUnmappedReason Json?
+  reportingStandards     Json
+  evidenceSourceIds      String[]                      @default([])
+  claimEvidence          Json
+  resolutionExamples     Json
+  reviewedAt             DateTime
+  nextReviewDue          DateTime
+  active                 Boolean                       @default(true)
+  formalPublication      Boolean                       @default(false)
+  curationWarnings       String[]                      @default([])
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  requirements           TechniqueRequirement[]
+  profiles               ExperimentTechniqueProfile[]
+  evidenceBindings       TechniqueEvidenceBinding[]
+  revisions              ExperimentTechniqueRevision[]
+
+  @@index([status, active])
+  @@index([categoryCode, subcategoryCode])
+  @@index([parentCode])
+}
+
+model TechniqueRequirement {
+  id               String                      @id
+  techniqueId      String
+  profileId        String?
+  kind             TechniqueRequirementKind
+  level            TechniqueRequirementLevel
+  verificationMode TechniqueVerificationMode
+  labelZh          String
+  labelEn          String
+  capabilityTags   String[]                    @default([])
+  matcherValues    String[]                    @default([])
+  condition        Json?
+  sortOrder        Int                         @default(0)
+  technique        ExperimentTechnique         @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  profile          ExperimentTechniqueProfile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([techniqueId, kind, level])
+  @@index([profileId])
+}
+
+model ExperimentTechniqueProfile {
+  id                     String                 @id @default(cuid())
+  techniqueId            String
+  code                   String
+  name                   Json
+  description            Json
+  technique              ExperimentTechnique    @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  additionalRequirements TechniqueRequirement[]
+
+  @@unique([techniqueId, code])
+}
+
+model EvidenceSource {
+  id                String                     @id
+  title             String
+  organization      String
+  sourceType        String
+  tier              String
+  authorityScope    String
+  canonicalUrl      String
+  version           String
+  versionUri        String
+  releaseDate       String
+  retrievedAt       DateTime
+  licenseId         String
+  licenseUrl        String?
+  reuseMode         String
+  doi               String?
+  pmid              String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  techniqueBindings TechniqueEvidenceBinding[]
+
+  @@index([tier, sourceType])
+}
+
+model TechniqueEvidenceBinding {
+  id               String              @id @default(cuid())
+  techniqueId      String
+  evidenceSourceId String
+  supportedFields  String[]            @default([])
+  claimLocator     String?
+  technique        ExperimentTechnique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  evidenceSource   EvidenceSource      @relation(fields: [evidenceSourceId], references: [id], onDelete: Restrict)
+
+  @@unique([techniqueId, evidenceSourceId])
+  @@index([evidenceSourceId])
+}
+
+model ExperimentTechniqueRevision {
+  id                   String              @id @default(cuid())
+  techniqueId          String
+  revision             Int
+  snapshot             Json
+  contentHash          String
+  changeSummary        String
+  restoredFromRevision Int?
+  labId                String?
+  publishedById        String?
+  createdAt            DateTime            @default(now())
+  technique            ExperimentTechnique @relation(fields: [techniqueId], references: [id], onDelete: Restrict)
+  lab                  Lab?                @relation(fields: [labId], references: [id], onDelete: SetNull)
+  publishedBy          User?               @relation("TechniqueRevisionPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([techniqueId, revision])
+  @@index([labId, createdAt])
+}
+
+model ExperimentTechniqueDraft {
+  id           String               @id @default(cuid())
+  labId        String
+  createdById  String
+  baseCode     String?
+  baseRevision Int?
+  status       TechniqueDraftStatus @default(DRAFT)
+  source       TechniqueSource      @default(CURATED)
+  payload      Json
+  reviewerId   String?
+  reviewNote   String               @default("")
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  lab          Lab                  @relation(fields: [labId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("TechniqueDraftCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewer     User?                @relation("TechniqueDraftReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([labId, status, updatedAt])
+  @@index([baseCode])
 }
