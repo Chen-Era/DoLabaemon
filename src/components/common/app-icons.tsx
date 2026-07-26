@@ -86,9 +86,9 @@ export function KnowledgeIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
-export function SortIcon({ className = "h-3.5 w-3.5" }: IconProps) {
+export function SortIcon({ className = "" }: IconProps) {
   return (
-    <BaseIcon className={className}>
+    <BaseIcon className={`h-3.5 w-3.5 shrink-0${className ? ` ${className}` : ""}`}>
       <path d="m8 7 4-4 4 4" />
       <path d="m16 17-4 4-4-4" />
     </BaseIcon>
