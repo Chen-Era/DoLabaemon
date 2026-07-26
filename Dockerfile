@@ -11,6 +11,11 @@ FROM base AS deps
 
 ARG NPM_REGISTRY
 
+# npm ci 也会装 devDependencies：electron 的 postinstall 会从 github.com 拉约 100MB 二进制，
+# prisma 会从 binaries.prisma.sh 拉引擎，npmmirror 管不到这两个地址，国内服务器上会无限挂起。
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+    PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \

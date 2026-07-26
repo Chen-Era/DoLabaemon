@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { canReviewExperimentTechniques } from "@/lib/permissions";
+import { canDeleteLab, canRemoveMember, canReviewExperimentTechniques, canReviewJoinRequests } from "@/lib/permissions";
 
 function readLabRolesFromSchema(): string[] {
   const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
@@ -41,5 +41,56 @@ describe("canReviewExperimentTechniques permission matrix", () => {
 
   void it("explicitly denies MEMBER", () => {
     assert.equal(canReviewExperimentTechniques("MEMBER"), false);
+  });
+});
+
+describe("canReviewJoinRequests permission matrix", () => {
+  void it("grants PI and ADMIN, denies every other LabRole from the schema", () => {
+    for (const role of readLabRolesFromSchema()) {
+      const expected = role === "PI" || role === "ADMIN";
+      assert.equal(
+        canReviewJoinRequests(role as "PI" | "ADMIN" | "MEMBER"),
+        expected,
+        `role ${role} must ${expected ? "be allowed" : "be denied"} to review join requests`,
+      );
+    }
+  });
+});
+
+describe("canDeleteLab permission matrix", () => {
+  void it("grants only PI", () => {
+    for (const role of readLabRolesFromSchema()) {
+      const expected = role === "PI";
+      assert.equal(
+        canDeleteLab(role as "PI" | "ADMIN" | "MEMBER"),
+        expected,
+        `role ${role} must ${expected ? "be allowed" : "be denied"} to delete a lab`,
+      );
+    }
+  });
+});
+
+describe("canRemoveMember permission matrix", () => {
+  void it("PI removes ADMIN and MEMBER but not another PI", () => {
+    assert.equal(canRemoveMember("PI", "ADMIN", false), true);
+    assert.equal(canRemoveMember("PI", "MEMBER", false), true);
+    assert.equal(canRemoveMember("PI", "PI", false), false);
+  });
+
+  void it("ADMIN removes only MEMBER", () => {
+    assert.equal(canRemoveMember("ADMIN", "MEMBER", false), true);
+    assert.equal(canRemoveMember("ADMIN", "ADMIN", false), false);
+    assert.equal(canRemoveMember("ADMIN", "PI", false), false);
+  });
+
+  void it("MEMBER removes nobody", () => {
+    assert.equal(canRemoveMember("MEMBER", "MEMBER", false), false);
+    assert.equal(canRemoveMember("MEMBER", "PI", false), false);
+  });
+
+  void it("nobody removes themselves", () => {
+    assert.equal(canRemoveMember("PI", "PI", true), false);
+    assert.equal(canRemoveMember("ADMIN", "ADMIN", true), false);
+    assert.equal(canRemoveMember("MEMBER", "MEMBER", true), false);
   });
 });

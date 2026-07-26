@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SearchIcon, SortIcon } from "@/components/common/app-icons";
+import { LabsIcon, SearchIcon, SortIcon } from "@/components/common/app-icons";
 import { CopySelectedButton } from "@/components/common/copy-selected-button";
 import { requestJson } from "@/lib/http";
 import { reagentCategoryLabel } from "@/lib/reagent-category";
@@ -177,6 +178,8 @@ export default function ReagentsPage() {
     return [quantity, reagent.storageCondition].filter(Boolean).join(" · ");
   }
 
+  const showNoLabs = !loading && !error && labs.length === 0;
+
   return (
     <div className="space-y-5">
       <section className="page-header">
@@ -190,6 +193,21 @@ export default function ReagentsPage() {
         </div>
       </section>
 
+      {showNoLabs ? (
+        <section className="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
+            <LabsIcon className="h-5 w-5" />
+          </span>
+          <h3 className="mt-4 font-semibold text-slate-950">你还没有加入任何实验室</h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            可以先创建自己的实验室，或使用邀请码申请加入同事的实验室；加入后即可录入和查看试剂。
+          </p>
+          <Link href="/labs" className="button-primary mt-5">
+            前往实验室
+          </Link>
+        </section>
+      ) : (
+      <>
       <section className="app-panel px-4 py-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -351,6 +369,8 @@ export default function ReagentsPage() {
           </table>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

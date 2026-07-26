@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckIcon,
   KnowledgeIcon,
+  LabsIcon,
   SearchIcon,
 } from "@/components/common/app-icons";
 import { requestJson } from "@/lib/http";
@@ -108,10 +109,11 @@ export default function KnowledgePage() {
   const [labs, setLabs] = useState<Lab[]>([]);
   const [labId, setLabId] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [labsLoading, setLabsLoading] = useState(true);
 
   useEffect(() => {
-    void requestJson<{ items?: Lab[] }>("/api/labs/my").then(
-      ({ response, data }) => {
+    void requestJson<{ items?: Lab[] }>("/api/labs/my")
+      .then(({ response, data }) => {
         if (response.status === 401) {
           window.location.href = "/login";
           return;
@@ -119,14 +121,16 @@ export default function KnowledgePage() {
         const items = data?.items ?? [];
         setLabs(items);
         setLabId(items[0]?.lab.id ?? "");
-      },
-    );
+        setLabsLoading(false);
+      })
+      .catch(() => setLabsLoading(false));
   }, []);
 
   const membership = labs.find((item) => item.lab.id === labId);
   const canReview = Boolean(
     membership && ["PI", "ADMIN"].includes(membership.role),
   );
+  const showNoLabs = !labsLoading && labs.length === 0;
 
   return (
     <div className="space-y-6">
@@ -149,26 +153,43 @@ export default function KnowledgePage() {
               </p>
             </div>
           </div>
-          <div className="min-w-56">
-            <label className="mb-1 block text-xs font-semibold text-slate-300" htmlFor="knowledge-lab">
-              当前实验室
-            </label>
-            <select
-              id="knowledge-lab"
-              className="input-base border-slate-600 bg-slate-900 text-white"
-              value={labId}
-              onChange={(event) => setLabId(event.target.value)}
-            >
-              {labs.map((item) => (
-                <option key={item.lab.id} value={item.lab.id}>
-                  {item.lab.name} · {item.role}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showNoLabs ? null : (
+            <div className="min-w-56">
+              <label className="mb-1 block text-xs font-semibold text-slate-300" htmlFor="knowledge-lab">
+                当前实验室
+              </label>
+              <select
+                id="knowledge-lab"
+                className="input-base border-slate-600 bg-slate-900 text-white"
+                value={labId}
+                onChange={(event) => setLabId(event.target.value)}
+              >
+                {labs.map((item) => (
+                  <option key={item.lab.id} value={item.lab.id}>
+                    {item.lab.name} · {item.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </section>
 
+      {showNoLabs ? (
+        <section className="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
+            <LabsIcon className="h-5 w-5" />
+          </span>
+          <h3 className="mt-4 font-semibold text-slate-950">你还没有加入任何实验室</h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            可以先创建自己的实验室，或使用邀请码申请加入同事的实验室；加入后即可浏览技术图谱并管理实验室私有草稿。
+          </p>
+          <Link href="/labs" className="button-primary mt-5">
+            前往实验室
+          </Link>
+        </section>
+      ) : (
+      <>
       <nav
         className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2"
         aria-label="知识库视图"
@@ -227,6 +248,8 @@ export default function KnowledgePage() {
       {tab === "AUDIT" ? (
         <AuditLog labId={labId} onNotice={setNotice} />
       ) : null}
+      </>
+      )}
     </div>
   );
 }

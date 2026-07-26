@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { ExperimentIcon, SearchIcon } from "@/components/common/app-icons";
+import { ExperimentIcon, LabsIcon, SearchIcon } from "@/components/common/app-icons";
 import { requestJson } from "@/lib/http";
 
 type Lab = { role: string; lab: { id: string; name: string } };
@@ -48,6 +48,17 @@ type SearchResponse = {
   total: number;
   page: number;
   pageCount: number;
+};
+
+type AiCandidate = {
+  code: string;
+  slug: string;
+  name: { zh: string; en: string };
+  aliases: string[];
+  categoryCode: string;
+  riskLevel: string;
+  confidence: number;
+  rationale: string;
 };
 
 type CheckItem = {
@@ -108,16 +119,20 @@ export default function ExperimentCheckPage() {
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<TechniqueSummary[]>([]);
   const [searching, setSearching] = useState(false);
+  const [aiCandidates, setAiCandidates] = useState<AiCandidate[]>([]);
+  const [aiMatching, setAiMatching] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [selected, setSelected] = useState<TechniqueDetail | null>(null);
   const [profileCode, setProfileCode] = useState("");
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [labsLoading, setLabsLoading] = useState(true);
 
   useEffect(() => {
-    void requestJson<{ items?: Lab[] }>("/api/labs/my").then(
-      ({ response, data }) => {
+    void requestJson<{ items?: Lab[] }>("/api/labs/my")
+      .then(({ response, data }) => {
         if (response.status === 401) {
           window.location.href = "/login";
           return;
@@ -125,8 +140,9 @@ export default function ExperimentCheckPage() {
         const items = data?.items ?? [];
         setLabs(items);
         setLabId(items[0]?.lab.id ?? "");
-      },
-    );
+        setLabsLoading(false);
+      })
+      .catch(() => setLabsLoading(false));
   }, []);
 
   const search = useCallback(async (value: string) => {
@@ -189,6 +205,47 @@ export default function ExperimentCheckPage() {
     setError("未得到唯一精确命中，请从排序候选中人工选择。");
   }
 
+  async function aiMatch() {
+    if (!query.trim()) return;
+    setAiMatching(true);
+    setError(null);
+    let response: Response;
+    let data: {
+      candidates?: AiCandidate[];
+      notes?: string | null;
+      error?: string;
+    } | null;
+    try {
+      ({ response, data } = await requestJson<{
+        candidates?: AiCandidate[];
+        notes?: string | null;
+        error?: string;
+      }>("/api/experiment-techniques/ai-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query.trim(), limit: 5 }),
+        timeoutMs: 100000,
+      }));
+    } catch {
+      setAiMatching(false);
+      setError("AI 匹配请求超时或网络异常，请稍后重试或改用严格规则解析。");
+      return;
+    }
+    setAiMatching(false);
+    if (!response.ok) {
+      setAiCandidates([]);
+      setAiNotes(null);
+      setError(data?.error ?? "AI 模糊匹配失败。");
+      return;
+    }
+    const items = data?.candidates ?? [];
+    setAiCandidates(items);
+    setAiNotes(data?.notes ?? null);
+    if (!items.length) {
+      setError("AI 未在目录中找到合理匹配，可补充更具体的描述后重试。");
+    }
+  }
+
   const activeProfile = selected?.profiles.find(
     (profile) => profile.code === profileCode,
   );
@@ -249,6 +306,8 @@ export default function ExperimentCheckPage() {
     setResult(data);
   }
 
+  const showNoLabs = !labsLoading && labs.length === 0;
+
   return (
     <div className="space-y-6">
       <header className="page-header">
@@ -260,6 +319,20 @@ export default function ExperimentCheckPage() {
         </p>
       </header>
 
+      {showNoLabs ? (
+        <section className="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
+            <LabsIcon className="h-5 w-5" />
+          </span>
+          <h3 className="mt-4 font-semibold text-slate-950">你还没有加入任何实验室</h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+            可以先创建自己的实验室，或使用邀请码申请加入同事的实验室；加入后即可基于实验室库存运行资源检查。
+          </p>
+          <Link href="/labs" className="button-primary mt-5">
+            前往实验室
+          </Link>
+        </section>
+      ) : (
       <form
         onSubmit={onSubmit}
         className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)_24rem] xl:items-start"
@@ -294,21 +367,89 @@ export default function ExperimentCheckPage() {
                   id="technique-search"
                   className="input-base pl-9"
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setAiCandidates([]);
+                    setAiNotes(null);
+                  }}
                   placeholder="如 RT-qPCR、FACS、夹心 ELISA"
                 />
               </div>
-              <button
-                type="button"
-                className="button-secondary mt-2 w-full"
-                disabled={!query.trim() || searching}
-                onClick={() => void resolveInput()}
-              >
-                {searching ? "解析中…" : "按严格规则解析"}
-              </button>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={!query.trim() || searching || aiMatching}
+                  onClick={() => void resolveInput()}
+                >
+                  {searching ? "解析中…" : "严格规则解析"}
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={!query.trim() || searching || aiMatching}
+                  onClick={() => void aiMatch()}
+                >
+                  {aiMatching ? "AI 匹配中…" : "AI 模糊匹配"}
+                </button>
+              </div>
             </div>
 
             <div className="max-h-[33rem] space-y-2 overflow-y-auto pr-1">
+              {aiCandidates.length ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-violet-700">
+                      AI 候选（{aiCandidates.length}）
+                    </p>
+                    <button
+                      type="button"
+                      className="text-[10px] text-slate-400 hover:text-slate-600"
+                      onClick={() => {
+                        setAiCandidates([]);
+                        setAiNotes(null);
+                      }}
+                    >
+                      清除
+                    </button>
+                  </div>
+                  {aiCandidates.map((candidate) => (
+                    <button
+                      key={candidate.code}
+                      type="button"
+                      onClick={() => void chooseTechnique(candidate.code)}
+                      className={`w-full rounded-lg border p-3 text-left transition ${
+                        selected?.code === candidate.code
+                          ? "border-violet-500 bg-violet-50"
+                          : "border-violet-200 bg-violet-50/40 hover:border-violet-400 hover:bg-violet-50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-mono text-[10px] font-semibold text-violet-700">
+                          {candidate.code}
+                        </span>
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                          AI {Math.round(candidate.confidence * 100)}%
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {candidate.name.zh}
+                      </p>
+                      <p className="text-xs text-slate-500">{candidate.name.en}</p>
+                      {candidate.rationale ? (
+                        <p className="mt-1 text-xs leading-5 text-violet-600">
+                          {candidate.rationale}
+                        </p>
+                      ) : null}
+                    </button>
+                  ))}
+                  {aiNotes ? (
+                    <p className="rounded-lg bg-violet-50 px-3 py-2 text-[11px] leading-5 text-violet-600">
+                      {aiNotes}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {candidates.map((candidate) => (
                 <button
                   key={candidate.code}
@@ -468,6 +609,7 @@ export default function ExperimentCheckPage() {
           </div>
         </section>
       </form>
+      )}
     </div>
   );
 }

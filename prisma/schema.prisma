@@ -13,6 +13,12 @@ enum LabRole {
   MEMBER
 }
 
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ReagentCategory {
   ANTIBODY
   BUFFER
@@ -89,6 +95,7 @@ model User {
   displayName        String?
   createdAt          DateTime                      @default(now())
   memberships        LabMember[]
+  joinRequests       LabJoinRequest[]
   llmConfig          UserLlmConfig?
   knowledgeLogs      KnowledgeMutationLog[]
   techniqueDrafts    ExperimentTechniqueDraft[]    @relation("TechniqueDraftCreator")
@@ -120,6 +127,7 @@ model Lab {
   id                 String                        @id @default(cuid())
   name               String
   members            LabMember[]
+  joinRequests       LabJoinRequest[]
   reagents           Reagent[]
   checks             ExperimentCheckRun[]
   invitations        Invitation[]
@@ -138,6 +146,22 @@ model LabMember {
   lab    Lab     @relation(fields: [labId], references: [id], onDelete: Cascade)
 
   @@unique([userId, labId])
+}
+
+model LabJoinRequest {
+  id         String            @id @default(cuid())
+  labId      String
+  userId     String
+  message    String?
+  status     JoinRequestStatus @default(PENDING)
+  createdAt  DateTime          @default(now())
+  reviewedAt DateTime?
+  reviewerId String?
+  lab        Lab               @relation(fields: [labId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([labId, status])
+  @@index([userId, status])
 }
 
 model Invitation {

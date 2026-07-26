@@ -22,10 +22,21 @@ import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
 import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
 
 type Role = "PI" | "ADMIN" | "MEMBER";
+type JoinRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 type DemoUser = { id: string; email: string; displayName?: string; passwordHash: string };
 type DemoLab = { id: string; name: string };
 type DemoMembership = { userId: string; labId: string; role: Role };
+type DemoJoinRequest = {
+  id: string;
+  labId: string;
+  userId: string;
+  message?: string;
+  status: JoinRequestStatus;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewerId?: string | null;
+};
 type DemoAntibodyMeta = ParsedAntibodyMeta;
 type DemoPrimerMeta = ParsedPrimerMeta;
 
@@ -132,6 +143,7 @@ type DemoStoreShape = {
   users: DemoUser[];
   labs: DemoLab[];
   memberships: DemoMembership[];
+  joinRequests: DemoJoinRequest[];
   invites: Array<{ id: string; labId: string; email: string; role: Role }>;
   reagents: DemoReagent[];
   drafts: DemoDraft[];
@@ -186,6 +198,7 @@ function createDefaultStore(): DemoStoreShape {
     ],
     labs: [{ id: demoLabId, name: "Demo Lab" }],
     memberships: [{ userId: demoUserId, labId: demoLabId, role: "PI" }],
+    joinRequests: [],
     invites: [],
     reagents: [],
     drafts: [],
@@ -224,6 +237,7 @@ function readStore(): DemoStoreShape {
     users: Array.isArray(parsed.users) ? parsed.users : base.users,
     labs: Array.isArray(parsed.labs) ? parsed.labs : base.labs,
     memberships: Array.isArray(parsed.memberships) ? parsed.memberships : base.memberships,
+    joinRequests: Array.isArray(parsed.joinRequests) ? parsed.joinRequests : [],
     invites: Array.isArray(parsed.invites) ? parsed.invites : [],
     reagents: Array.isArray(parsed.reagents) ? parsed.reagents : [],
     drafts: Array.isArray(parsed.drafts) ? parsed.drafts : [],
@@ -514,15 +528,53 @@ export async function demoLogin(input: { email: string; password: string }) {
   };
 }
 
-export async function demoRegister(input: { email: string; password: string; displayName?: string; labName: string }) {
+type DemoRegisterResult =
+  | {
+      error: string;
+      code: "EMAIL_EXISTS" | "INVALID_LAB_NAME" | "INVITE_NOT_FOUND" | "INVITE_EMAIL_MISMATCH" | "LAB_NOT_FOUND";
+    }
+  | { userId: string; labId?: string; joinRequestId?: string; mode: "create" | "invite" | "request" | "none" };
+
+export async function demoRegister(input: {
+  email: string;
+  password: string;
+  displayName?: string;
+  labName?: string;
+  mode?: "create" | "invite" | "request" | "none";
+  inviteCode?: string;
+  requestLabId?: string;
+  requestMessage?: string;
+}): Promise<DemoRegisterResult> {
   const store = readStore();
   const email = normalizeEmail(input.email);
   const exists = store.users.find((x) => x.email === email);
   if (exists) {
     return { error: "Email already exists", code: "EMAIL_EXISTS" as const };
   }
+  const mode = input.mode ?? "create";
+
+  let invite: DemoStoreShape["invites"][number] | undefined;
+  let requestLab: DemoLab | undefined;
+  if (mode === "create") {
+    if (!input.labName || input.labName.trim().length < 2) {
+      return { error: "实验室名称不能为空", code: "INVALID_LAB_NAME" as const };
+    }
+  } else if (mode === "invite") {
+    invite = store.invites.find((item) => item.id === input.inviteCode?.trim());
+    if (!invite) {
+      return { error: "邀请码无效", code: "INVITE_NOT_FOUND" as const };
+    }
+    if (invite.email !== email) {
+      return { error: "该邀请码绑定的是其他邮箱", code: "INVITE_EMAIL_MISMATCH" as const };
+    }
+  } else if (mode === "request") {
+    requestLab = store.labs.find((lab) => lab.id === input.requestLabId);
+    if (!requestLab) {
+      return { error: "没有找到这个实验室", code: "LAB_NOT_FOUND" as const };
+    }
+  }
+
   const userId = uid("user");
-  const labId = uid("lab");
   const user: DemoUser = {
     id: userId,
     email,
@@ -532,16 +584,44 @@ export async function demoRegister(input: { email: string; password: string; dis
     user.displayName = input.displayName;
   }
   store.users.push(user);
-  store.labs.push({ id: labId, name: input.labName });
-  store.memberships.push({ userId, labId, role: "PI" });
-  store.aiPolicies.push({
-    labId,
-    allowAutoLearn: false,
-    allowedRoles: ["PI"],
-    enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
-  });
+
+  if (mode === "create") {
+    const labId = uid("lab");
+    store.labs.push({ id: labId, name: input.labName!.trim() });
+    store.memberships.push({ userId, labId, role: "PI" });
+    store.aiPolicies.push({
+      labId,
+      allowAutoLearn: false,
+      allowedRoles: ["PI"],
+      enabledKnowledgeDomains: ["REAGENT", "EXPERIMENT"],
+    });
+    writeStore(store);
+    return { userId, labId, mode };
+  }
+
+  if (mode === "invite" && invite) {
+    store.memberships.push({ userId, labId: invite.labId, role: invite.role });
+    store.invites = store.invites.filter((item) => item.id !== invite!.id);
+    writeStore(store);
+    return { userId, labId: invite.labId, mode };
+  }
+
+  if (mode === "request" && requestLab) {
+    const joinRequest: DemoJoinRequest = {
+      id: uid("join-request"),
+      labId: requestLab.id,
+      userId,
+      message: input.requestMessage?.trim() || undefined,
+      status: "PENDING",
+      createdAt: new Date().toISOString(),
+    };
+    store.joinRequests.push(joinRequest);
+    writeStore(store);
+    return { userId, joinRequestId: joinRequest.id, mode };
+  }
+
   writeStore(store);
-  return { userId, labId };
+  return { userId, mode };
 }
 
 export function demoLabsOf(userId: string) {
@@ -599,6 +679,173 @@ export function demoJoinLab(input: { userId: string; email?: string; inviteId: s
   store.invites = store.invites.filter((item) => item.id !== invite.id);
   writeStore(store);
   return { labId: invite.labId };
+}
+
+export function demoSearchLabs(query: string, limit = 8) {
+  const store = readStore();
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return store.labs
+    .filter((lab) => lab.name.toLowerCase().includes(q))
+    .slice(0, limit)
+    .map((lab) => ({
+      id: lab.id,
+      name: lab.name,
+      memberCount: store.memberships.filter((membership) => membership.labId === lab.id).length,
+    }));
+}
+
+export function demoCreateJoinRequest(input: { userId: string; labId: string; message?: string }) {
+  const store = readStore();
+  const lab = store.labs.find((item) => item.id === input.labId);
+  if (!lab) {
+    return { error: "没有找到这个实验室", code: "LAB_NOT_FOUND" as const };
+  }
+  const alreadyMember = store.memberships.find((item) => item.userId === input.userId && item.labId === lab.id);
+  if (alreadyMember) {
+    return { error: "你已加入该实验室", code: "ALREADY_IN_LAB" as const };
+  }
+  const existing = store.joinRequests.find(
+    (item) => item.userId === input.userId && item.labId === lab.id && item.status === "PENDING",
+  );
+  if (existing) {
+    return { error: "你已经提交过申请，请等待审批", code: "REQUEST_ALREADY_PENDING" as const };
+  }
+  const joinRequest: DemoJoinRequest = {
+    id: uid("join-request"),
+    labId: lab.id,
+    userId: input.userId,
+    message: input.message?.trim() || undefined,
+    status: "PENDING",
+    createdAt: new Date().toISOString(),
+  };
+  store.joinRequests.push(joinRequest);
+  writeStore(store);
+  return { joinRequestId: joinRequest.id };
+}
+
+export function demoListJoinRequests(userId: string) {
+  const store = readStore();
+  const mine = store.joinRequests
+    .filter((item) => item.userId === userId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map((item) => ({
+      ...item,
+      lab: { id: item.labId, name: store.labs.find((lab) => lab.id === item.labId)?.name ?? "已删除的实验室" },
+    }));
+  const managedLabIds = store.memberships
+    .filter((item) => item.userId === userId && (item.role === "PI" || item.role === "ADMIN"))
+    .map((item) => item.labId);
+  const pending = store.joinRequests
+    .filter((item) => item.status === "PENDING" && managedLabIds.includes(item.labId))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map((item) => {
+      const requester = store.users.find((user) => user.id === item.userId);
+      return {
+        ...item,
+        lab: { id: item.labId, name: store.labs.find((lab) => lab.id === item.labId)?.name ?? "已删除的实验室" },
+        user: {
+          id: item.userId,
+          email: requester?.email ?? "未知用户",
+          displayName: requester?.displayName ?? null,
+        },
+      };
+    });
+  return { mine, pending };
+}
+
+export function demoReviewJoinRequest(input: { requestId: string; reviewerId: string; action: "approve" | "reject" }) {
+  const store = readStore();
+  const joinRequest = store.joinRequests.find((item) => item.id === input.requestId);
+  if (!joinRequest || joinRequest.status !== "PENDING") {
+    return { error: "申请不存在或已处理", code: "REQUEST_NOT_FOUND" as const };
+  }
+  const membership = store.memberships.find(
+    (item) => item.userId === input.reviewerId && item.labId === joinRequest.labId,
+  );
+  if (!membership || (membership.role !== "PI" && membership.role !== "ADMIN")) {
+    return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
+  }
+  joinRequest.reviewedAt = new Date().toISOString();
+  joinRequest.reviewerId = input.reviewerId;
+  if (input.action === "approve") {
+    const alreadyMember = store.memberships.find(
+      (item) => item.userId === joinRequest.userId && item.labId === joinRequest.labId,
+    );
+    if (!alreadyMember) {
+      store.memberships.push({ userId: joinRequest.userId, labId: joinRequest.labId, role: "MEMBER" });
+    }
+    joinRequest.status = "APPROVED";
+  } else {
+    joinRequest.status = "REJECTED";
+  }
+  writeStore(store);
+  return { joinRequestId: joinRequest.id, status: joinRequest.status, labId: joinRequest.labId };
+}
+
+export function demoListLabMembers(labId: string) {
+  const store = readStore();
+  return store.memberships
+    .filter((item) => item.labId === labId)
+    .map((item) => {
+      const user = store.users.find((candidate) => candidate.id === item.userId);
+      return {
+        userId: item.userId,
+        role: item.role,
+        email: user?.email ?? "未知用户",
+        displayName: user?.displayName ?? null,
+      };
+    });
+}
+
+export function demoRemoveLabMember(input: { actorId: string; labId: string; targetUserId: string }) {
+  const store = readStore();
+  const actor = store.memberships.find((item) => item.userId === input.actorId && item.labId === input.labId);
+  if (!actor) {
+    return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
+  }
+  const target = store.memberships.find((item) => item.userId === input.targetUserId && item.labId === input.labId);
+  if (!target) {
+    return { error: "该成员不在实验室中", code: "MEMBER_NOT_FOUND" as const };
+  }
+  const isSelf = input.actorId === input.targetUserId;
+  const allowed =
+    !isSelf &&
+    ((actor.role === "PI" && target.role !== "PI") || (actor.role === "ADMIN" && target.role === "MEMBER"));
+  if (!allowed) {
+    return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
+  }
+  store.memberships = store.memberships.filter((item) => item !== target);
+  writeStore(store);
+  return { removedUserId: input.targetUserId };
+}
+
+export function demoDeleteLab(input: { userId: string; labId: string }) {
+  const store = readStore();
+  const membership = store.memberships.find((item) => item.userId === input.userId && item.labId === input.labId);
+  if (!membership || membership.role !== "PI") {
+    return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
+  }
+  const labId = input.labId;
+  store.labs = store.labs.filter((lab) => lab.id !== labId);
+  store.memberships = store.memberships.filter((item) => item.labId !== labId);
+  store.joinRequests = store.joinRequests.filter((item) => item.labId !== labId);
+  store.invites = store.invites.filter((item) => item.labId !== labId);
+  store.reagents = store.reagents.filter((item) => item.labId !== labId);
+  store.drafts = store.drafts.filter((item) => item.labId !== labId);
+  store.experimentResolveDrafts = store.experimentResolveDrafts.filter((item) => item.labId !== labId);
+  store.aiPolicies = store.aiPolicies.filter((item) => item.labId !== labId);
+  store.knowledgeMutationLogs = store.knowledgeMutationLogs.filter((item) => item.labId !== labId);
+  store.techniqueDrafts = store.techniqueDrafts.filter((item) => item.labId !== labId);
+  writeStore(store);
+  return { deletedLabId: labId };
+}
+
+export function demoListInvites(labId: string) {
+  const store = readStore();
+  return store.invites
+    .filter((item) => item.labId === labId)
+    .map((item) => ({ id: item.id, email: item.email, role: item.role }));
 }
 
 export function demoListReagents(labId: string) {

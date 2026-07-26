@@ -6,6 +6,7 @@
 - `GET /api/experiment-techniques?labId=...&page=...&pageSize=...`: 分页获取已发布实验技术目录摘要
 - `GET /api/experiment-techniques/[code]`: 获取单个已发布实验技术详情
 - `POST /api/experiment-techniques/resolve`: 输入实验名称/别名，返回精确自动匹配或待人工选择的候选
+- `POST /api/experiment-techniques/ai-match`: 输入模糊实验名称，调用大模型按规则从已发布目录中返回一个或多个候选（含置信度与理由，幻觉 code 自动过滤）；未配置 LLM 时返回 `LLM_NOT_CONFIGURED`
 - `POST /api/experiment-checks`: 对指定技术（可选 profile）执行库存就绪检查
 - `GET/POST /api/experiment-techniques/drafts`: 查询或创建实验室级技术草稿
 - `POST /api/experiment-techniques/drafts/[draftId]/submit`: 提交草稿进入审核

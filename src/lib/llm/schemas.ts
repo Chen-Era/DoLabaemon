@@ -71,3 +71,20 @@ export const experimentResolveSchema = z.object({
   rationale: z.string().nullable().optional(),
   confidence: z.number().min(0).max(1),
 });
+
+export const techniqueAiMatchSchema = z.object({
+  matches: z
+    .array(
+      z.object({
+        code: z.string().trim().min(1),
+        confidence: z.number().min(0).max(1).default(0.5),
+        rationale: z
+          .string()
+          .trim()
+          .nullish()
+          .transform((value) => value ?? ""),
+      }),
+    )
+    .default([]),
+  notes: z.string().trim().nullable().optional(),
+});
