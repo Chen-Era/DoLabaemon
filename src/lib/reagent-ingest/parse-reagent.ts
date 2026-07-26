@@ -17,6 +17,7 @@ import { finalizeAiFlow, prepareAiFlow } from "@/lib/ai-orchestrator/run-flow";
 import type { AiFlowContext, AiFlowExecution } from "@/lib/ai-orchestrator/types";
 import { invokeMcpTool } from "@/lib/mcp/client";
 import { buildReagentSkillHints } from "@/lib/skills/builtin/reagent-classification-curator";
+import { REAGENT_PARSE_OUTPUT_SKILL_ID } from "@/lib/skills/builtin/reagent-parse-output";
 import { cleanUrlText } from "@/lib/url/clean-url";
 
 export type ParseReagentInput = {
@@ -30,7 +31,7 @@ export type ParseReagentResult = {
   parsed: z.infer<typeof verifiedReagentParsedSchema>;
   parseSource: "llm" | "fallback";
   verificationStatus: "verified" | "unverified";
-  verificationMethod: "native_web_search" | "external_search" | "none";
+  verificationMethod: "native_web_search" | "external_search" | "knowledge_base" | "none";
   verificationReason: z.infer<typeof verifiedReagentParsedSchema>["verification"]["reason"];
   verificationWarnings: string[];
   rawLlmOutput?: string;
@@ -46,7 +47,7 @@ export type ParseReagentResult = {
 };
 
 export type ParseReagentDiagnostics = {
-  path: "native_verified" | "initial_draft_only" | "external_verified" | "fallback";
+  path: "native_verified" | "knowledge_verified" | "initial_draft_only" | "external_verified" | "fallback";
   timingsMs: Partial<Record<"retrieval" | "prepareFlow" | "initialDraft" | "nativeVerify" | "externalSearch" | "externalVerify" | "finalize", number>>;
   degradedStages: string[];
 };
@@ -65,6 +66,29 @@ const INITIAL_DRAFT_TIMEOUT_MS = 45000;
 const NATIVE_VERIFY_TIMEOUT_MS = 45000;
 const EXTERNAL_VERIFY_TIMEOUT_MS = 30000;
 const FINALIZE_FLOW_TIMEOUT_MS = 5000;
+
+// 本地知识库置信度达到阈值时，草稿直接按"知识库核验"定稿，
+// 跳过串行链路里最贵的联网搜索+抓取+二次模型验证。
+const DEFAULT_KNOWLEDGE_VERIFY_THRESHOLD = 0.9;
+
+type LlmCallConfig = {
+  model: string;
+  baseUrl: string | null | undefined;
+  thinkingEnabled: boolean;
+};
+
+function knowledgeVerifyThreshold() {
+  const raw = Number.parseFloat(process.env.LLM_KNOWLEDGE_VERIFY_THRESHOLD ?? "");
+  return Number.isFinite(raw) ? raw : DEFAULT_KNOWLEDGE_VERIFY_THRESHOLD;
+}
+
+function shouldSkipWebVerification(
+  llmConfig: ParseReagentDependencies["llmConfig"],
+  retrievalConfidence: number,
+) {
+  const enabled = llmConfig?.knowledgeVerifySkipEnabled ?? true;
+  return enabled && retrievalConfidence >= knowledgeVerifyThreshold();
+}
 
 function parseDraftFromRawOutput(rawOutput: string) {
   const coerced = coerceReagentParsedPayload(normalizeLlmParsedPayload(parseLlmJson(rawOutput)));
@@ -131,22 +155,25 @@ function pushDegradedStage(diagnostics: ParseReagentDiagnostics, stage: string) 
 
 async function generateInitialDraft(
   client: ReturnType<typeof getLlmClient>,
-  model: string,
-  baseUrl: string | null | undefined,
+  llm: LlmCallConfig & { structuredOutput: boolean },
   input: ParseReagentInput,
   retrieval: ReagentKnowledgeRetrievalResult,
 ) {
-  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
-    model,
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+    model: llm.model,
     input: [
       {
         role: "system",
-        content: buildReagentParsePrompt(input.lang, {
-          candidateCategories: retrieval.candidateCategories,
-          candidateSubCategories: retrieval.candidateSubCategories,
-          candidateExperimentTags: retrieval.candidateExperimentTags,
-          evidenceLines: retrieval.evidenceLines,
-        }),
+        content: buildReagentParsePrompt(
+          input.lang,
+          {
+            candidateCategories: retrieval.candidateCategories,
+            candidateSubCategories: retrieval.candidateSubCategories,
+            candidateExperimentTags: retrieval.candidateExperimentTags,
+            evidenceLines: retrieval.evidenceLines,
+          },
+          { structuredOutput: llm.structuredOutput },
+        ),
       },
       { role: "user", content: JSON.stringify(input) },
     ],
@@ -160,17 +187,16 @@ async function generateInitialDraft(
 
 async function verifyWithNativeWebSearch(
   client: ReturnType<typeof getLlmClient>,
-  model: string,
-  baseUrl: string | null | undefined,
+  llm: LlmCallConfig,
   input: ParseReagentInput,
   initialDraft: z.infer<typeof reagentParsedSchema> | null,
   retrieval: ReagentKnowledgeRetrievalResult,
 ) {
-  const toolType = getNativeWebSearchToolType({ baseUrl, model });
+  const toolType = getNativeWebSearchToolType({ baseUrl: llm.baseUrl, model: llm.model });
   if (!toolType) return null;
 
-  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
-    model,
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+    model: llm.model,
     input: [
       {
         role: "system",
@@ -197,16 +223,15 @@ async function verifyWithNativeWebSearch(
 
 async function verifyWithExternalEvidence(
   client: ReturnType<typeof getLlmClient>,
-  model: string,
-  baseUrl: string | null | undefined,
+  llm: LlmCallConfig,
   input: ParseReagentInput,
   initialDraft: z.infer<typeof reagentParsedSchema> | null,
   retrieval: ReagentKnowledgeRetrievalResult,
   externalEvidence: VerificationPage[],
 ) {
   const verificationMethod = externalEvidence.length ? "external_search" : "none";
-  const result = await withTimeout(generateLlmText(client, { baseURL: baseUrl }, {
-    model,
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+    model: llm.model,
     input: [
       {
         role: "system",
@@ -319,6 +344,15 @@ export async function parseReagentInput(
     ...retrieval,
     evidenceLines: enhancedEvidenceLines,
   };
+  const llmCall: LlmCallConfig = {
+    model,
+    baseUrl: activeBaseUrl,
+    thinkingEnabled: llmConfig?.thinkingEnabled ?? false,
+  };
+  // 无 flowContext（如测试、脚本直调）时默认启用结构化输出契约，保持既有输出格式。
+  const structuredOutputSkillEnabled = execution
+    ? execution.enabledSkills.includes(REAGENT_PARSE_OUTPUT_SKILL_ID)
+    : true;
   const searchWeb = dependencies?.searchWeb ?? ((query: string) => searchReagentWeb(query, {
     enabled: llmConfig?.searchEnabled,
     provider: llmConfig?.searchProvider,
@@ -334,7 +368,7 @@ export async function parseReagentInput(
 
     const initialDraftStartedAt = Date.now();
     try {
-      const initial = await generateInitialDraft(client, model, activeBaseUrl, input, retrievalContext);
+      const initial = await generateInitialDraft(client, { ...llmCall, structuredOutput: structuredOutputSkillEnabled }, input, retrievalContext);
       diagnostics.timingsMs.initialDraft = Date.now() - initialDraftStartedAt;
       rawLlmOutput = initial.rawOutput;
       initialDraft = initial.parsed;
@@ -349,9 +383,36 @@ export async function parseReagentInput(
       });
     }
 
+    if (initialDraft && shouldSkipWebVerification(llmConfig, retrieval.retrievalConfidence)) {
+      structured = buildVerificationPayload(initialDraft, {
+        status: "verified",
+        method: "knowledge_base",
+        reason: "knowledge_base_hit",
+        warnings: [`本地知识库高置信命中（置信度 ${retrieval.retrievalConfidence.toFixed(2)}），已跳过联网验证。`],
+      });
+      diagnostics.path = "knowledge_verified";
+      return finalizeResult({
+        parsed: structured,
+        parseSource,
+        verificationStatus: structured.verification.status,
+        verificationMethod: structured.verification.method,
+        verificationReason: structured.verification.reason,
+        verificationWarnings: structured.verification.warnings,
+        rawLlmOutput: rawLlmOutput || undefined,
+        diagnostics,
+      }, {
+        flowContext: dependencies?.flowContext,
+        execution,
+        input,
+        retrievalConfidence: retrieval.retrievalConfidence,
+        evidenceLines: retrievalContext.evidenceLines,
+        sourceCount: 0,
+      });
+    }
+
     try {
       const startedAt = Date.now();
-      const nativeVerified = await verifyWithNativeWebSearch(client, model, activeBaseUrl, input, initialDraft, retrievalContext);
+      const nativeVerified = await verifyWithNativeWebSearch(client, llmCall, input, initialDraft, retrievalContext);
       diagnostics.timingsMs.nativeVerify = Date.now() - startedAt;
       if (nativeVerified) {
         rawLlmOutput = nativeVerified.rawOutput || rawLlmOutput;
@@ -514,8 +575,7 @@ export async function parseReagentInput(
     try {
       const externallyVerified = await verifyWithExternalEvidence(
         client,
-        model,
-        activeBaseUrl,
+        llmCall,
         input,
         initialDraft,
         retrievalContext,

@@ -14,9 +14,10 @@ type ParsedReagent = {
   experimentTags?: string[];
   verification?: {
     status?: "verified" | "unverified";
-    method?: "native_web_search" | "external_search" | "none";
+    method?: "native_web_search" | "external_search" | "knowledge_base" | "none";
     reason?:
       | "verified"
+      | "knowledge_base_hit"
       | "native_tool_unavailable"
       | "native_search_no_sources"
       | "external_search_unconfigured"
@@ -42,7 +43,7 @@ type VerificationReason = NonNullable<ParsedReagent["verification"]>["reason"];
 type ParseStage = "idle" | "queued" | "processing" | "slow" | "done" | "error";
 type ParseDiagnostics = {
   parse?: {
-    path: "native_verified" | "initial_draft_only" | "external_verified" | "fallback";
+    path: "native_verified" | "knowledge_verified" | "initial_draft_only" | "external_verified" | "fallback";
     timingsMs?: Partial<Record<"retrieval" | "prepareFlow" | "initialDraft" | "nativeVerify" | "externalSearch" | "externalVerify" | "finalize", number>>;
     degradedStages?: string[];
   } | null;
@@ -97,6 +98,8 @@ function verificationReasonLabel(reason: VerificationReason | null | undefined) 
   switch (reason) {
     case "verified":
       return "联网检索与纠错已生效";
+    case "knowledge_base_hit":
+      return "本地知识库高置信命中，已跳过联网验证";
     case "external_search_unconfigured":
       return "未配置联网搜索，请补充 REAGENT_SEARCH_PROVIDER 和 REAGENT_SEARCH_API_KEY";
     case "external_search_failed":

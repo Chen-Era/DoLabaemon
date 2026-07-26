@@ -20,6 +20,8 @@ const schema = z.object({
   enabledMcpServers: z.array(z.string()).default([]),
   selfCheckEnabled: z.boolean().default(true),
   autoLearnEnabled: z.boolean().default(false),
+  thinkingEnabled: z.boolean().default(false),
+  knowledgeVerifySkipEnabled: z.boolean().default(true),
 });
 
 function cleanText(value: string | undefined) {
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
     } else {
       try {
         const client = getLlmClient({ apiKey, baseURL });
-        const response = await generateLlmText(client, { baseURL }, {
+        const response = await generateLlmText(client, { baseURL, thinkingEnabled: input.thinkingEnabled }, {
           model,
           input: [{ role: "user", content: "Return exactly OK." }],
           temperature: 0,

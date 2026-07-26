@@ -3,6 +3,10 @@ import { isDemoMode } from "@/lib/demo-mode";
 import { demoGetLlmConfig, demoUpsertLlmConfig } from "@/lib/demo-store";
 import { cleanUrlText } from "@/lib/url/clean-url";
 
+// Built-in skills enabled by default when LLM_ENABLED_SKILLS is unset.
+// 与 src/lib/skills/registry.ts 保持同步（新增内置 skill 时同步更新此列表）。
+const DEFAULT_ENABLED_SKILLS = ["reagent-classification-curator", "experiment-type-curator", "reagent-parse-output"];
+
 export type UserLlmConfigInput = {
   openaiApiKey?: string | null;
   openaiBaseUrl?: string | null;
@@ -16,6 +20,8 @@ export type UserLlmConfigInput = {
   enabledMcpServers?: string[];
   selfCheckEnabled?: boolean;
   autoLearnEnabled?: boolean;
+  thinkingEnabled?: boolean | null;
+  knowledgeVerifySkipEnabled?: boolean | null;
 };
 
 export type RuntimeLlmConfig = {
@@ -31,6 +37,8 @@ export type RuntimeLlmConfig = {
   enabledMcpServers: string[];
   selfCheckEnabled: boolean;
   autoLearnEnabled: boolean;
+  thinkingEnabled: boolean;
+  knowledgeVerifySkipEnabled: boolean;
 };
 
 function cleanText(value: string | null | undefined) {
@@ -58,10 +66,13 @@ function getEnvConfig(): UserLlmConfigInput {
     searchProvider: cleanText(process.env.REAGENT_SEARCH_PROVIDER),
     searchApiKey: cleanText(process.env.REAGENT_SEARCH_API_KEY),
     searchBaseUrl: cleanUrlText(process.env.REAGENT_SEARCH_BASE_URL),
-    enabledSkills: cleanList(process.env.LLM_ENABLED_SKILLS?.split(",")),
+    enabledSkills:
+      process.env.LLM_ENABLED_SKILLS === undefined ? DEFAULT_ENABLED_SKILLS : cleanList(process.env.LLM_ENABLED_SKILLS.split(",")),
     enabledMcpServers: cleanList(process.env.LLM_ENABLED_MCP_SERVERS?.split(",")),
     selfCheckEnabled: envBoolean(process.env.LLM_SELF_CHECK_ENABLED, true),
     autoLearnEnabled: envBoolean(process.env.LLM_AUTO_LEARN_ENABLED, false),
+    thinkingEnabled: envBoolean(process.env.LLM_THINKING_ENABLED, false),
+    knowledgeVerifySkipEnabled: envBoolean(process.env.LLM_KNOWLEDGE_VERIFY_SKIP_ENABLED, true),
   };
 }
 
@@ -82,6 +93,8 @@ function buildRuntimeConfig(saved?: UserLlmConfigInput | null): RuntimeLlmConfig
       : cleanList(env.enabledMcpServers),
     selfCheckEnabled: saved?.selfCheckEnabled ?? env.selfCheckEnabled ?? true,
     autoLearnEnabled: saved?.autoLearnEnabled ?? env.autoLearnEnabled ?? false,
+    thinkingEnabled: saved?.thinkingEnabled ?? env.thinkingEnabled ?? false,
+    knowledgeVerifySkipEnabled: saved?.knowledgeVerifySkipEnabled ?? env.knowledgeVerifySkipEnabled ?? true,
   };
 }
 
@@ -112,6 +125,8 @@ export async function upsertUserLlmConfig(userId: string, input: UserLlmConfigIn
     enabledMcpServers: cleanList(input.enabledMcpServers),
     selfCheckEnabled: input.selfCheckEnabled ?? current?.selfCheckEnabled ?? true,
     autoLearnEnabled: input.autoLearnEnabled ?? current?.autoLearnEnabled ?? false,
+    thinkingEnabled: input.thinkingEnabled ?? current?.thinkingEnabled ?? false,
+    knowledgeVerifySkipEnabled: input.knowledgeVerifySkipEnabled ?? current?.knowledgeVerifySkipEnabled ?? true,
   };
 
   if (isDemoMode()) {
@@ -140,6 +155,8 @@ export async function getLlmConfigView(userId: string) {
       enabledMcpServers: cleanList(saved?.enabledMcpServers),
       selfCheckEnabled: saved?.selfCheckEnabled ?? null,
       autoLearnEnabled: saved?.autoLearnEnabled ?? null,
+      thinkingEnabled: saved?.thinkingEnabled ?? null,
+      knowledgeVerifySkipEnabled: saved?.knowledgeVerifySkipEnabled ?? null,
       hasOpenaiApiKey: Boolean(cleanText(saved?.openaiApiKey)),
       hasSearchApiKey: Boolean(cleanText(saved?.searchApiKey)),
     },
@@ -153,6 +170,8 @@ export async function getLlmConfigView(userId: string) {
       enabledMcpServers: runtime.enabledMcpServers,
       selfCheckEnabled: runtime.selfCheckEnabled,
       autoLearnEnabled: runtime.autoLearnEnabled,
+      thinkingEnabled: runtime.thinkingEnabled,
+      knowledgeVerifySkipEnabled: runtime.knowledgeVerifySkipEnabled,
       hasApiKey: Boolean(runtime.apiKey),
       hasSearchApiKey: Boolean(runtime.searchApiKey),
     },

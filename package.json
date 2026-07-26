@@ -14,6 +14,7 @@
     "test": "node scripts/run-tests-isolated.mjs",
     "knowledge:validate": "tsx scripts/knowledge-validate.ts",
     "knowledge:sync": "tsx scripts/knowledge-sync.ts",
+    "knowledge:hermes-sync": "tsx scripts/hermes-knowledge-sync.ts",
     "desktop:dev": "electron .",
     "desktop:test": "node --test desktop/url-policy.test.cjs",
     "desktop:verify": "node desktop/verify-desktop-build.cjs",

@@ -16,6 +16,8 @@ type ConfigView = {
     enabledMcpServers?: string[];
     selfCheckEnabled?: boolean | null;
     autoLearnEnabled?: boolean | null;
+    thinkingEnabled?: boolean | null;
+    knowledgeVerifySkipEnabled?: boolean | null;
     hasOpenaiApiKey?: boolean;
     hasSearchApiKey?: boolean;
   };
@@ -29,6 +31,8 @@ type ConfigView = {
     enabledMcpServers?: string[];
     selfCheckEnabled?: boolean;
     autoLearnEnabled?: boolean;
+    thinkingEnabled?: boolean;
+    knowledgeVerifySkipEnabled?: boolean;
     hasApiKey?: boolean;
     hasSearchApiKey?: boolean;
   };
@@ -49,6 +53,8 @@ type FormState = {
   enabledMcpServers: string[];
   selfCheckEnabled: boolean;
   autoLearnEnabled: boolean;
+  thinkingEnabled: boolean;
+  knowledgeVerifySkipEnabled: boolean;
 };
 
 type LabSummary = {
@@ -83,15 +89,18 @@ const initialForm: FormState = {
   searchProvider: "tavily",
   searchApiKey: "",
   searchBaseUrl: "",
-  enabledSkills: ["reagent-classification-curator", "experiment-type-curator"],
+  enabledSkills: ["reagent-classification-curator", "experiment-type-curator", "reagent-parse-output"],
   enabledMcpServers: ["search", "fetch", "self-check"],
   selfCheckEnabled: true,
   autoLearnEnabled: false,
+  thinkingEnabled: false,
+  knowledgeVerifySkipEnabled: true,
 };
 
 const skillOptions = [
   { id: "reagent-classification-curator", label: "试剂分类" },
   { id: "experiment-type-curator", label: "实验类型" },
+  { id: "reagent-parse-output", label: "结构化输出" },
 ];
 
 const mcpOptions = [
@@ -201,6 +210,8 @@ export default function SettingsPage() {
         enabledMcpServers: current.saved?.enabledMcpServers ?? current.runtime?.enabledMcpServers ?? initialForm.enabledMcpServers,
         selfCheckEnabled: current.saved?.selfCheckEnabled ?? current.runtime?.selfCheckEnabled ?? true,
         autoLearnEnabled: current.saved?.autoLearnEnabled ?? current.runtime?.autoLearnEnabled ?? false,
+        thinkingEnabled: current.saved?.thinkingEnabled ?? current.runtime?.thinkingEnabled ?? false,
+        knowledgeVerifySkipEnabled: current.saved?.knowledgeVerifySkipEnabled ?? current.runtime?.knowledgeVerifySkipEnabled ?? true,
       });
       setProviderPresetId(matchProviderPreset(current.saved?.openaiBaseUrl)?.id ?? CUSTOM_PROVIDER_PRESET_ID);
       setMsg(null);
@@ -526,6 +537,34 @@ export default function SettingsPage() {
                 onChange={(e) => setForm((prev) => ({ ...prev, autoLearnEnabled: e.target.checked }))}
               />
               申请自动学习写回
+            </label>
+            <label className="flex items-start gap-2.5 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className={`${checkboxClass} mt-0.5`}
+                checked={form.thinkingEnabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, thinkingEnabled: e.target.checked }))}
+              />
+              <span>
+                模型深度思考（推理）
+                <span className="mt-0.5 block text-xs text-slate-400">
+                  默认关闭，响应更快。开启后推理模型会先进行长链思考，解析更稳但更慢。
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2.5 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className={`${checkboxClass} mt-0.5`}
+                checked={form.knowledgeVerifySkipEnabled}
+                onChange={(e) => setForm((prev) => ({ ...prev, knowledgeVerifySkipEnabled: e.target.checked }))}
+              />
+              <span>
+                知识库高置信时跳过联网验证
+                <span className="mt-0.5 block text-xs text-slate-400">
+                  本地试剂知识库高置信命中时直接使用知识库结果，省去联网搜索验证的等待。
+                </span>
+              </span>
             </label>
           </div>
         </div>

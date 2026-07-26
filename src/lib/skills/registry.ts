@@ -26,6 +26,14 @@ export const runtimeSkills: RuntimeSkillDefinition[] = [
     allowedFlows: ["experiment-resolve", "experiment-check"],
     supportsLearning: true,
   },
+  {
+    id: "reagent-parse-output",
+    name: "试剂结构化输出",
+    description: "以技能定义的结构化 JSON 契约输出试剂解析结果，替代内置的精简输出说明。",
+    domains: ["REAGENT"],
+    allowedFlows: ["reagent-parse"],
+    supportsLearning: false,
+  },
 ];
 
 export function listRuntimeSkills(flow?: SkillFlow) {

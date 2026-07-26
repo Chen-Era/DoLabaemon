@@ -14,9 +14,10 @@ type ParsedReagent = {
   experimentTags?: string[];
   verification?: {
     status?: "verified" | "unverified";
-    method?: "native_web_search" | "external_search" | "none";
+    method?: "native_web_search" | "external_search" | "knowledge_base" | "none";
     reason?:
       | "verified"
+      | "knowledge_base_hit"
       | "native_tool_unavailable"
       | "native_search_no_sources"
       | "external_search_unconfigured"
@@ -54,7 +55,7 @@ type BatchParseItem = {
   parsed?: ParsedReagent;
   parseSource?: "llm" | "fallback";
   verificationStatus?: "verified" | "unverified";
-  verificationMethod?: "native_web_search" | "external_search" | "none";
+  verificationMethod?: "native_web_search" | "external_search" | "knowledge_base" | "none";
   verificationReason?: ParsedReagent["verification"] extends infer V ? V extends { reason?: infer R } ? R : never : never;
   error?: string;
 };
@@ -139,6 +140,8 @@ function verificationReasonLabel(reason: BatchParseItem["verificationReason"]) {
   switch (reason) {
     case "verified":
       return "联网检索与纠错已生效";
+    case "knowledge_base_hit":
+      return "知识库高置信命中，已跳过联网验证";
     case "external_search_unconfigured":
       return "未配置联网搜索";
     case "external_search_failed":

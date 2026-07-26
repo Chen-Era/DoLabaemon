@@ -46,6 +46,7 @@
 | 🏷️ **细粒度知识标签** | 覆盖抗体靶点/宿主、引物序列、内参标记、细胞培养/转染/筛选等多维度标签 |
 | 🔬 **专业方向规则** | 内置自噬、外泌体等研究方向的专属判定链 |
 | 🔄 **AI 自检与持续学习** | 可配置的 Skill / MCP 链路，解析结果附带自检日志，支持自动学习写回知识库 |
+| 🧠 **Hermes 知识管家** | 可选集成开源 Hermes Agent 作为异步知识管家：服务器上定时研究试剂、离线产出知识 JSONL，校验导入后检索置信度更高、联网验证更少 |
 | 🖥️ **桌面端 + Web 端** | 基于 Electron 的原生桌面客户端 + Next.js Web 应用，一套代码双端运行 |
 | 👥 **多实验室权限隔离** | 实验室内共享库存，实验室间数据严格隔离，PI/Admin 可邀请成员 |
 | ⚡ **DEMO 模式 30 秒启动** | 无需 PostgreSQL/Docker，一个环境变量即可体验核心功能 |
@@ -124,6 +125,8 @@ npm run desktop:dist:win    # 打包 Windows 应用
 | [桌面客户端](docs/desktop-client.md) | Electron 桌面端构建与配置 |
 | [服务器部署](docs/deployment-server.md) | Docker / Caddy / Nginx 生产部署 |
 | [规则设计](docs/rule-design.md) | 实验判定规则引擎设计 |
+| [Hermes 知识管家](integrations/hermes/README.md) | Hermes Agent 异步知识集成：部署、定时产出与导入上手 |
+| [Hermes 集成机制](docs/hermes-integration.md) | 项目侧知识流转、校验门与置信度关系 |
 
 ## 🚢 生产部署
 

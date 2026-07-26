@@ -157,7 +157,7 @@ export async function matchTechniquesWithLlm(input: {
   const result = await withTimeout(
     generateLlmText(
       client,
-      { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL) },
+      { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL), thinkingEnabled: input.llmConfig?.thinkingEnabled },
       {
         model,
         input: [

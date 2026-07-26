@@ -15,9 +15,10 @@ export const reagentParsedSchema = z.object({
 
 export const reagentVerificationSchema = z.object({
   status: z.enum(["verified", "unverified"]),
-  method: z.enum(["native_web_search", "external_search", "none"]),
+  method: z.enum(["native_web_search", "external_search", "knowledge_base", "none"]),
   reason: z.enum([
     "verified",
+    "knowledge_base_hit",
     "native_tool_unavailable",
     "native_search_no_sources",
     "external_search_unconfigured",

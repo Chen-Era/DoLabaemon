@@ -16,6 +16,8 @@ const schema = z.object({
   enabledMcpServers: z.array(z.string()).default([]),
   selfCheckEnabled: z.boolean().default(true),
   autoLearnEnabled: z.boolean().default(false),
+  thinkingEnabled: z.boolean().default(false),
+  knowledgeVerifySkipEnabled: z.boolean().default(true),
 });
 
 function getErrorDetails(error: unknown) {
@@ -35,6 +37,8 @@ function classifyConfigError(error: unknown, action: "load" | "save") {
       message.includes("enabledmcpservers") ||
       message.includes("selfcheckenabled") ||
       message.includes("autolearnenabled") ||
+      message.includes("thinkingenabled") ||
+      message.includes("knowledgeverifyskipenabled") ||
       message.includes("openaivisionmodel"))
   ) {
     return {

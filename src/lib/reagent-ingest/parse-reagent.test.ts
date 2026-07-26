@@ -583,3 +583,180 @@ test("parseReagentInput recovers when the provider rejects temperature=0", async
     },
   );
 });
+
+test("parseReagentInput skips web verification on high-confidence knowledge hit", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+      LLM_KNOWLEDGE_VERIFY_THRESHOLD: undefined,
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "R&D Systems",
+          confidence: 0.95,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+      ]);
+      let searchCalls = 0;
+
+      const result = await parseReagentInput(
+        {
+          name: "RANKL",
+          catalogNo: "",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => {
+            searchCalls += 1;
+            return [];
+          },
+          fetchPages: async () => {
+            searchCalls += 1;
+            return [];
+          },
+        },
+      );
+
+      assert.equal(result.parseSource, "llm");
+      assert.equal(result.verificationStatus, "verified");
+      assert.equal(result.verificationMethod, "knowledge_base");
+      assert.equal(result.verificationReason, "knowledge_base_hit");
+      assert.equal(result.parsed.vendor, "R&D Systems");
+      assert.equal(result.diagnostics?.path, "knowledge_verified");
+      assert.equal(searchCalls, 0);
+      assert.deepEqual(result.diagnostics?.degradedStages, []);
+      assert.ok(result.parsed.verification.warnings.some((warning) => warning.includes("已跳过联网验证")));
+    },
+  );
+});
+
+test("parseReagentInput keeps web verification when knowledge skip is disabled", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "R&D Systems",
+          confidence: 0.9,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "R&D Systems",
+          confidence: 0.95,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT", "OSTEOCLAST_DIFFERENTIATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+          verification: {
+            status: "verified",
+            method: "external_search",
+            reason: "verified",
+            warnings: [],
+          },
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "RANKL",
+          catalogNo: "",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          llmConfig: {
+            model: "MiniMax-M1-80k",
+            visionModel: "MiniMax-VL-01",
+            searchEnabled: true,
+            enabledSkills: [],
+            enabledMcpServers: [],
+            selfCheckEnabled: false,
+            autoLearnEnabled: false,
+            thinkingEnabled: false,
+            knowledgeVerifySkipEnabled: false,
+          },
+          searchWeb: async () => [{ title: "R&D RANKL 390-TN", url: "https://www.rndsystems.com/390-tn", snippet: "product page", domain: "www.rndsystems.com" }],
+          fetchPages: async () => [
+            {
+              title: "R&D RANKL 390-TN",
+              url: "https://www.rndsystems.com/390-tn",
+              domain: "www.rndsystems.com",
+              snippet: "product page",
+              excerpt: "Recombinant human RANKL protein from R&D Systems.",
+            },
+          ],
+        },
+      );
+
+      assert.equal(result.verificationStatus, "verified");
+      assert.equal(result.verificationMethod, "external_search");
+      assert.equal(result.verificationReason, "verified");
+      assert.equal(result.diagnostics?.path, "external_verified");
+    },
+  );
+});
+
+test("parseReagentInput does not skip when threshold is raised above the knowledge confidence", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+      LLM_KNOWLEDGE_VERIFY_THRESHOLD: "1.5",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "BIOLOGICAL",
+          subCategory: "Recombinant Protein",
+          vendor: "R&D Systems",
+          confidence: 0.9,
+          warnings: [],
+          experimentTags: ["CELL_STIMULATION_REAGENT"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+      ]);
+      let searchCalls = 0;
+
+      const result = await parseReagentInput(
+        {
+          name: "RANKL",
+          catalogNo: "",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => {
+            searchCalls += 1;
+            return [];
+          },
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(searchCalls, 1);
+      assert.equal(result.verificationStatus, "unverified");
+      assert.equal(result.verificationMethod, "none");
+      assert.equal(result.verificationReason, "external_search_no_results");
+      assert.equal(result.diagnostics?.path, "initial_draft_only");
+    },
+  );
+});

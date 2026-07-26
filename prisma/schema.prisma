@@ -104,23 +104,25 @@ model User {
 }
 
 model UserLlmConfig {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  openaiApiKey      String?
-  openaiBaseUrl     String?
-  openaiModel       String?
-  openaiVisionModel String?
-  searchEnabled     Boolean  @default(true)
-  searchProvider    String?
-  searchApiKey      String?
-  searchBaseUrl     String?
-  enabledSkills     String[] @default([])
-  enabledMcpServers String[] @default([])
-  selfCheckEnabled  Boolean  @default(true)
-  autoLearnEnabled  Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  openaiApiKey               String?
+  openaiBaseUrl              String?
+  openaiModel                String?
+  openaiVisionModel          String?
+  searchEnabled              Boolean  @default(true)
+  searchProvider             String?
+  searchApiKey               String?
+  searchBaseUrl              String?
+  enabledSkills              String[] @default([])
+  enabledMcpServers          String[] @default([])
+  selfCheckEnabled           Boolean  @default(true)
+  autoLearnEnabled           Boolean  @default(false)
+  thinkingEnabled            Boolean  @default(false)
+  knowledgeVerifySkipEnabled Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Lab {

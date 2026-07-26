@@ -41,7 +41,7 @@ async function main() {
   for (const testCase of CASES) {
     const startedAt = Date.now();
     try {
-      const result = await generateLlmText(client, { baseURL: process.env.OPENAI_BASE_URL }, {
+      const result = await generateLlmText(client, { baseURL: process.env.OPENAI_BASE_URL, thinkingEnabled: process.env.LLM_THINKING_ENABLED === "true" }, {
         model,
         input: [
           { role: "system", content: buildReagentParsePrompt(testCase.lang) },
