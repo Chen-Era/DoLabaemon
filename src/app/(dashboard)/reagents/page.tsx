@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LabsIcon, SearchIcon, SortIcon } from "@/components/common/app-icons";
+import { EditIcon, LabsIcon, MinusIcon, PlusIcon, SearchIcon, SortIcon, TrashIcon } from "@/components/common/app-icons";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CopySelectedButton } from "@/components/common/copy-selected-button";
+import { ReagentEditor } from "@/components/reagent/reagent-editor";
 import { requestJson } from "@/lib/http";
 import { reagentCategoryLabel } from "@/lib/reagent-category";
 
@@ -20,15 +22,24 @@ type Reagent = {
   quantity?: number | null;
   unit?: string | null;
   arrivalDate?: string | null;
+  note?: string | null;
   createdAt?: string | null;
   experimentTags?: string[];
-  antibodyMeta?: { role?: string | null; targetName?: string | null } | null;
+  antibodyMeta?: {
+    role?: string | null;
+    targetName?: string | null;
+    hostSpecies?: string | null;
+    targetSpecies?: string | null;
+  } | null;
   primerMeta?: { targetName?: string | null; isReferenceGene?: boolean | null } | null;
 };
 type SortKey = "name" | "catalogNo" | "category" | "vendor" | "createdAt";
 type SortDirection = "asc" | "desc";
+type EditorState = { mode: "create" } | { mode: "edit"; reagent: Reagent } | null;
 
 const checkboxClass = "h-4 w-4 accent-blue-600";
+const stepperButtonClass =
+  "inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--line-strong)] bg-white text-slate-500 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function toUserMessage(error?: string, code?: string) {
   if (code === "PRISMA_CLIENT_OUTDATED") return "当前开发服务器仍在使用旧的 Prisma Client，请重启 dev server 后再打开试剂页。";
@@ -47,6 +58,11 @@ export default function ReagentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const reagentRequestIdRef = useRef(0);
+  const [editor, setEditor] = useState<EditorState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Reagent | null>(null);
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [adjustingIds, setAdjustingIds] = useState<Record<string, boolean>>({});
 
   const loadReagents = useCallback(async (nextLabId: string) => {
     const requestId = ++reagentRequestIdRef.current;
@@ -75,6 +91,104 @@ export default function ReagentsPage() {
       if (requestId === reagentRequestIdRef.current) setLoading(false);
     }
   }, []);
+
+  async function adjustQuantity(reagent: Reagent, delta: number) {
+    if (adjustingIds[reagent.id]) return;
+    setAdjustingIds((prev) => ({ ...prev, [reagent.id]: true }));
+    try {
+      const { response, data } = await requestJson<{ afterQuantity?: number; error?: string }>(
+        "/api/reagents/adjust-quantity",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reagentId: reagent.id, delta }),
+        },
+      );
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok) {
+        setError(data?.error ?? "调整库存失败，请稍后重试。");
+        return;
+      }
+      setError(null);
+      setItems((prev) =>
+        prev.map((item) => (item.id === reagent.id ? { ...item, quantity: data?.afterQuantity ?? item.quantity } : item)),
+      );
+    } catch {
+      setError("网络异常，暂时无法调整库存。");
+    } finally {
+      setAdjustingIds((prev) => ({ ...prev, [reagent.id]: false }));
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      const { response, data } = await requestJson<{ error?: string }>(
+        `/api/reagents/${encodeURIComponent(deleteTarget.id)}`,
+        { method: "DELETE" },
+      );
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok) {
+        setError(data?.error ?? "删除失败，请稍后重试。");
+        setDeleteTarget(null);
+        return;
+      }
+      setError(null);
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      setSelected((prev) => ({ ...prev, [deleteTarget.id]: false }));
+      setDeleteTarget(null);
+    } catch {
+      setError("网络异常，暂时无法删除试剂。");
+      setDeleteTarget(null);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  async function confirmBatchDelete() {
+    if (deleteBusy) return;
+    const ids = selectedRows.map((item) => item.id);
+    if (!ids.length) {
+      setBatchDeleteOpen(false);
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      const { response, data } = await requestJson<{ deletedCount?: number; error?: string }>(
+        "/api/reagents/batch-delete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labId, ids }),
+        },
+      );
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok) {
+        setError(data?.error ?? "批量删除失败，请稍后重试。");
+        setBatchDeleteOpen(false);
+        return;
+      }
+      setError(null);
+      setSelected({});
+      setBatchDeleteOpen(false);
+      void loadReagents(labId);
+    } catch {
+      setError("网络异常，暂时无法批量删除。");
+      setBatchDeleteOpen(false);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   useEffect(() => {
     void requestJson<{ items?: Lab[]; error?: string; code?: string }>("/api/labs/my")
@@ -174,8 +288,7 @@ export default function ReagentsPage() {
   }
 
   function stockSummary(reagent: Reagent) {
-    const quantity = typeof reagent.quantity === "number" ? `${reagent.quantity}${reagent.unit ? ` ${reagent.unit}` : ""}` : null;
-    return [quantity, reagent.storageCondition].filter(Boolean).join(" · ");
+    return reagent.storageCondition || "";
   }
 
   const showNoLabs = !loading && !error && labs.length === 0;
@@ -183,9 +296,21 @@ export default function ReagentsPage() {
   return (
     <div className="space-y-5">
       <section className="page-header">
-        <p className="section-kicker">试剂清单</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">查找试剂</h1>
-        <p className="section-copy mt-2 max-w-2xl text-sm">按名称、货号、标签或靶点查找库存记录。</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="section-kicker">试剂清单</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">试剂管理</h1>
+            <p className="section-copy mt-2 max-w-2xl text-sm">
+              按名称、货号、标签或靶点查找库存记录，直接编辑、删除或增减库存。
+            </p>
+          </div>
+          {!showNoLabs ? (
+            <button type="button" className="button-primary shrink-0" onClick={() => setEditor({ mode: "create" })}>
+              <PlusIcon className="h-4 w-4" />
+              新建试剂
+            </button>
+          ) : null}
+        </div>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
           <span>{loading ? "正在读取库存…" : `共 ${items.length} 条`}</span>
           <span>{loading ? "—" : `当前显示 ${filteredItems.length} 条`}</span>
@@ -259,6 +384,10 @@ export default function ReagentsPage() {
               <>
                 <span className="text-xs text-slate-500">已选 {selectedRows.length} 条</span>
                 <CopySelectedButton rows={selectedRows} />
+                <button type="button" className="button-danger-ghost" onClick={() => setBatchDeleteOpen(true)}>
+                  <TrashIcon className="h-4 w-4" />
+                  删除所选
+                </button>
               </>
             ) : null}
           </div>
@@ -305,13 +434,15 @@ export default function ReagentsPage() {
                   </button>
                 </th>
                 <th>实验标签 / 靶点</th>
+                <th className="w-28">库存</th>
+                <th className="w-24 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
               {loading
                 ? Array.from({ length: 4 }).map((_, index) => (
                     <tr key={`skeleton-${index}`}>
-                      <td colSpan={6}>
+                      <td colSpan={8}>
                         <div className="skeleton h-5 w-full" />
                       </td>
                     </tr>
@@ -321,6 +452,8 @@ export default function ReagentsPage() {
                     const visibleTags = tags.slice(0, 3);
                     const hiddenCount = tags.length - visibleTags.length;
                     const targetSummary = buildTargetSummary(it);
+                    const quantity = typeof it.quantity === "number" ? it.quantity : null;
+                    const adjusting = !!adjustingIds[it.id];
                     return (
                       <tr key={it.id}>
                         <td>
@@ -337,7 +470,7 @@ export default function ReagentsPage() {
                         <td className="text-xs text-slate-600">{reagentCategoryLabel(it.category)}</td>
                         <td className="max-w-56">
                           <p className="truncate text-sm font-medium text-slate-700">{it.vendor || "未标注供应商"}</p>
-                          <p className="mt-1 text-xs text-slate-500">{stockSummary(it) || "暂未填写库存或储存信息"}</p>
+                          <p className="mt-1 text-xs text-slate-500">{stockSummary(it) || "暂未填写储存信息"}</p>
                         </td>
                         <td>
                           <div className="flex flex-wrap items-center gap-1">
@@ -355,12 +488,61 @@ export default function ReagentsPage() {
                             {!tags.length && !targetSummary ? <span className="text-xs text-slate-400">—</span> : null}
                           </div>
                         </td>
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className={stepperButtonClass}
+                              disabled={adjusting || !quantity}
+                              onClick={() => void adjustQuantity(it, -1)}
+                              aria-label={`减少 ${it.name} 库存`}
+                              title="减少一件"
+                            >
+                              <MinusIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="min-w-10 text-center text-sm font-medium text-slate-800 tabular-nums">
+                              {quantity !== null ? `${quantity}${it.unit ? ` ${it.unit}` : ""}` : "—"}
+                            </span>
+                            <button
+                              type="button"
+                              className={stepperButtonClass}
+                              disabled={adjusting}
+                              onClick={() => void adjustQuantity(it, 1)}
+                              aria-label={`增加 ${it.name} 库存`}
+                              title="增加一件"
+                            >
+                              <PlusIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              className="btn-icon h-8 w-8"
+                              onClick={() => setEditor({ mode: "edit", reagent: it })}
+                              aria-label={`编辑 ${it.name}`}
+                              title="编辑"
+                            >
+                              <EditIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-icon h-8 w-8 hover:!text-[var(--danger)]"
+                              onClick={() => setDeleteTarget(it)}
+                              aria-label={`删除 ${it.name}`}
+                              title="删除"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
               {!loading && !sortedItems.length ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={8}>
                     <div className="empty-state">没有匹配的试剂，调整搜索词或标签过滤试试。</div>
                   </td>
                 </tr>
@@ -371,6 +553,39 @@ export default function ReagentsPage() {
       </section>
       </>
       )}
+
+      {editor ? (
+        <ReagentEditor
+          labId={labId}
+          mode={editor.mode}
+          initial={editor.mode === "edit" ? editor.reagent : null}
+          onClose={() => setEditor(null)}
+          onSaved={() => {
+            setEditor(null);
+            void loadReagents(labId);
+          }}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmDialog
+          title="删除这条试剂记录？"
+          description={`将删除「${deleteTarget.name}」（货号 ${deleteTarget.catalogNo}），此操作不可撤销。`}
+          busy={deleteBusy}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      ) : null}
+
+      {batchDeleteOpen ? (
+        <ConfirmDialog
+          title={`删除所选 ${selectedRows.length} 条试剂记录？`}
+          description="所选记录将从当前实验室库存中移除，此操作不可撤销。"
+          busy={deleteBusy}
+          onConfirm={() => void confirmBatchDelete()}
+          onCancel={() => setBatchDeleteOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

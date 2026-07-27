@@ -167,3 +167,41 @@ export function ChevronDownIcon({ className = "h-4 w-4" }: IconProps) {
     </BaseIcon>
   );
 }
+
+export function PlusIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </BaseIcon>
+  );
+}
+
+export function MinusIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M5 12h14" />
+    </BaseIcon>
+  );
+}
+
+export function EditIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </BaseIcon>
+  );
+}
+
+export function TrashIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </BaseIcon>
+  );
+}

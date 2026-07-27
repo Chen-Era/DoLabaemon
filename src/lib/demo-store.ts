@@ -51,11 +51,33 @@ type DemoReagent = {
   subCategory?: string | null;
   vendor?: string | null;
   note?: string | null;
+  storageCondition?: string | null;
+  unit?: string | null;
+  arrivalDate?: string | null;
+  expiryDate?: string | null;
   quantity?: number | null;
   experimentTags: ExperimentTag[];
   antibodyMeta?: DemoAntibodyMeta | null;
   primerMeta?: DemoPrimerMeta | null;
   createdAt: string;
+};
+
+export type DemoReagentWriteInput = {
+  labId: string;
+  name: string;
+  catalogNo: string;
+  category: ReagentCategory;
+  subCategory?: string | null;
+  vendor?: string | null;
+  note?: string | null;
+  storageCondition?: string | null;
+  unit?: string | null;
+  arrivalDate?: string | null;
+  expiryDate?: string | null;
+  quantity?: number | null;
+  experimentTags?: ExperimentTag[];
+  antibodyMeta?: DemoAntibodyMeta | null;
+  primerMeta?: DemoPrimerMeta | null;
 };
 
 type DemoDraft = {
@@ -917,6 +939,113 @@ export function demoConfirmReagent(input: {
   });
   writeStore(store);
   return { action: "created" as const, reagentId };
+}
+
+function demoAdjustedQuantity(current: number | null | undefined, delta: number) {
+  const baseline = typeof current === "number" && Number.isFinite(current) ? current : 0;
+  return Math.round(Math.max(0, baseline + delta) * 1000) / 1000;
+}
+
+export function demoCreateReagent(input: DemoReagentWriteInput) {
+  const store = readStore();
+  const existing = store.reagents.find(
+    (reagent) => reagent.labId === input.labId && reagent.catalogNo === input.catalogNo,
+  );
+  if (existing) {
+    return { error: "该货号在当前实验室已存在，可直接编辑原有记录。", code: "CATALOG_NO_EXISTS" as const };
+  }
+  const reagent: DemoReagent = {
+    id: uid("reagent"),
+    labId: input.labId,
+    name: input.name,
+    catalogNo: input.catalogNo,
+    category: input.category,
+    subCategory: input.subCategory ?? null,
+    vendor: input.vendor ?? null,
+    note: input.note ?? null,
+    storageCondition: input.storageCondition ?? null,
+    unit: input.unit ?? null,
+    arrivalDate: input.arrivalDate ?? null,
+    expiryDate: input.expiryDate ?? null,
+    quantity: typeof input.quantity === "number" ? input.quantity : null,
+    experimentTags: input.experimentTags ?? [],
+    antibodyMeta: input.antibodyMeta ?? null,
+    primerMeta: input.primerMeta ?? null,
+    createdAt: new Date().toISOString(),
+  };
+  store.reagents.push(reagent);
+  writeStore(store);
+  return reagent;
+}
+
+export function demoGetReagentLabId(reagentId: string) {
+  const reagent = readStore().reagents.find((item) => item.id === reagentId);
+  return reagent ? { id: reagent.id, labId: reagent.labId } : null;
+}
+
+export function demoUpdateReagent(reagentId: string, input: Omit<DemoReagentWriteInput, "labId">) {
+  const store = readStore();
+  const reagent = store.reagents.find((item) => item.id === reagentId);
+  if (!reagent) {
+    return { error: "没有找到这条试剂记录。", code: "REAGENT_NOT_FOUND" as const };
+  }
+  if (input.catalogNo !== reagent.catalogNo) {
+    const conflict = store.reagents.find(
+      (item) => item.id !== reagentId && item.labId === reagent.labId && item.catalogNo === input.catalogNo,
+    );
+    if (conflict) {
+      return { error: "该货号在当前实验室已存在，可直接编辑原有记录。", code: "CATALOG_NO_EXISTS" as const };
+    }
+  }
+  reagent.name = input.name;
+  reagent.catalogNo = input.catalogNo;
+  reagent.category = input.category;
+  reagent.subCategory = input.subCategory ?? null;
+  reagent.vendor = input.vendor ?? null;
+  reagent.note = input.note ?? null;
+  reagent.storageCondition = input.storageCondition ?? null;
+  reagent.unit = input.unit ?? null;
+  reagent.arrivalDate = input.arrivalDate ?? null;
+  reagent.expiryDate = input.expiryDate ?? null;
+  reagent.quantity = typeof input.quantity === "number" ? input.quantity : null;
+  reagent.experimentTags = input.experimentTags ?? [];
+  reagent.antibodyMeta = input.antibodyMeta ?? null;
+  reagent.primerMeta = input.primerMeta ?? null;
+  writeStore(store);
+  return reagent;
+}
+
+export function demoDeleteReagent(reagentId: string) {
+  const store = readStore();
+  const exists = store.reagents.some((item) => item.id === reagentId);
+  if (!exists) {
+    return { error: "没有找到这条试剂记录。", code: "REAGENT_NOT_FOUND" as const };
+  }
+  store.reagents = store.reagents.filter((item) => item.id !== reagentId);
+  writeStore(store);
+  return { deletedReagentId: reagentId };
+}
+
+export function demoDeleteReagents(labId: string, ids: string[]) {
+  const store = readStore();
+  const idSet = new Set(ids);
+  const before = store.reagents.length;
+  store.reagents = store.reagents.filter((item) => !(item.labId === labId && idSet.has(item.id)));
+  writeStore(store);
+  return { deletedCount: before - store.reagents.length };
+}
+
+export function demoAdjustReagentQuantity(reagentId: string, delta: number) {
+  const store = readStore();
+  const reagent = store.reagents.find((item) => item.id === reagentId);
+  if (!reagent) {
+    return { error: "没有找到这条试剂记录。", code: "REAGENT_NOT_FOUND" as const };
+  }
+  const beforeQuantity = reagent.quantity ?? null;
+  const afterQuantity = demoAdjustedQuantity(beforeQuantity, delta);
+  reagent.quantity = afterQuantity;
+  writeStore(store);
+  return { reagentId, beforeQuantity, afterQuantity };
 }
 
 export function demoCheckExperiment(input: {

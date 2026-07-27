@@ -3,6 +3,11 @@
 - `POST /api/reagents/parse`: 输入试剂基础信息，返回 LLM 解析草稿
 - `POST /api/reagents/confirm`: 确认草稿并入库
 - `GET /api/reagents/list?labId=...`: 获取实验室试剂列表
+- `POST /api/reagents/create`: 手动新建试剂记录（同名货号冲突返回 `CATALOG_NO_EXISTS`）
+- `PATCH /api/reagents/[reagentId]`: 编辑试剂全部字段（含抗体/引物元数据，随类别切换自动清理）
+- `DELETE /api/reagents/[reagentId]`: 删除单条试剂记录
+- `POST /api/reagents/adjust-quantity`: 按增量增减库存（`delta` 非零，库存下限为 0）
+- `POST /api/reagents/batch-delete`: 按 id 列表批量删除当前实验室试剂
 - `GET /api/experiment-techniques?labId=...&page=...&pageSize=...`: 分页获取已发布实验技术目录摘要
 - `GET /api/experiment-techniques/[code]`: 获取单个已发布实验技术详情
 - `POST /api/experiment-techniques/resolve`: 输入实验名称/别名，返回精确自动匹配或待人工选择的候选

@@ -596,9 +596,32 @@ a {
   color: var(--text);
 }
 
+.button-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: #962f41;
+  background: #962f41;
+}
+
+.button-danger-ghost {
+  background: transparent;
+  color: var(--danger);
+}
+
+.button-danger-ghost:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: #962f41;
+}
+
 .button-secondary:disabled,
 .button-primary:disabled,
-.button-ghost:disabled {
+.button-ghost:disabled,
+.button-danger:disabled,
+.button-danger-ghost:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }

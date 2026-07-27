@@ -109,6 +109,7 @@
       "role": "PI"
     }
   ],
+  "joinRequests": [],
   "invites": [],
   "reagents": [
     {
@@ -19416,5 +19417,8 @@
       ],
       "source": "SYSTEM"
     }
-  ]
+  ],
+  "techniqueDrafts": [],
+  "techniqueOverrides": [],
+  "techniqueRevisions": []
 }
