@@ -5,13 +5,14 @@ import { assertLabAccess, canInvite } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoCreateInvite, demoListInvites } from "@/lib/demo-store";
+import { canGrantMemberRole } from "@/lib/member-role-permissions";
 
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
   labId: z.string().min(1),
   email: z.string().email(),
-  role: z.enum(["PI", "ADMIN", "MEMBER"]),
+  role: z.enum(["ADMIN", "MEMBER"]),
 });
 
 export async function GET(req: Request) {
@@ -26,10 +27,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Permission denied", code: "PERMISSION_DENIED" }, { status: 403 });
     }
     if (isDemoMode()) {
-      return NextResponse.json({ items: demoListInvites(labId) });
+      return NextResponse.json({ items: demoListInvites(labId, membership.role) });
     }
     const items = await prisma.invitation.findMany({
-      where: { labId, expiresAt: { gt: new Date() } },
+      where:
+        membership.role === "PI"
+          ? { labId, expiresAt: { gt: new Date() } }
+          : { labId, role: "MEMBER", expiresAt: { gt: new Date() } },
       orderBy: { expiresAt: "asc" },
       select: { id: true, email: true, role: true, expiresAt: true },
     });
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json(out);
     }
     const membership = await assertLabAccess(user.id, parsed.data.labId);
-    if (!canInvite(membership.role)) {
+    if (!canInvite(membership.role) || !canGrantMemberRole(membership.role, parsed.data.role)) {
       return NextResponse.json({ error: "Permission denied", code: "PERMISSION_DENIED" }, { status: 403 });
     }
     const invite = await prisma.invitation.create({

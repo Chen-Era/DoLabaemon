@@ -46,6 +46,9 @@ export async function POST(req: Request) {
     if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
       return NextResponse.json({ error: "该邀请不属于当前账号", code: "INVITE_EMAIL_MISMATCH" }, { status: 403 });
     }
+    if (invite.role === "PI") {
+      return NextResponse.json({ error: "负责人角色不能通过邀请码授予", code: "INVALID_INVITE_ROLE" }, { status: 400 });
+    }
 
     const existing = await prisma.labMember.findUnique({
       where: { userId_labId: { userId: user.id, labId: invite.labId } },

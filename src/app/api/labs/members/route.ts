@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { assertLabAccess, canRemoveMember } from "@/lib/permissions";
+import { assertLabAccess, canRemoveMember, canUpdateMemberRole } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 import { isDemoMode } from "@/lib/demo-mode";
-import { demoListLabMembers, demoRemoveLabMember } from "@/lib/demo-store";
+import { demoListLabMembers, demoRemoveLabMember, demoUpdateLabMemberRole } from "@/lib/demo-store";
 
 export const dynamic = "force-dynamic";
 
 const removeSchema = z.object({
   labId: z.string().min(1),
   userId: z.string().min(1),
+});
+
+const updateRoleSchema = removeSchema.extend({
+  role: z.enum(["ADMIN", "MEMBER"]),
 });
 
 function toErrorResponse(error: unknown, fallback: { error: string; code: string }) {
@@ -34,7 +38,7 @@ export async function GET(req: Request) {
     }
     if (isDemoMode()) {
       await assertLabAccess(user.id, labId);
-      return NextResponse.json({ items: demoListLabMembers(labId) });
+      return NextResponse.json({ items: demoListLabMembers(labId), currentUserId: user.id });
     }
     await assertLabAccess(user.id, labId);
     const members = await prisma.labMember.findMany({
@@ -49,9 +53,49 @@ export async function GET(req: Request) {
         email: member.user.email,
         displayName: member.user.displayName,
       })),
+      currentUserId: user.id,
     });
   } catch (error) {
     return toErrorResponse(error, { error: "加载成员失败", code: "MEMBERS_LOAD_FAILED" });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const user = await requireUserFromRequest(req);
+    const parsed = updateRoleSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
+    }
+
+    if (isDemoMode()) {
+      const result = demoUpdateLabMemberRole({
+        actorId: user.id,
+        labId: parsed.data.labId,
+        targetUserId: parsed.data.userId,
+        role: parsed.data.role,
+      });
+      if ("error" in result) {
+        const status = result.code === "MEMBER_NOT_FOUND" ? 404 : 403;
+        return NextResponse.json({ error: result.error, code: result.code }, { status });
+      }
+      return NextResponse.json(result);
+    }
+
+    const actor = await assertLabAccess(user.id, parsed.data.labId);
+    const target = await prisma.labMember.findUnique({
+      where: { userId_labId: { userId: parsed.data.userId, labId: parsed.data.labId } },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "该成员不在实验室中", code: "MEMBER_NOT_FOUND" }, { status: 404 });
+    }
+    if (!canUpdateMemberRole(actor.role, target.role, parsed.data.role, parsed.data.userId === user.id)) {
+      return NextResponse.json({ error: "Permission denied", code: "PERMISSION_DENIED" }, { status: 403 });
+    }
+    await prisma.labMember.update({ where: { id: target.id }, data: { role: parsed.data.role } });
+    return NextResponse.json({ userId: target.userId, role: parsed.data.role });
+  } catch (error) {
+    return toErrorResponse(error, { error: "更新成员角色失败", code: "MEMBER_ROLE_UPDATE_FAILED" });
   }
 }
 

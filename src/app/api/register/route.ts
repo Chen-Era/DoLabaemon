@@ -89,6 +89,9 @@ export async function POST(req: Request) {
       if (invite.email.toLowerCase() !== parsed.data.email.toLowerCase()) {
         return errorResponse("该邀请码绑定的是其他邮箱", "INVITE_EMAIL_MISMATCH", 403);
       }
+      if (invite.role === "PI") {
+        return errorResponse("负责人角色不能通过邀请码授予", "INVALID_INVITE_ROLE", 400);
+      }
       const created = await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {

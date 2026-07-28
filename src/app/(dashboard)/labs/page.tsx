@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AlertIcon, CheckIcon, ChevronDownIcon, CopyIcon, LabsIcon, SearchIcon } from "@/components/common/app-icons";
 import { requestJson } from "@/lib/http";
 
 type Item = { role: string; lab: { id: string; name: string } };
 type Member = { userId: string; role: string; email: string; displayName: string | null };
+type AssignableRole = "ADMIN" | "MEMBER";
 type InviteItem = { id: string; email: string; role: string; expiresAt?: string | null };
 type JoinRequestMine = {
   id: string;
@@ -133,7 +134,9 @@ export default function LabsPage() {
   const [expandedLabs, setExpandedLabs] = useState<Record<string, boolean>>({});
   const [membersByLab, setMembersByLab] = useState<Record<string, Member[]>>({});
   const [membersMsg, setMembersMsg] = useState<Record<string, FeedbackMessage | null>>({});
-  const [removingKey, setRemovingKey] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [memberOperations, setMemberOperations] = useState<Record<string, true>>({});
+  const memberOperationKeysRef = useRef(new Set<string>());
   const [confirmRemoveKey, setConfirmRemoveKey] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ labId: string; typed: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -145,10 +148,15 @@ export default function LabsPage() {
 
   const syncItems = useCallback((nextItems: Item[]) => {
     setItems(nextItems);
-    setInvite((previous) => ({
-      ...previous,
-      labId: nextItems.some((item) => item.lab.id === previous.labId) ? previous.labId : (nextItems[0]?.lab.id ?? ""),
-    }));
+    setInvite((previous) => {
+      const labId = nextItems.some((item) => item.lab.id === previous.labId) ? previous.labId : (nextItems[0]?.lab.id ?? "");
+      const membership = nextItems.find((item) => item.lab.id === labId);
+      return {
+        ...previous,
+        labId,
+        role: membership?.role === "PI" ? previous.role : "MEMBER",
+      };
+    });
   }, []);
 
   const loadLabs = useCallback(async () => {
@@ -193,6 +201,7 @@ export default function LabsPage() {
 
   const selectedMembership = items.find((item) => item.lab.id === invite.labId);
   const canInvite = Boolean(selectedMembership && ["PI", "ADMIN"].includes(selectedMembership.role));
+  const canInviteAdmin = selectedMembership?.role === "PI";
 
   const loadInvites = useCallback(
     async (labId: string) => {
@@ -386,11 +395,12 @@ export default function LabsPage() {
 
   async function loadMembers(labId: string) {
     try {
-      const { response, data } = await requestJson<{ items?: Member[]; error?: string }>(
+      const { response, data } = await requestJson<{ items?: Member[]; currentUserId?: string; error?: string }>(
         `/api/labs/members?labId=${encodeURIComponent(labId)}`,
       );
       if (response.ok) {
         setMembersByLab((previous) => ({ ...previous, [labId]: data?.items ?? [] }));
+        setCurrentUserId(data?.currentUserId ?? null);
       } else {
         setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: data?.error ?? "加载成员失败" } }));
       }
@@ -409,9 +419,24 @@ export default function LabsPage() {
     }
   }
 
+  function beginMemberOperation(key: string) {
+    if (memberOperationKeysRef.current.has(key)) return false;
+    memberOperationKeysRef.current.add(key);
+    setMemberOperations((previous) => ({ ...previous, [key]: true }));
+    return true;
+  }
+
+  function endMemberOperation(key: string) {
+    memberOperationKeysRef.current.delete(key);
+    setMemberOperations((previous) => {
+      const { [key]: _completed, ...remaining } = previous;
+      return remaining;
+    });
+  }
+
   async function removeMember(labId: string, member: Member) {
     const key = `${labId}:${member.userId}`;
-    setRemovingKey(key);
+    if (!beginMemberOperation(key)) return;
     setMembersMsg((previous) => ({ ...previous, [labId]: null }));
     try {
       const { response, data } = await requestJson<{ error?: string }>("/api/labs/members", {
@@ -434,8 +459,38 @@ export default function LabsPage() {
     } catch {
       setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: "网络异常，请稍后重试。" } }));
     } finally {
-      setRemovingKey(null);
+      endMemberOperation(key);
       setConfirmRemoveKey(null);
+    }
+  }
+
+  async function changeMemberRole(labId: string, member: Member, role: AssignableRole) {
+    const key = `${labId}:${member.userId}`;
+    if (!beginMemberOperation(key)) return;
+    setMembersMsg((previous) => ({ ...previous, [labId]: null }));
+    try {
+      const { response, data } = await requestJson<{ role?: AssignableRole; error?: string }>("/api/labs/members", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labId, userId: member.userId, role }),
+      });
+      const updatedRole = data?.role;
+      if (response.ok && updatedRole) {
+        setMembersByLab((previous) => ({
+          ...previous,
+          [labId]: (previous[labId] ?? []).map((item) => (item.userId === member.userId ? { ...item, role: updatedRole } : item)),
+        }));
+        setMembersMsg((previous) => ({
+          ...previous,
+          [labId]: { kind: "success", text: `已将 ${member.displayName || member.email} 设为${roleStyle(updatedRole).label}。` },
+        }));
+      } else {
+        setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: data?.error ?? "更新角色失败" } }));
+      }
+    } catch {
+      setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: "网络异常，请稍后重试。" } }));
+    } finally {
+      endMemberOperation(key);
     }
   }
 
@@ -481,6 +536,10 @@ export default function LabsPage() {
     const membership = items.find((item) => item.lab.id === invite.labId);
     if (!membership || !["PI", "ADMIN"].includes(membership.role)) {
       setInviteMsg({ kind: "error", text: "只有该实验室的负责人或管理员可以创建邀请。" });
+      return;
+    }
+    if (invite.role === "ADMIN" && membership.role !== "PI") {
+      setInviteMsg({ kind: "error", text: "只有负责人可以授予管理员角色。" });
       return;
     }
     if (!invite.email.trim()) {
@@ -621,6 +680,12 @@ export default function LabsPage() {
                               members.map((member) => {
                                 const memberTone = roleStyle(member.role);
                                 const key = `${item.lab.id}:${member.userId}`;
+                                const memberBusy = Boolean(memberOperations[key]);
+                                const canChangeRole =
+                                  currentUserId !== null &&
+                                  member.userId !== currentUserId &&
+                                  member.role !== "PI" &&
+                                  (isPi || (item.role === "ADMIN" && member.role === "ADMIN"));
                                 const removable =
                                   (isPi && member.role !== "PI") || (item.role === "ADMIN" && member.role === "MEMBER");
                                 return (
@@ -641,35 +706,65 @@ export default function LabsPage() {
                                         ) : null}
                                       </div>
                                     </div>
-                                    {removable ? (
-                                      confirmRemoveKey === key ? (
-                                        <div className="flex shrink-0 items-center gap-2">
+                                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                      {canChangeRole ? (
+                                        isPi ? (
+                                          <select
+                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-60"
+                                            aria-label={`设置 ${member.displayName || member.email} 的角色`}
+                                            value={member.role}
+                                            disabled={memberBusy}
+                                            onChange={(event) => {
+                                              const role = event.target.value as AssignableRole;
+                                              if (role !== member.role) void changeMemberRole(item.lab.id, member, role);
+                                            }}
+                                          >
+                                            <option value="MEMBER">成员</option>
+                                            <option value="ADMIN">管理员</option>
+                                          </select>
+                                        ) : (
                                           <button
                                             type="button"
-                                            className="rounded-lg border border-red-300 bg-red-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-                                            disabled={removingKey === key}
-                                            onClick={() => void removeMember(item.lab.id, member)}
+                                            className="w-fit rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
+                                            aria-label={`将 ${member.displayName || member.email} 设为成员`}
+                                            disabled={memberBusy}
+                                            onClick={() => void changeMemberRole(item.lab.id, member, "MEMBER")}
                                           >
-                                            {removingKey === key ? "正在移除…" : "确认移除"}
+                                            {memberBusy ? "正在处理…" : "设为成员"}
                                           </button>
+                                        )
+                                      ) : null}
+                                      {removable ? (
+                                        confirmRemoveKey === key ? (
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              className="rounded-lg border border-red-300 bg-red-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                                              disabled={memberBusy}
+                                              onClick={() => void removeMember(item.lab.id, member)}
+                                            >
+                                              {memberBusy ? "正在处理…" : "确认移除"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                                              onClick={() => setConfirmRemoveKey(null)}
+                                            >
+                                              取消
+                                            </button>
+                                          </div>
+                                        ) : (
                                           <button
                                             type="button"
-                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                                            onClick={() => setConfirmRemoveKey(null)}
+                                            className="w-fit rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                                            disabled={memberBusy}
+                                            onClick={() => setConfirmRemoveKey(key)}
                                           >
-                                            取消
+                                            移除
                                           </button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="w-fit shrink-0 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                                          onClick={() => setConfirmRemoveKey(key)}
-                                        >
-                                          移除
-                                        </button>
-                                      )
-                                    ) : null}
+                                        )
+                                      ) : null}
+                                    </div>
                                   </div>
                                 );
                               })
@@ -997,7 +1092,15 @@ export default function LabsPage() {
               id="invite-lab"
               className="input-base"
               value={invite.labId}
-              onChange={(event) => setInvite({ ...invite, labId: event.target.value })}
+              onChange={(event) => {
+                const labId = event.target.value;
+                const membership = items.find((item) => item.lab.id === labId);
+                setInvite((previous) => ({
+                  ...previous,
+                  labId,
+                  role: membership?.role === "PI" ? previous.role : "MEMBER",
+                }));
+              }}
               disabled={!items.length}
             >
               {items.length ? (
@@ -1034,12 +1137,11 @@ export default function LabsPage() {
               id="invite-role"
               className="input-base"
               value={invite.role}
-              onChange={(event) => setInvite({ ...invite, role: event.target.value as "PI" | "ADMIN" | "MEMBER" })}
+              onChange={(event) => setInvite({ ...invite, role: event.target.value as AssignableRole })}
               disabled={!items.length || !canInvite}
             >
               <option value="MEMBER">成员</option>
-              <option value="ADMIN">管理员</option>
-              <option value="PI">负责人</option>
+              {canInviteAdmin ? <option value="ADMIN">管理员</option> : null}
             </select>
           </div>
           <button type="submit" className="button-primary h-10 whitespace-nowrap" disabled={!items.length || !canInvite || inviting}>

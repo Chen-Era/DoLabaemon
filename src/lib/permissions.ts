@@ -2,6 +2,7 @@ import { LabRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoGetLabMembership } from "@/lib/demo-store";
+import { canUpdateMemberRole as canUpdateMemberRoleForMembership } from "@/lib/member-role-permissions";
 
 export async function assertLabAccess(userId: string, labId: string) {
   if (isDemoMode()) {
@@ -47,6 +48,15 @@ export function canRemoveMember(
   if (actorRole === "PI") return targetRole !== "PI";
   if (actorRole === "ADMIN") return targetRole === "MEMBER";
   return false;
+}
+
+export function canUpdateMemberRole(
+  actorRole: LabRole | "PI" | "ADMIN" | "MEMBER",
+  targetRole: LabRole | "PI" | "ADMIN" | "MEMBER",
+  nextRole: LabRole | "PI" | "ADMIN" | "MEMBER",
+  isSelf: boolean,
+) {
+  return canUpdateMemberRoleForMembership(actorRole, targetRole, nextRole, isSelf);
 }
 
 export function canManageAiPolicy(role: LabRole | "PI" | "ADMIN" | "MEMBER") {

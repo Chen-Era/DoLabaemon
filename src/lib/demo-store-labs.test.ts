@@ -321,6 +321,89 @@ describe("member management and lab deletion", () => {
     assert.equal(missing.code, "MEMBER_NOT_FOUND");
   });
 
+  void it("updates non-PI roles while preserving PI ownership", async () => {
+    const memberId = await setupLabWithMember("MEMBER");
+    const promoted = demoStore.demoUpdateLabMemberRole({
+      actorId: DEMO_USER_ID,
+      labId: DEMO_LAB_ID,
+      targetUserId: memberId,
+      role: "ADMIN",
+    });
+    assert.ok(!("error" in promoted));
+    assert.equal(demoStore.demoGetLabMembership(memberId, DEMO_LAB_ID)?.role, "ADMIN");
+
+    const secondAdmin = await demoStore.demoRegister({
+      email: "second-admin@example.com",
+      password: "secret123",
+      mode: "none",
+    });
+    assert.ok(!("error" in secondAdmin));
+    const adminInvite = demoStore.demoCreateInvite({
+      userId: DEMO_USER_ID,
+      labId: DEMO_LAB_ID,
+      email: "second-admin@example.com",
+      role: "ADMIN",
+    });
+    assert.ok(!("error" in adminInvite));
+    const joined = demoStore.demoJoinLab({
+      userId: secondAdmin.userId,
+      email: "second-admin@example.com",
+      inviteId: adminInvite.inviteId,
+    });
+    assert.ok(!("error" in joined));
+
+    const demotedByAdmin = demoStore.demoUpdateLabMemberRole({
+      actorId: memberId,
+      labId: DEMO_LAB_ID,
+      targetUserId: secondAdmin.userId,
+      role: "MEMBER",
+    });
+    assert.ok(!("error" in demotedByAdmin));
+    assert.equal(demoStore.demoGetLabMembership(secondAdmin.userId, DEMO_LAB_ID)?.role, "MEMBER");
+
+    const piChange = demoStore.demoUpdateLabMemberRole({
+      actorId: DEMO_USER_ID,
+      labId: DEMO_LAB_ID,
+      targetUserId: DEMO_USER_ID,
+      role: "MEMBER",
+    });
+    assert.ok("error" in piChange);
+    assert.equal(piChange.code, "PERMISSION_DENIED");
+
+    const adminPromotion = demoStore.demoUpdateLabMemberRole({
+      actorId: memberId,
+      labId: DEMO_LAB_ID,
+      targetUserId: secondAdmin.userId,
+      role: "ADMIN",
+    });
+    assert.ok("error" in adminPromotion);
+    assert.equal(adminPromotion.code, "PERMISSION_DENIED");
+  });
+
+  void it("only lets PI view administrator invitations", async () => {
+    const adminId = await setupLabWithMember("ADMIN");
+    const adminInvite = demoStore.demoCreateInvite({
+      userId: DEMO_USER_ID,
+      labId: DEMO_LAB_ID,
+      email: "admin-invite@example.com",
+      role: "ADMIN",
+    });
+    assert.ok(!("error" in adminInvite));
+    const memberInvite = demoStore.demoCreateInvite({
+      userId: DEMO_USER_ID,
+      labId: DEMO_LAB_ID,
+      email: "member-invite@example.com",
+      role: "MEMBER",
+    });
+    assert.ok(!("error" in memberInvite));
+
+    assert.equal(demoStore.demoListInvites(DEMO_LAB_ID, "PI").length, 2);
+    const adminVisibleInvites = demoStore.demoListInvites(DEMO_LAB_ID, "ADMIN");
+    assert.equal(adminVisibleInvites.length, 1);
+    assert.equal(adminVisibleInvites[0]?.role, "MEMBER");
+    assert.equal(demoStore.demoGetLabMembership(adminId, DEMO_LAB_ID)?.role, "ADMIN");
+  });
+
   void it("PI deletes a lab and cascades its data; members cannot delete", async () => {
     const memberId = await setupLabWithMember("MEMBER");
 

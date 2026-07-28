@@ -22,6 +22,7 @@ import { buildReagentUploadProvenance, LEGACY_REAGENT_UPLOADER_NAME, type Reagen
 import { normalizeVendor } from "@/lib/vendor-normalization";
 import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
 import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
+import { canGrantMemberRole, canUpdateMemberRole } from "@/lib/member-role-permissions";
 
 type Role = "PI" | "ADMIN" | "MEMBER";
 type JoinRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -558,7 +559,13 @@ export async function demoLogin(input: { email: string; password: string }) {
 type DemoRegisterResult =
   | {
       error: string;
-      code: "EMAIL_EXISTS" | "INVALID_LAB_NAME" | "INVITE_NOT_FOUND" | "INVITE_EMAIL_MISMATCH" | "LAB_NOT_FOUND";
+      code:
+        | "EMAIL_EXISTS"
+        | "INVALID_LAB_NAME"
+        | "INVITE_NOT_FOUND"
+        | "INVITE_EMAIL_MISMATCH"
+        | "INVALID_INVITE_ROLE"
+        | "LAB_NOT_FOUND";
     }
   | { userId: string; labId?: string; joinRequestId?: string; mode: "create" | "invite" | "request" | "none" };
 
@@ -593,6 +600,9 @@ export async function demoRegister(input: {
     }
     if (invite.email !== email) {
       return { error: "该邀请码绑定的是其他邮箱", code: "INVITE_EMAIL_MISMATCH" as const };
+    }
+    if (invite.role === "PI") {
+      return { error: "负责人角色不能通过邀请码授予", code: "INVALID_INVITE_ROLE" as const };
     }
   } else if (mode === "request") {
     requestLab = store.labs.find((lab) => lab.id === input.requestLabId);
@@ -661,7 +671,7 @@ export function demoLabsOf(userId: string) {
 export function demoCreateInvite(input: { userId: string; labId: string; email: string; role: Role }) {
   const store = readStore();
   const me = store.memberships.find((m) => m.userId === input.userId && m.labId === input.labId);
-  if (!me || (me.role !== "PI" && me.role !== "ADMIN")) {
+  if (!me || !canGrantMemberRole(me.role, input.role)) {
     return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
   }
   const inviteId = uid("invite");
@@ -697,6 +707,9 @@ export function demoJoinLab(input: { userId: string; email?: string; inviteId: s
   }
   if (input.email && normalizeEmail(input.email) !== invite.email) {
     return { error: "该邀请不属于当前账号", code: "INVITE_EMAIL_MISMATCH" as const };
+  }
+  if (invite.role === "PI") {
+    return { error: "负责人角色不能通过邀请码授予", code: "INVALID_INVITE_ROLE" as const };
   }
   const alreadyMember = store.memberships.find((item) => item.userId === input.userId && item.labId === invite.labId);
   if (alreadyMember) {
@@ -847,6 +860,21 @@ export function demoRemoveLabMember(input: { actorId: string; labId: string; tar
   return { removedUserId: input.targetUserId };
 }
 
+export function demoUpdateLabMemberRole(input: { actorId: string; labId: string; targetUserId: string; role: Role }) {
+  const store = readStore();
+  const actor = store.memberships.find((item) => item.userId === input.actorId && item.labId === input.labId);
+  const target = store.memberships.find((item) => item.userId === input.targetUserId && item.labId === input.labId);
+  if (!target) {
+    return { error: "该成员不在实验室中", code: "MEMBER_NOT_FOUND" as const };
+  }
+  if (!actor || !canUpdateMemberRole(actor.role, target.role, input.role, input.actorId === input.targetUserId)) {
+    return { error: "Permission denied", code: "PERMISSION_DENIED" as const };
+  }
+  target.role = input.role;
+  writeStore(store);
+  return { userId: target.userId, role: target.role };
+}
+
 export function demoDeleteLab(input: { userId: string; labId: string }) {
   const store = readStore();
   const membership = store.memberships.find((item) => item.userId === input.userId && item.labId === input.labId);
@@ -868,10 +896,10 @@ export function demoDeleteLab(input: { userId: string; labId: string }) {
   return { deletedLabId: labId };
 }
 
-export function demoListInvites(labId: string) {
+export function demoListInvites(labId: string, viewerRole: Role = "PI") {
   const store = readStore();
   return store.invites
-    .filter((item) => item.labId === labId)
+    .filter((item) => item.labId === labId && (viewerRole === "PI" || item.role === "MEMBER"))
     .map((item) => ({ id: item.id, email: item.email, role: item.role }));
 }
 
