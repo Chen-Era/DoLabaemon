@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { ConfirmDraftItem } from "@/lib/reagent-ingest/types";
 import { buildReagentUploadProvenance, type ReagentUploader } from "@/lib/reagent-provenance";
+import { normalizeVendor } from "@/lib/vendor-normalization";
 
 export type ConfirmReagentResult =
   | {
@@ -114,7 +115,7 @@ export async function confirmReagentDraft(
         catalogNo: p.catalogNo,
         category: p.category,
         subCategory: p.subCategory,
-        vendor: p.vendor,
+        vendor: normalizeVendor(p.vendor),
         note: p.note,
         quantity: 1,
         experimentTags: p.experimentTags,

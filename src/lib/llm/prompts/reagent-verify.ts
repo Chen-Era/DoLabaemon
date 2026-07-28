@@ -1,3 +1,5 @@
+import { buildVendorNormalizationInstruction } from "@/lib/vendor-normalization";
+
 type VerificationPageInput = {
   title: string;
   url: string;
@@ -47,6 +49,7 @@ export function buildReagentVerifyPrompt(input: ReagentVerificationPromptInput) 
       "Treat valid experimentTags in the initial draft as evidence: preserve them and append supported tags; do not remove them merely because a web page omits an application. Remove a tag only when reliable evidence explicitly contradicts it.",
       "Antibody tag rule: when final category=ANTIBODY and antibodyMeta.role=PRIMARY, include WB_PRIMARY_ANTIBODY at minimum. Never add a PRIMARY antibody tag for role=SECONDARY. Preserve the role and supported antibody tags from the initial draft unless reliable evidence contradicts them.",
       "Correct vendor, catalog number consistency, product naming, antibody metadata and primer metadata when evidence is strong.",
+      buildVendorNormalizationInstruction("en"),
       "If evidence conflicts or is weak, keep the conservative result and add warnings instead of over-correcting.",
       `Initial structured draft: ${candidateDraft}.`,
       `Local retrieval evidence: ${retrievalSummary}.`,
@@ -65,6 +68,7 @@ export function buildReagentVerifyPrompt(input: ReagentVerificationPromptInput) 
     "将初稿中合法的 experimentTags 视为证据：应保留并补充有支持的标签，不能只因网页未列出某个应用就删除；只有可靠证据明确矛盾时才能删除。",
     "抗体标签规则：当最终 category=ANTIBODY 且 antibodyMeta.role=PRIMARY 时，至少必须包含 WB_PRIMARY_ANTIBODY。若 role=SECONDARY，绝不可添加任何一抗标签。除非有可靠矛盾证据，应保留初稿中的抗体角色及有支持的抗体标签。",
     "对厂家、货号一致性、商品名、抗体元数据、引物元数据做逐项核验；证据强时纠偏，证据弱时保守输出并写 warning。",
+    buildVendorNormalizationInstruction("zh"),
     `初始结构化草稿：${candidateDraft}。`,
     `本地检索证据：${retrievalSummary}。`,
     `外部证据：${externalSummary}。`,

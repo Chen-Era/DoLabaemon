@@ -1,3 +1,5 @@
+import { buildVendorNormalizationInstruction } from "@/lib/vendor-normalization";
+
 export function buildReagentBatchExtractPrompt(lang: "zh" | "en") {
   if (lang === "en") {
     return [
@@ -10,6 +12,7 @@ export function buildReagentBatchExtractPrompt(lang: "zh" | "en") {
       "Use the product/reagent name as name. Do not invent missing catalog numbers.",
       "For antibody host/species compatibility phrases, keep the original wording in antibodyCompatibilityText.",
       "When OCR text is messy, prefer splitting conservatively instead of merging unrelated reagents.",
+      buildVendorNormalizationInstruction("en"),
     ].join(" ");
   }
 
@@ -23,5 +26,6 @@ export function buildReagentBatchExtractPrompt(lang: "zh" | "en") {
     "name 必须是试剂/商品名称。",
     "抗体宿主、适用种属、兼容性等原始表述优先保留到 antibodyCompatibilityText。",
     "面对 OCR 错位文本时，宁可保守拆成多条候选，也不要把无关内容硬拼成一条。",
+    buildVendorNormalizationInstruction("zh"),
   ].join(" ");
 }

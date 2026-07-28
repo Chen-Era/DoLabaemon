@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ReagentCreateInput, ReagentUpdateInput } from "@/lib/reagent-manage/types";
 import { buildReagentUploadProvenance, type ReagentUploader } from "@/lib/reagent-provenance";
+import { normalizeVendor } from "@/lib/vendor-normalization";
 
 const REAGENT_INCLUDE = { antibodyMeta: true, primerMeta: true } as const;
 
@@ -55,7 +56,7 @@ function writeData(input: ReagentCreateInput | ReagentUpdateInput) {
     catalogNo: input.catalogNo,
     category: input.category,
     subCategory: input.subCategory ?? null,
-    vendor: input.vendor ?? null,
+    vendor: normalizeVendor(input.vendor),
     note: input.note ?? null,
     storageCondition: input.storageCondition ?? null,
     unit: input.unit ?? null,

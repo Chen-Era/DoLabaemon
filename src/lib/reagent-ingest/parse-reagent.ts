@@ -20,10 +20,12 @@ import { invokeMcpTool } from "@/lib/mcp/client";
 import { buildReagentSkillHints } from "@/lib/skills/builtin/reagent-classification-curator";
 import { REAGENT_PARSE_OUTPUT_SKILL_ID } from "@/lib/skills/builtin/reagent-parse-output";
 import { cleanUrlText } from "@/lib/url/clean-url";
+import { resolveNormalizedVendor } from "@/lib/vendor-normalization";
 
 export type ParseReagentInput = {
   name: string;
   catalogNo: string;
+  vendor?: string | null;
   note?: string | null;
   lang: "zh" | "en";
 };
@@ -123,7 +125,7 @@ function withVerification(
 }
 
 function buildVerificationQuery(input: ParseReagentInput) {
-  return [input.name, input.catalogNo, input.note].filter(Boolean).join(" ");
+  return [input.name, input.vendor, input.catalogNo, input.note].filter(Boolean).join(" ");
 }
 
 function buildVerificationPayload(
@@ -268,7 +270,14 @@ async function finalizeResult(
     sourceCount: number;
   },
 ): Promise<ParseReagentResult> {
-  const parsed = enrichParsedReagentResult(options.input, result.parsed);
+  const normalizedVendor = resolveNormalizedVendor({
+    rawVendor: options.input.vendor,
+    detectedVendor: result.parsed.vendor,
+  });
+  const parsed = enrichParsedReagentResult(options.input, {
+    ...result.parsed,
+    vendor: normalizedVendor,
+  });
   const enrichedResult = { ...result, parsed };
 
   if (!options.flowContext || !options.execution) {

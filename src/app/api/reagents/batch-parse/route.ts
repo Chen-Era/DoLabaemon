@@ -110,6 +110,7 @@ export async function POST(req: Request) {
           const result = await parseReagentInput({
             name: row.name,
             catalogNo: row.catalogNo,
+            vendor: row.vendor,
             note,
             lang: parsed.data.lang,
           }, {

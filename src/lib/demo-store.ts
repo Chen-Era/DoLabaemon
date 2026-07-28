@@ -19,6 +19,7 @@ import {
   type ReagentCategory,
 } from "@/lib/reagent-tagging";
 import { buildReagentUploadProvenance, LEGACY_REAGENT_UPLOADER_NAME, type ReagentUploader } from "@/lib/reagent-provenance";
+import { normalizeVendor } from "@/lib/vendor-normalization";
 import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
 import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
 
@@ -951,7 +952,7 @@ export function demoConfirmReagent(input: {
     catalogNo: input.editedPayload.catalogNo,
     category: input.editedPayload.category,
     subCategory: input.editedPayload.subCategory,
-    vendor: input.editedPayload.vendor,
+    vendor: normalizeVendor(input.editedPayload.vendor),
     note: input.editedPayload.note,
     quantity: 1,
     experimentTags: input.editedPayload.experimentTags ?? draft.parsedOutput.experimentTags,
@@ -986,7 +987,7 @@ export function demoCreateReagent(input: DemoReagentWriteInput, uploader?: Reage
     catalogNo: input.catalogNo,
     category: input.category,
     subCategory: input.subCategory ?? null,
-    vendor: input.vendor ?? null,
+    vendor: normalizeVendor(input.vendor),
     note: input.note ?? null,
     storageCondition: input.storageCondition ?? null,
     unit: input.unit ?? null,
@@ -1028,7 +1029,7 @@ export function demoUpdateReagent(reagentId: string, input: Omit<DemoReagentWrit
   reagent.catalogNo = input.catalogNo;
   reagent.category = input.category;
   reagent.subCategory = input.subCategory ?? null;
-  reagent.vendor = input.vendor ?? null;
+  reagent.vendor = normalizeVendor(input.vendor);
   reagent.note = input.note ?? null;
   reagent.storageCondition = input.storageCondition ?? null;
   reagent.unit = input.unit ?? null;

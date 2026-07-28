@@ -436,7 +436,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                     <th>试剂</th>
                     <th>货号</th>
                     <th>类别</th>
-                    <th>厂商</th>
+                    <th>厂商（已统一）</th>
                     <th>实验标签</th>
                     <th>状态</th>
                   </tr>
@@ -516,6 +516,11 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
                           <span className="block truncate text-xs text-slate-600" title={vendor}>
                             {vendor || <span className="text-slate-400">未识别</span>}
                           </span>
+                          {row.rawInput.vendor && row.rawInput.vendor !== vendor ? (
+                            <p className="mt-1 truncate text-xs text-slate-400" title={`原始品牌：${row.rawInput.vendor}`}>
+                              原始：{row.rawInput.vendor}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="max-w-40" title={tags.join("、")}>
                           {tags.length ? (

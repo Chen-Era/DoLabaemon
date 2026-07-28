@@ -1,6 +1,7 @@
 import { experimentTags } from "@/lib/rules/catalog";
 import { standardSubCategories } from "@/lib/reagent-tagging";
 import { buildReagentStructuredOutputContract } from "@/lib/skills/builtin/reagent-parse-output";
+import { buildVendorNormalizationInstruction } from "@/lib/vendor-normalization";
 
 type RetrievalPromptContext = {
   candidateCategories?: string[];
@@ -73,5 +74,7 @@ export function buildReagentParsePrompt(
     lang === "en"
       ? "Prefer project knowledge candidates when evidence is strong, unless the product name clearly contradicts them."
       : "若项目知识库已给出强证据候选，应优先参考这些候选，除非商品名本身明显冲突。";
-  return [roleLine, outputContract, retrievalSummary, knowledgePreferenceLine].filter(Boolean).join(" ");
+  return [roleLine, outputContract, buildVendorNormalizationInstruction(lang), retrievalSummary, knowledgePreferenceLine]
+    .filter(Boolean)
+    .join(" ");
 }

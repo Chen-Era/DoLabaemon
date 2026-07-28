@@ -164,6 +164,45 @@ test("parseReagentInput keeps initial draft when no external evidence is availab
   );
 });
 
+test("parseReagentInput uses the model input supplier and stores its canonical name", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "CHEMICAL",
+          subCategory: "Cell Culture Medium",
+          vendor: "Procell/普诺赛",
+          confidence: 0.91,
+          warnings: [],
+          experimentTags: ["CELL_CULTURE_MEDIUM"],
+          antibodyMeta: null,
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "DMEM高糖",
+          catalogNo: "PM150210",
+          vendor: "普诺赛procell",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parsed.vendor, "普诺赛 Procell");
+    },
+  );
+});
+
 test("parseReagentInput skips second llm call when no external evidence is available", async () => {
   await withEnv(
     {
