@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/demo-mode";
-import { demoGetLlmConfig, demoUpsertLlmConfig } from "@/lib/demo-store";
+import { demoDeleteLlmConfig, demoGetLlmConfig, demoUpsertLlmConfig } from "@/lib/demo-store";
 import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
 import { DEFAULT_REASONING_EFFORT, envReasoningEffort, reasoningEffortFromLegacyConfig } from "@/lib/llm/reasoning-effort";
 import { cleanUrlText } from "@/lib/url/clean-url";
@@ -90,8 +90,8 @@ function buildRuntimeConfig(saved?: UserLlmConfigInput | null): RuntimeLlmConfig
   return {
     apiKey: cleanText(saved?.openaiApiKey) ?? env.openaiApiKey ?? null,
     baseURL: cleanUrlText(saved?.openaiBaseUrl) ?? env.openaiBaseUrl ?? null,
-    model: cleanText(saved?.openaiModel) ?? env.openaiModel ?? "MiniMax-M1-80k",
-    visionModel: cleanText(saved?.openaiVisionModel) ?? cleanText(saved?.openaiModel) ?? env.openaiVisionModel ?? env.openaiModel ?? "MiniMax-VL-01",
+    model: cleanText(saved?.openaiModel) ?? env.openaiModel ?? "",
+    visionModel: cleanText(saved?.openaiVisionModel) ?? cleanText(saved?.openaiModel) ?? env.openaiVisionModel ?? env.openaiModel ?? "",
     searchEnabled: saved?.searchEnabled ?? env.searchEnabled ?? true,
     searchProvider: cleanText(saved?.searchProvider) ?? env.searchProvider ?? null,
     searchApiKey: cleanText(saved?.searchApiKey) ?? env.searchApiKey ?? null,
@@ -173,6 +173,14 @@ export async function upsertUserLlmConfig(userId: string, input: UserLlmConfigIn
     create: { userId, ...next },
     update: next,
   });
+}
+
+/** Remove every user-scoped model and tool preference, including saved secrets. */
+export async function deleteUserLlmConfig(userId: string) {
+  if (isDemoMode()) {
+    return demoDeleteLlmConfig(userId);
+  }
+  await prisma.userLlmConfig.deleteMany({ where: { userId } });
 }
 
 export async function getLlmConfigView(userId: string) {

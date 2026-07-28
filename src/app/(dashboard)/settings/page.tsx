@@ -188,6 +188,7 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [labs, setLabs] = useState<LabSummary[]>([]);
@@ -342,6 +343,32 @@ export default function SettingsPage() {
     }
   }
 
+  async function onClearPersonalConfig() {
+    if (!window.confirm("确定清空个人模型配置吗？这会删除你的模型和搜索密钥，并恢复使用实验室公用模型或服务器默认配置。")) return;
+    setClearing(true);
+    setMsg(null);
+    setTestResult(null);
+    try {
+      const { response, data } = await requestJson<ConfigView>("/api/settings/llm", { method: "DELETE" });
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!response.ok || !data) {
+        setMsg(data?.error ?? "清空个人配置失败");
+        return;
+      }
+      setConfig(data);
+      setForm(initialForm);
+      setProviderPresetId(CUSTOM_PROVIDER_PRESET_ID);
+      setMsg("个人模型配置已清空；后续将优先使用当前实验室公用模型。");
+    } catch {
+      setMsg("网络异常，请稍后重试");
+    } finally {
+      setClearing(false);
+    }
+  }
+
   async function onSavePolicy() {
     if (!selectedLabId || !policy?.policy) return;
     setPolicySaving(true);
@@ -392,8 +419,8 @@ export default function SettingsPage() {
     }
   }
 
-  async function onRemoveLabLlm() {
-    if (!selectedLabId || !window.confirm("确定移除该实验室的公用模型吗？成员将恢复使用个人或服务器默认配置。")) return;
+  async function onClearLabLlm() {
+    if (!selectedLabId || !window.confirm("确定清空该实验室的公用模型配置吗？这会删除加密保存的 API Key、模型和服务地址；成员将恢复使用个人或服务器默认配置。")) return;
     setLabLlmSaving(true);
     setMsg(null);
     try {
@@ -401,12 +428,12 @@ export default function SettingsPage() {
         method: "DELETE",
       });
       if (!response.ok || !data) {
-        setMsg(data?.error ?? "移除实验室公用模型失败");
+        setMsg(data?.error ?? "清空实验室公用模型失败");
         return;
       }
       setLabLlm(data);
       setLabLlmForm(initialLabLlmForm);
-      setMsg("实验室公用模型已移除。");
+      setMsg("实验室公用模型配置已清空。");
     } catch {
       setMsg("网络异常，请稍后重试");
     } finally {
@@ -881,8 +908,8 @@ export default function SettingsPage() {
                 {labLlmSaving ? "保存中..." : "保存公用模型"}
               </button>
               {labLlm.config.hasOpenaiApiKey ? (
-                <button type="button" onClick={onRemoveLabLlm} className="button-secondary" disabled={labLlmSaving}>
-                  移除公用模型
+                <button type="button" onClick={onClearLabLlm} className="button-secondary" disabled={labLlmSaving}>
+                  清空实验室公用配置
                 </button>
               ) : null}
             </div>
@@ -927,11 +954,14 @@ export default function SettingsPage() {
 
       <section className="app-panel px-5 py-5">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={onSave} className="button-primary" disabled={saving}>
+          <button type="button" onClick={onSave} className="button-primary" disabled={saving || clearing}>
             {saving ? "保存中..." : "保存配置"}
           </button>
-          <button type="button" onClick={onTestConnection} className="button-secondary" disabled={testing}>
+          <button type="button" onClick={onTestConnection} className="button-secondary" disabled={testing || clearing}>
             {testing ? "测试中..." : "测试连接"}
+          </button>
+          <button type="button" onClick={onClearPersonalConfig} className="button-secondary" disabled={saving || clearing}>
+            {clearing ? "清空中..." : "清空个人配置"}
           </button>
         </div>
         {testResult ? (

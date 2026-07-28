@@ -343,6 +343,12 @@ export function demoUpsertLlmConfig(userId: string, input: UserLlmConfigInput) {
   return next;
 }
 
+export function demoDeleteLlmConfig(userId: string) {
+  const store = readStore();
+  store.llmConfigs = store.llmConfigs.filter((item) => item.userId !== userId);
+  writeStore(store);
+}
+
 export function demoGetLabLlmConfig(labId: string): DemoLabLlmConfig | null {
   return readStore().labLlmConfigs.find((item) => item.labId === labId) ?? null;
 }

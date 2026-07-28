@@ -24,7 +24,7 @@ function buildImagePrompt(lang: "zh" | "en") {
 }
 
 function getVisionModel(config?: { visionModel?: string | null; model?: string | null }) {
-  return config?.visionModel || config?.model || process.env.OPENAI_VISION_MODEL || process.env.OPENAI_IMAGE_MODEL || process.env.OPENAI_MODEL || "MiniMax-VL-01";
+  return config?.visionModel || config?.model || process.env.OPENAI_VISION_MODEL || process.env.OPENAI_IMAGE_MODEL || process.env.OPENAI_MODEL || "";
 }
 
 function isLikelyVisionRefusal(text: string) {
@@ -53,6 +53,9 @@ export async function POST(req: Request) {
     const llmConfig = await getRuntimeLlmConfigForLabMember(user.id, parsed.data.labId);
     const client = getLlmClient({ apiKey: llmConfig.apiKey, baseURL: llmConfig.baseURL });
     const model = getVisionModel({ visionModel: llmConfig.visionModel, model: llmConfig.model });
+    if (!model) {
+      return NextResponse.json({ error: "未配置视觉模型", code: "LLM_MODEL_MISSING" }, { status: 503 });
+    }
     const { reasoningParams, omitTemperature } = getLlmReasoningRequestControls({
       baseURL: llmConfig.baseURL,
       model,

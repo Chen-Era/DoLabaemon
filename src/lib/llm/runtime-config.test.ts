@@ -18,15 +18,17 @@ test.after(() => rmSync(testStoreDir, { recursive: true, force: true }));
 let getLlmConfigView: (typeof import("@/lib/llm/runtime-config"))["getLlmConfigView"];
 let getRuntimeLlmConfigForUser: (typeof import("@/lib/llm/runtime-config"))["getRuntimeLlmConfigForUser"];
 let getRuntimeLlmConfigForLabMember: (typeof import("@/lib/llm/runtime-config"))["getRuntimeLlmConfigForLabMember"];
+let deleteUserLlmConfig: (typeof import("@/lib/llm/runtime-config"))["deleteUserLlmConfig"];
 let upsertUserLlmConfig: (typeof import("@/lib/llm/runtime-config"))["upsertUserLlmConfig"];
 let getLabLlmConfigView: (typeof import("@/lib/llm/lab-config"))["getLabLlmConfigView"];
+let deleteLabLlmConfig: (typeof import("@/lib/llm/lab-config"))["deleteLabLlmConfig"];
 let upsertLabLlmConfig: (typeof import("@/lib/llm/lab-config"))["upsertLabLlmConfig"];
 let demoUpsertLlmConfig: (typeof import("@/lib/demo-store"))["demoUpsertLlmConfig"];
 let demoCreateLab: (typeof import("@/lib/demo-store"))["demoCreateLab"];
 let demoRegister: (typeof import("@/lib/demo-store"))["demoRegister"];
 test.before(async () => {
-  ({ getLlmConfigView, getRuntimeLlmConfigForUser, getRuntimeLlmConfigForLabMember, upsertUserLlmConfig } = await import("@/lib/llm/runtime-config"));
-  ({ getLabLlmConfigView, upsertLabLlmConfig } = await import("@/lib/llm/lab-config"));
+  ({ getLlmConfigView, getRuntimeLlmConfigForUser, getRuntimeLlmConfigForLabMember, deleteUserLlmConfig, upsertUserLlmConfig } = await import("@/lib/llm/runtime-config"));
+  ({ deleteLabLlmConfig, getLabLlmConfigView, upsertLabLlmConfig } = await import("@/lib/llm/lab-config"));
   ({ demoUpsertLlmConfig, demoCreateLab, demoRegister } = await import("@/lib/demo-store"));
 });
 
@@ -57,6 +59,27 @@ test("runtime config defaults reasoning effort off and knowledge verify skip on"
   const runtime = await getRuntimeLlmConfigForUser(freshUserId());
   assert.equal(runtime.reasoningEffort, "off");
   assert.equal(runtime.knowledgeVerifySkipEnabled, true);
+});
+
+test("runtime config has no built-in MiniMax model when no model is configured", async () => {
+  const originalModel = process.env.OPENAI_MODEL;
+  const originalVisionModel = process.env.OPENAI_VISION_MODEL;
+  const originalImageModel = process.env.OPENAI_IMAGE_MODEL;
+  delete process.env.OPENAI_MODEL;
+  delete process.env.OPENAI_VISION_MODEL;
+  delete process.env.OPENAI_IMAGE_MODEL;
+  try {
+    const runtime = await getRuntimeLlmConfigForUser(freshUserId());
+    assert.equal(runtime.model, "");
+    assert.equal(runtime.visionModel, "");
+  } finally {
+    if (originalModel === undefined) delete process.env.OPENAI_MODEL;
+    else process.env.OPENAI_MODEL = originalModel;
+    if (originalVisionModel === undefined) delete process.env.OPENAI_VISION_MODEL;
+    else process.env.OPENAI_VISION_MODEL = originalVisionModel;
+    if (originalImageModel === undefined) delete process.env.OPENAI_IMAGE_MODEL;
+    else process.env.OPENAI_IMAGE_MODEL = originalImageModel;
+  }
 });
 
 test("runtime config reads the reasoning effort from env when nothing is saved", async () => {
@@ -152,6 +175,15 @@ test("llm config view exposes the reasoning effort", async () => {
   assert.equal(view.saved.knowledgeVerifySkipEnabled, false);
   assert.equal(view.runtime.reasoningEffort, "medium");
   assert.equal(view.runtime.knowledgeVerifySkipEnabled, false);
+});
+
+test("deleting a personal config removes its saved model and API-key state", async () => {
+  const userId = freshUserId();
+  await upsertUserLlmConfig(userId, { openaiApiKey: "personal-secret", openaiModel: "personal-model" });
+  await deleteUserLlmConfig(userId);
+  const view = await getLlmConfigView(userId);
+  assert.equal(view.saved.hasOpenaiApiKey, false);
+  assert.equal(view.saved.openaiModel, null);
 });
 
 test("enabledSkills defaults to all built-in skills when LLM_ENABLED_SKILLS is unset", async () => {
@@ -261,6 +293,23 @@ test("a partial shared-model update preserves its encrypted key and endpoint", a
   assert.equal(runtime.apiKey, "preserved-secret");
   assert.equal(runtime.baseURL, "https://preserved.example/v1");
   assert.equal(runtime.model, "updated-model");
+});
+
+test("clearing a lab model deletes its encrypted configuration", async () => {
+  const registered = await demoRegister({
+    email: `clear-lab-${Math.random().toString(36).slice(2)}@example.com`,
+    password: "secret123",
+    mode: "create",
+    labName: "清空公用模型实验室",
+  });
+  assert.ok(!("error" in registered));
+  assert.ok(registered.labId);
+  await upsertLabLlmConfig(registered.labId, { openaiApiKey: "lab-secret", openaiModel: "lab-model" });
+  await deleteLabLlmConfig(registered.labId);
+
+  const view = await getLabLlmConfigView(registered.labId);
+  assert.equal(view.configured, false);
+  assert.equal(view.hasOpenaiApiKey, false);
 });
 
 test("a non-member cannot resolve another laboratory's shared model", async () => {

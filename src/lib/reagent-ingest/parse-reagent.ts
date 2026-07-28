@@ -332,7 +332,7 @@ export async function parseReagentInput(
   let parseSource: "llm" | "fallback" = "llm";
   let rawLlmOutput = "";
   const llmConfig = dependencies?.llmConfig;
-  const model = llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
+  const model = llmConfig?.model || process.env.OPENAI_MODEL || "";
   const activeBaseUrl = cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL);
   const diagnostics: ParseReagentDiagnostics = {
     path: "fallback",
@@ -375,6 +375,7 @@ export async function parseReagentInput(
   const fetchPages = dependencies?.fetchPages ?? fetchVerificationPages;
 
   try {
+    if (!model) throw new Error("LLM_MODEL_MISSING");
     const client = dependencies?.client ?? getLlmClient({ apiKey: llmConfig?.apiKey, baseURL: llmConfig?.baseURL });
     let initialDraft: z.infer<typeof reagentParsedSchema> | null = null;
     let initialError: unknown = null;

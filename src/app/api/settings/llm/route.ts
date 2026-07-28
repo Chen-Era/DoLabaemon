@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { REASONING_EFFORT_LEVELS } from "@/lib/llm/reasoning-effort";
-import { getLlmConfigView, upsertUserLlmConfig } from "@/lib/llm/runtime-config";
+import { deleteUserLlmConfig, getLlmConfigView, upsertUserLlmConfig } from "@/lib/llm/runtime-config";
 import { requireUserFromRequest } from "@/lib/session";
 
 const schema = z.object({
@@ -108,6 +108,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
     console.error("[settings-llm] save config failed", getErrorDetails(error));
+    return NextResponse.json(classifyConfigError(error, "save"), { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await requireUserFromRequest(req);
+    await deleteUserLlmConfig(user.id);
+    return NextResponse.json(await getLlmConfigView(user.id));
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+    console.error("[settings-llm] clear config failed", getErrorDetails(error));
     return NextResponse.json(classifyConfigError(error, "save"), { status: 500 });
   }
 }

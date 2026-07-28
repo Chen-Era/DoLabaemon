@@ -148,12 +148,12 @@ export async function matchTechniquesWithLlm(input: {
   }
 
   const apiKey = input.llmConfig?.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const model = input.llmConfig?.model || process.env.OPENAI_MODEL;
+  if (!apiKey || !model) {
     throw new Error(LLM_NOT_CONFIGURED_ERROR);
   }
 
   const client = getLlmClient({ apiKey, baseURL: input.llmConfig?.baseURL });
-  const model = input.llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
   const result = await withTimeout(
     generateLlmText(
       client,
