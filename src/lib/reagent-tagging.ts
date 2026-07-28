@@ -34,6 +34,7 @@ export type ReagentParseInput = {
 
 export const standardSubCategories = [
   "Cell Culture Medium",
+  "Protein Molecular Weight Marker",
   "Cell Stain",
   "Cell Culture Vessel",
   "Syringe",
@@ -134,7 +135,13 @@ function buildSignalSet(text: string) {
 }
 
 const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
-  { tag: "CELL_CULTURE_MEDIUM", pattern: /\b(dmem|rpmi|mem|imdm|ham'?s\s*f-?12|f12|medium|培养基)\b/ },
+  // Do not match the word "medium" on its own: it incorrectly labels
+  // mounting/freezing media and unrelated solutions as culture medium.
+  {
+    tag: "CELL_CULTURE_MEDIUM",
+    pattern:
+      /\b(?:dmem|rpmi(?:[-\s]?1640)?|imdm|(?:alpha|α)[-\s]?mem|mem|ham'?s\s*f-?12|f-?12|minimum essential medium|(?:cell|tissue) culture medium)\b|(?:细胞|组织)?培养基/i,
+  },
   { tag: "SERUM_SUPPLEMENT", pattern: /\b(fbs|fetal bovine serum|b27|n2 supplement|serum replacement|血清)\b/ },
   { tag: "ANTIBIOTIC_SUPPLEMENT", pattern: /\b(pen[\s-]*strep|penicillin[\s-]*streptomycin|gentamicin|amphotericin|antibiotic antimycotic)\b/ },
   { tag: "SELECTION_ANTIBIOTIC", pattern: /\b(puromycin|blasticidin|g418|geneticin|hygromycin|zeocin)\b/ },
@@ -144,6 +151,13 @@ const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
   { tag: "CELL_STAIN_REAGENT", pattern: /\b(cell stain(?:ing)?|staining solution|fluorescent dye|calcein|ethidium homodimer|crystal violet|neutral red)\b|细胞染色|染色液|荧光染料/i },
   { tag: "CELL_CULTURE_VESSEL", pattern: /\b(?:cell|tissue)\s+culture\b[\s\w-]{0,40}\b(?:dish|plate|flask|bottle|well)\b|\bculture\s*(?:dish|plate|flask|bottle)\b|培养(?:皿|板|瓶|孔板|器皿)|细胞培养(?:皿|板|瓶)/i },
   { tag: "SYRINGE_CONSUMABLE", pattern: /\b(?:syringe|luer[-\s]?lock|syringe needle)\b|注射器/i },
+  {
+    tag: "ANESTHETIC_REAGENT",
+    pattern:
+      /\bavertin\b|阿(?:佛|弗)丁|(?=[\s\S]*(?:(?:2,2,2[-\s]?)?tribromoethanol|三溴乙醇))(?=[\s\S]*(?:anesth|anaesth|麻醉|即用型|ready[-\s]?to[-\s]?use|working solution))/i,
+  },
+  { tag: "SOLVENT_REAGENT", pattern: /\b(?:ethanol|ethyl alcohol|absolute alcohol)\b|乙醇|酒精/i },
+  { tag: "DISINFECTION_REAGENT", pattern: /\b(?:70|75)\s*%\s*(?:ethanol|alcohol)\b|(?:70|75)\s*(?:%|％|度)\s*(?:乙醇|酒精)|(?:消毒(?:液|剂)?|disinfectant)/i },
   { tag: "MYCOPLASMA_TEST_REAGENT", pattern: /\b(mycoplasma|支原体)\b/ },
   { tag: "TRANSDUCTION_REAGENT", pattern: /\b(lentivirus|adenovirus|aav|viral transduction|polybrene)\b/ },
   {
@@ -157,6 +171,11 @@ const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
   { tag: "WB_WASH_BUFFER", pattern: /\b(tbst|pbst|wash buffer)\b/ },
   { tag: "WB_TRANSFER_REAGENT", pattern: /\b(transfer buffer|transfer reagent|转膜液)\b/ },
   { tag: "WB_TRANSFER_MEMBRANE", pattern: /\b(pvdf|nitrocellulose membrane|nc membrane|转印膜)\b/ },
+  {
+    tag: "WB_PROTEIN_MARKER",
+    pattern:
+      /\b(?:pre[-\s]?stained|tri[-\s]?color|three[-\s]?color|multicolor|color|colour)\s+(?:protein\s+)?(?:marker|ladder|standard)\b|\bprotein\s+(?:marker|ladder|molecular weight standard)\b|(?:三色|彩色|预染)(?:蛋白)?(?:marker|标记|分子量标准)|蛋白(?:质)?(?:marker|梯|分子量标准)/i,
+  },
   { tag: "WB_DETECTION_SUBSTRATE", pattern: /\b(ecl|chemiluminescent substrate|supersignal|luminal)\b/ },
   { tag: "PROTEASE_INHIBITOR", pattern: /\b(protease inhibitor|蛋白酶抑制剂)\b/ },
   { tag: "PHOSPHATASE_INHIBITOR", pattern: /\b(phosphatase inhibitor|磷酸酶抑制剂)\b/ },
@@ -344,7 +363,7 @@ export function detectCategory(name: string): ReagentCategory {
   ) {
     return "BIOLOGICAL";
   }
-  if (/trizol|dnase|rnase|triton|dapi|paraformaldehyde|methanol|acetone|puromycin|blasticidin|g418|dmso/.test(lowered) || isGeneDelivery) return "CHEMICAL";
+  if (/trizol|dnase|rnase|triton|dapi|paraformaldehyde|methanol|acetone|ethanol|tribromoethanol|avertin|puromycin|blasticidin|g418|dmso|乙醇|酒精|三溴乙醇|阿(?:佛|弗)丁/.test(lowered) || isGeneDelivery) return "CHEMICAL";
   if (/membrane|plate|slide|filter|dish|flask|syringe|pipette tip|tube|培养皿|培养板|培养瓶|注射器/.test(lowered)) return "CONSUMABLE";
   return "OTHER";
 }
@@ -353,6 +372,7 @@ export function detectSubCategory(name: string, tags: ExperimentTag[], category?
   const signals = buildSignalSet(name);
   if (tags.includes("TRANSFECTION_REAGENT")) return "Transfection Reagent";
   if (tags.includes("CELL_CULTURE_MEDIUM")) return "Cell Culture Medium";
+  if (tags.includes("WB_PROTEIN_MARKER")) return "Protein Molecular Weight Marker";
   if (tags.includes("CELL_STAIN_REAGENT")) return "Cell Stain";
   if (tags.includes("CELL_CULTURE_VESSEL")) return "Cell Culture Vessel";
   if (tags.includes("SYRINGE_CONSUMABLE")) return "Syringe";
@@ -422,13 +442,31 @@ export function enrichParsedReagentResult<T extends ParsedReagentResultLike>(inp
       }
     : parsedAntibodyMeta;
   const detectedTags = detectExperimentTags(searchText, antibodyMeta);
-  const experimentTags = uniq([...(parsed.experimentTags ?? []), ...detectedTags]).filter(
-    (tag) => antibodyMeta?.role === "PRIMARY" || !antibodyPrimaryTagSet.has(tag),
-  );
+  const cultureMediumMatcher = baseTagMatchers.find((matcher) => matcher.tag === "CELL_CULTURE_MEDIUM");
+  const parsedSubCategory = parsed.subCategory?.trim().toLowerCase();
+  const hasCultureMediumEvidence =
+    Boolean(cultureMediumMatcher?.pattern.test(searchText)) ||
+    (parsed.category === "BUFFER" && parsedSubCategory === "cell culture medium");
+  const experimentTags = uniq([...(parsed.experimentTags ?? []), ...detectedTags]).filter((tag) => {
+    if (antibodyMeta?.role !== "PRIMARY" && antibodyPrimaryTagSet.has(tag)) return false;
+    return tag !== "CELL_CULTURE_MEDIUM" || hasCultureMediumEvidence;
+  });
   const consumableTagDetected = experimentTags.some((tag) => tag === "CELL_CULTURE_VESSEL" || tag === "SYRINGE_CONSUMABLE");
-  const category = isAntibody ? "ANTIBODY" : consumableTagDetected ? "CONSUMABLE" : parsed.category;
+  const proteinMarkerDetected = experimentTags.includes("WB_PROTEIN_MARKER");
+  const chemicalTagDetected = experimentTags.some((tag) =>
+    tag === "ANESTHETIC_REAGENT" || tag === "SOLVENT_REAGENT" || tag === "DISINFECTION_REAGENT",
+  );
+  const category = isAntibody
+    ? "ANTIBODY"
+    : consumableTagDetected
+      ? "CONSUMABLE"
+      : chemicalTagDetected
+        ? "CHEMICAL"
+        : proteinMarkerDetected
+          ? "BIOLOGICAL"
+          : parsed.category;
   const detectedSubCategory = detectSubCategory(searchText, experimentTags, category);
-  const subCategory = ["Cell Stain", "Cell Culture Vessel", "Syringe"].includes(detectedSubCategory ?? "")
+  const subCategory = ["Cell Stain", "Cell Culture Vessel", "Syringe", "Protein Molecular Weight Marker"].includes(detectedSubCategory ?? "")
     ? detectedSubCategory
     : parsed.subCategory;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectAntibodyMeta, enrichParsedReagentResult } from "@/lib/reagent-tagging";
+import { buildHeuristicParse, detectAntibodyMeta, enrichParsedReagentResult } from "@/lib/reagent-tagging";
 
 function llmDraft(overrides: Partial<Parameters<typeof enrichParsedReagentResult>[1]> = {}) {
   return {
@@ -85,4 +85,45 @@ test("enrichment recognizes cell stains and requested consumable families", () =
   assert.equal(syringe.category, "CONSUMABLE");
   assert.ok(syringe.experimentTags.includes("SYRINGE_CONSUMABLE"));
   assert.equal(syringe.subCategory, "Syringe");
+});
+
+test("tags protein markers and common chemical uses without treating every medium as culture medium", () => {
+  const marker = enrichParsedReagentResult(
+    { name: "三色预染蛋白Marker 10 kDa~180 kDa", catalogNo: "26616" },
+    llmDraft(),
+  );
+  const anesthetic = enrichParsedReagentResult(
+    { name: "即用型三溴乙醇（阿佛丁，Avertin）", catalogNo: "T4840", note: "Small molecule medium" },
+    llmDraft({ category: "CHEMICAL", subCategory: "Small Molecule Compound", experimentTags: ["CELL_CULTURE_MEDIUM"] }),
+  );
+  const ethanol = enrichParsedReagentResult(
+    { name: "75% 乙醇水溶液", catalogNo: "E7023" },
+    llmDraft(),
+  );
+  const unspecifiedEthanol = enrichParsedReagentResult(
+    { name: "乙醇水溶液", catalogNo: "R20773-500ml" },
+    llmDraft(),
+  );
+  const tribromoethanol = enrichParsedReagentResult(
+    { name: "2,2,2-Tribromoethanol, 99%", catalogNo: "T4810" },
+    llmDraft(),
+  );
+  const mountingMedium = buildHeuristicParse("Fluorescence mounting medium with antifade");
+  const dmem = buildHeuristicParse("DMEM high glucose");
+
+  assert.ok(marker.experimentTags.includes("WB_PROTEIN_MARKER"));
+  assert.equal(marker.category, "BIOLOGICAL");
+  assert.equal(marker.subCategory, "Protein Molecular Weight Marker");
+  assert.ok(anesthetic.experimentTags.includes("ANESTHETIC_REAGENT"));
+  assert.equal(anesthetic.category, "CHEMICAL");
+  assert.ok(!anesthetic.experimentTags.includes("CELL_CULTURE_MEDIUM"));
+  assert.ok(ethanol.experimentTags.includes("SOLVENT_REAGENT"));
+  assert.ok(ethanol.experimentTags.includes("DISINFECTION_REAGENT"));
+  assert.equal(ethanol.category, "CHEMICAL");
+  assert.ok(unspecifiedEthanol.experimentTags.includes("SOLVENT_REAGENT"));
+  assert.ok(!unspecifiedEthanol.experimentTags.includes("DISINFECTION_REAGENT"));
+  assert.ok(!tribromoethanol.experimentTags.includes("ANESTHETIC_REAGENT"));
+  assert.ok(!mountingMedium.experimentTags.includes("CELL_CULTURE_MEDIUM"));
+  assert.ok(mountingMedium.experimentTags.includes("MOUNTING_MEDIUM"));
+  assert.ok(dmem.experimentTags.includes("CELL_CULTURE_MEDIUM"));
 });
