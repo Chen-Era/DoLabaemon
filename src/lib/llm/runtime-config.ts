@@ -4,6 +4,8 @@ import { demoGetLlmConfig, demoUpsertLlmConfig } from "@/lib/demo-store";
 import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
 import { DEFAULT_REASONING_EFFORT, envReasoningEffort, reasoningEffortFromLegacyConfig } from "@/lib/llm/reasoning-effort";
 import { cleanUrlText } from "@/lib/url/clean-url";
+import { getLabLlmRuntimeOverride } from "@/lib/llm/lab-config";
+import { assertLabAccess } from "@/lib/permissions";
 
 // Built-in skills enabled by default when LLM_ENABLED_SKILLS is unset.
 // 与 src/lib/skills/registry.ts 保持同步（新增内置 skill 时同步更新此列表）。
@@ -44,6 +46,8 @@ export type RuntimeLlmConfig = {
   autoLearnEnabled: boolean;
   reasoningEffort: ReasoningEffort;
   knowledgeVerifySkipEnabled: boolean;
+  /** Never expose credentials; this is only a safe diagnostics label. */
+  source: "lab" | "user" | "environment";
 };
 
 function cleanText(value: string | null | undefined) {
@@ -100,6 +104,7 @@ function buildRuntimeConfig(saved?: UserLlmConfigInput | null): RuntimeLlmConfig
     autoLearnEnabled: saved?.autoLearnEnabled ?? env.autoLearnEnabled ?? false,
     reasoningEffort: reasoningEffortFromLegacyConfig(saved) ?? env.reasoningEffort ?? DEFAULT_REASONING_EFFORT,
     knowledgeVerifySkipEnabled: saved?.knowledgeVerifySkipEnabled ?? env.knowledgeVerifySkipEnabled ?? true,
+    source: saved ? "user" : "environment",
   };
 }
 
@@ -113,6 +118,26 @@ export async function getUserLlmConfig(userId: string) {
 export async function getRuntimeLlmConfigForUser(userId: string): Promise<RuntimeLlmConfig> {
   const saved = (await getUserLlmConfig(userId)) as UserLlmConfigInput | null;
   return buildRuntimeConfig(saved);
+}
+
+/**
+ * Resolve model credentials in the context of exactly one lab membership.
+ * The shared credential is an atomic override: its key, endpoint, models and
+ * reasoning control always come from the same lab record, never from a member.
+ */
+export async function getRuntimeLlmConfigForLabMember(userId: string, labId: string): Promise<RuntimeLlmConfig> {
+  await assertLabAccess(userId, labId);
+  const [saved, labOverride] = await Promise.all([
+    getUserLlmConfig(userId) as Promise<UserLlmConfigInput | null>,
+    getLabLlmRuntimeOverride(labId),
+  ]);
+  const personalOrEnvironment = buildRuntimeConfig(saved);
+  if (!labOverride) return personalOrEnvironment;
+  return {
+    ...personalOrEnvironment,
+    ...labOverride,
+    source: "lab",
+  };
 }
 
 export async function upsertUserLlmConfig(userId: string, input: UserLlmConfigInput) {

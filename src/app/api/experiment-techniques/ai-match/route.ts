@@ -6,10 +6,12 @@ import {
   matchTechniquesWithLlm,
 } from "@/lib/experiment-techniques/ai-match";
 import { listPublishedTechniques } from "@/lib/experiment-techniques/runtime";
-import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
+import { getRuntimeLlmConfigForLabMember } from "@/lib/llm/runtime-config";
+import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 
 const schema = z.object({
+  labId: z.string().trim().min(1),
   query: z.string().trim().min(1).max(500),
   limit: z.number().int().min(1).max(20).default(5),
   lang: z.enum(["zh", "en"]).default("zh"),
@@ -26,9 +28,10 @@ export async function POST(request: Request) {
       );
     }
 
+    await assertLabAccess(user.id, parsed.data.labId);
     const [techniques, llmConfig] = await Promise.all([
       listPublishedTechniques(),
-      getRuntimeLlmConfigForUser(user.id),
+      getRuntimeLlmConfigForLabMember(user.id, parsed.data.labId),
     ]);
 
     const result = await matchTechniquesWithLlm({
@@ -58,6 +61,12 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 },
+      );
+    }
+    if (error instanceof Error && error.message === "NO_LAB_ACCESS") {
+      return NextResponse.json(
+        { error: "No lab access", code: "NO_LAB_ACCESS" },
+        { status: 403 },
       );
     }
     if (error instanceof Error && error.message === LLM_NOT_CONFIGURED_ERROR) {

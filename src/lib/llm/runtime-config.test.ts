@@ -10,17 +10,24 @@ import { cleanUrlText } from "@/lib/url/clean-url";
 // at module load): the shared default path races with other test files that
 // rewrite the whole store concurrently.
 process.env.DEMO_MODE = "true";
+process.env.LAB_LLM_CONFIG_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 const testStoreDir = mkdtempSync(join(tmpdir(), "lab-reagent-runtime-config-"));
 process.env.LAB_REAGENT_DEMO_STORE_PATH = join(testStoreDir, "demo-store.json");
 test.after(() => rmSync(testStoreDir, { recursive: true, force: true }));
 
 let getLlmConfigView: (typeof import("@/lib/llm/runtime-config"))["getLlmConfigView"];
 let getRuntimeLlmConfigForUser: (typeof import("@/lib/llm/runtime-config"))["getRuntimeLlmConfigForUser"];
+let getRuntimeLlmConfigForLabMember: (typeof import("@/lib/llm/runtime-config"))["getRuntimeLlmConfigForLabMember"];
 let upsertUserLlmConfig: (typeof import("@/lib/llm/runtime-config"))["upsertUserLlmConfig"];
+let getLabLlmConfigView: (typeof import("@/lib/llm/lab-config"))["getLabLlmConfigView"];
+let upsertLabLlmConfig: (typeof import("@/lib/llm/lab-config"))["upsertLabLlmConfig"];
 let demoUpsertLlmConfig: (typeof import("@/lib/demo-store"))["demoUpsertLlmConfig"];
+let demoCreateLab: (typeof import("@/lib/demo-store"))["demoCreateLab"];
+let demoRegister: (typeof import("@/lib/demo-store"))["demoRegister"];
 test.before(async () => {
-  ({ getLlmConfigView, getRuntimeLlmConfigForUser, upsertUserLlmConfig } = await import("@/lib/llm/runtime-config"));
-  ({ demoUpsertLlmConfig } = await import("@/lib/demo-store"));
+  ({ getLlmConfigView, getRuntimeLlmConfigForUser, getRuntimeLlmConfigForLabMember, upsertUserLlmConfig } = await import("@/lib/llm/runtime-config"));
+  ({ getLabLlmConfigView, upsertLabLlmConfig } = await import("@/lib/llm/lab-config"));
+  ({ demoUpsertLlmConfig, demoCreateLab, demoRegister } = await import("@/lib/demo-store"));
 });
 
 test("cleanUrlText trims whitespace and unwraps quoted urls", () => {
@@ -174,4 +181,77 @@ test("enabledSkills follows LLM_ENABLED_SKILLS once set, even to an empty list",
   } finally {
     delete process.env.LLM_ENABLED_SKILLS;
   }
+});
+
+test("an enabled lab model atomically overrides a member's personal model", async () => {
+  await upsertUserLlmConfig("demo-user", {
+    openaiApiKey: "personal-secret",
+    openaiBaseUrl: "https://personal.example/v1",
+    openaiModel: "personal-model",
+    openaiVisionModel: "personal-vision",
+    reasoningEffort: "low",
+  });
+  await upsertLabLlmConfig("demo-lab", {
+    openaiApiKey: "lab-secret",
+    openaiBaseUrl: "https://lab.example/v1",
+    openaiModel: "lab-model",
+    openaiVisionModel: "lab-vision",
+    reasoningEffort: "high",
+  });
+
+  const runtime = await getRuntimeLlmConfigForLabMember("demo-user", "demo-lab");
+  assert.equal(runtime.source, "lab");
+  assert.equal(runtime.apiKey, "lab-secret");
+  assert.equal(runtime.baseURL, "https://lab.example/v1");
+  assert.equal(runtime.model, "lab-model");
+  assert.equal(runtime.visionModel, "lab-vision");
+  assert.equal(runtime.reasoningEffort, "high");
+});
+
+test("shared model configs are isolated by lab and expose no API key in their view", async () => {
+  const created = demoCreateLab({ userId: "demo-user", name: "第二实验室" });
+  assert.ok(!("error" in created));
+  await upsertLabLlmConfig(created.labId, {
+    openaiApiKey: "second-lab-secret",
+    openaiModel: "second-lab-model",
+  });
+
+  const first = await getRuntimeLlmConfigForLabMember("demo-user", "demo-lab");
+  const second = await getRuntimeLlmConfigForLabMember("demo-user", created.labId);
+  assert.equal(first.model, "lab-model");
+  assert.equal(second.model, "second-lab-model");
+  assert.equal(second.apiKey, "second-lab-secret");
+
+  const view = await getLabLlmConfigView(created.labId);
+  assert.equal(view.hasOpenaiApiKey, true);
+  assert.equal(JSON.stringify(view).includes("second-lab-secret"), false);
+});
+
+test("a partial shared-model update preserves its encrypted key and endpoint", async () => {
+  const created = demoCreateLab({ userId: "demo-user", name: "部分更新实验室" });
+  assert.ok(!("error" in created));
+  await upsertLabLlmConfig(created.labId, {
+    openaiApiKey: "preserved-secret",
+    openaiBaseUrl: "https://preserved.example/v1",
+    openaiModel: "first-model",
+  });
+  await upsertLabLlmConfig(created.labId, { openaiModel: "updated-model" });
+
+  const runtime = await getRuntimeLlmConfigForLabMember("demo-user", created.labId);
+  assert.equal(runtime.apiKey, "preserved-secret");
+  assert.equal(runtime.baseURL, "https://preserved.example/v1");
+  assert.equal(runtime.model, "updated-model");
+});
+
+test("a non-member cannot resolve another laboratory's shared model", async () => {
+  const registered = await demoRegister({
+    email: `outsider-${Math.random().toString(36).slice(2)}@example.com`,
+    password: "secret123",
+    mode: "none",
+  });
+  assert.ok(!("error" in registered));
+  await assert.rejects(
+    () => getRuntimeLlmConfigForLabMember(registered.userId, "demo-lab"),
+    /NO_LAB_ACCESS/,
+  );
 });

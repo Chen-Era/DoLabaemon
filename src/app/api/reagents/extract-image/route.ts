@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createChatCompletionWithParamFallback, getLlmClient, getLlmReasoningRequestControls } from "@/lib/llm/client";
-import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
-import { isDemoMode } from "@/lib/demo-mode";
+import { getRuntimeLlmConfigForLabMember } from "@/lib/llm/runtime-config";
 import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 
@@ -49,11 +48,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    if (!isDemoMode()) {
-      await assertLabAccess(user.id, parsed.data.labId);
-    }
+    await assertLabAccess(user.id, parsed.data.labId);
 
-    const llmConfig = await getRuntimeLlmConfigForUser(user.id);
+    const llmConfig = await getRuntimeLlmConfigForLabMember(user.id, parsed.data.labId);
     const client = getLlmClient({ apiKey: llmConfig.apiKey, baseURL: llmConfig.baseURL });
     const model = getVisionModel({ visionModel: llmConfig.visionModel, model: llmConfig.model });
     const { reasoningParams, omitTemperature } = getLlmReasoningRequestControls({

@@ -75,6 +75,30 @@ type AiPolicyView = {
   };
 };
 
+type LabLlmView = {
+  labId: string;
+  role: "PI" | "ADMIN" | "MEMBER";
+  canManage: boolean;
+  config: {
+    enabled: boolean;
+    configured: boolean;
+    openaiBaseUrl?: string | null;
+    openaiModel?: string | null;
+    openaiVisionModel?: string | null;
+    reasoningEffort: ReasoningEffort;
+    hasOpenaiApiKey: boolean;
+  };
+  error?: string;
+};
+
+type LabLlmFormState = {
+  openaiApiKey: string;
+  openaiBaseUrl: string;
+  openaiModel: string;
+  openaiVisionModel: string;
+  reasoningEffort: ReasoningEffort;
+};
+
 type ConnectionTestResult = {
   ok: boolean;
   model?: { ok: boolean; message: string };
@@ -97,6 +121,14 @@ const initialForm: FormState = {
   autoLearnEnabled: false,
   reasoningEffort: "off",
   knowledgeVerifySkipEnabled: true,
+};
+
+const initialLabLlmForm: LabLlmFormState = {
+  openaiApiKey: "",
+  openaiBaseUrl: "",
+  openaiModel: "",
+  openaiVisionModel: "",
+  reasoningEffort: "off",
 };
 
 const skillOptions = [
@@ -162,6 +194,9 @@ export default function SettingsPage() {
   const [selectedLabId, setSelectedLabId] = useState<string>("");
   const [policy, setPolicy] = useState<AiPolicyView | null>(null);
   const [policySaving, setPolicySaving] = useState(false);
+  const [labLlm, setLabLlm] = useState<LabLlmView | null>(null);
+  const [labLlmForm, setLabLlmForm] = useState<LabLlmFormState>(initialLabLlmForm);
+  const [labLlmSaving, setLabLlmSaving] = useState(false);
 
   function toggleListValue(field: "enabledSkills" | "enabledMcpServers", value: string) {
     setForm((prev) => ({
@@ -194,6 +229,23 @@ export default function SettingsPage() {
     if (response.ok && data) {
       setPolicy(data);
     }
+  }
+
+  async function loadLabLlm(labId: string) {
+    if (!labId) return;
+    const { response, data } = await requestJson<LabLlmView>(`/api/settings/lab-llm?labId=${encodeURIComponent(labId)}`);
+    if (!response.ok || !data) {
+      setLabLlm(null);
+      return;
+    }
+    setLabLlm(data);
+    setLabLlmForm({
+      openaiApiKey: "",
+      openaiBaseUrl: data.config.openaiBaseUrl ?? "",
+      openaiModel: data.config.openaiModel ?? "",
+      openaiVisionModel: data.config.openaiVisionModel ?? "",
+      reasoningEffort: data.config.reasoningEffort ?? "off",
+    });
   }
 
   async function loadConfig() {
@@ -244,6 +296,7 @@ export default function SettingsPage() {
       setSelectedLabId(nextLabId);
       if (nextLabId) {
         loadPolicy(nextLabId);
+        loadLabLlm(nextLabId);
       }
     });
   }, []);
@@ -251,6 +304,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (selectedLabId) {
       loadPolicy(selectedLabId);
+      loadLabLlm(selectedLabId);
     }
   }, [selectedLabId]);
 
@@ -304,6 +358,52 @@ export default function SettingsPage() {
       setMsg("网络异常，请稍后重试");
     } finally {
       setPolicySaving(false);
+    }
+  }
+
+  async function onSaveLabLlm() {
+    if (!selectedLabId) return;
+    setLabLlmSaving(true);
+    setMsg(null);
+    try {
+      const { response, data } = await requestJson<LabLlmView>("/api/settings/lab-llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labId: selectedLabId, ...labLlmForm, isEnabled: true }),
+      });
+      if (!response.ok || !data) {
+        setMsg(data?.error ?? "实验室公用模型保存失败");
+        return;
+      }
+      setLabLlm(data);
+      setLabLlmForm((prev) => ({ ...prev, openaiApiKey: "" }));
+      setMsg("实验室公用模型已保存；该实验室成员的 AI 请求将直接使用它。");
+    } catch {
+      setMsg("网络异常，请稍后重试");
+    } finally {
+      setLabLlmSaving(false);
+    }
+  }
+
+  async function onRemoveLabLlm() {
+    if (!selectedLabId || !window.confirm("确定移除该实验室的公用模型吗？成员将恢复使用个人或服务器默认配置。")) return;
+    setLabLlmSaving(true);
+    setMsg(null);
+    try {
+      const { response, data } = await requestJson<LabLlmView>(`/api/settings/lab-llm?labId=${encodeURIComponent(selectedLabId)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok || !data) {
+        setMsg(data?.error ?? "移除实验室公用模型失败");
+        return;
+      }
+      setLabLlm(data);
+      setLabLlmForm(initialLabLlmForm);
+      setMsg("实验室公用模型已移除。");
+    } catch {
+      setMsg("网络异常，请稍后重试");
+    } finally {
+      setLabLlmSaving(false);
     }
   }
 
@@ -679,6 +779,100 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </section>
+
+      <section className="app-panel px-5 py-5">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-slate-900">实验室公用大模型</h2>
+          <p className="section-copy mt-1 text-sm">
+            由负责人或管理员维护。密钥会在服务器端加密保存，成员只能使用模型，无法读取或导出密钥。
+          </p>
+        </div>
+        {!selectedLabId ? (
+          <p className="text-sm text-slate-500">请先选择一个实验室。</p>
+        ) : labLlm?.canManage ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className={labLlm.config.configured ? "status-pill success" : "status-pill warning"}>
+                {labLlm.config.configured ? "公用模型已就绪" : "尚未配置公用模型"}
+              </span>
+              <span className="text-slate-500">适用于：{labs.find((item) => item.lab.id === selectedLabId)?.lab.name ?? "当前实验室"}</span>
+            </div>
+            <div className="data-grid cols-2">
+              <div>
+                <label className="field-label" htmlFor="lab-openai-api-key">模型 API 密钥</label>
+                <input
+                  id="lab-openai-api-key"
+                  className="input-base"
+                  type="password"
+                  placeholder={labLlm.config.hasOpenaiApiKey ? "已加密保存，留空则保持不变" : "输入实验室公用 API 密钥"}
+                  value={labLlmForm.openaiApiKey}
+                  onChange={(e) => setLabLlmForm((prev) => ({ ...prev, openaiApiKey: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="lab-openai-base-url">服务地址</label>
+                <input
+                  id="lab-openai-base-url"
+                  className="input-base"
+                  placeholder="可选，不填使用服务商默认地址"
+                  value={labLlmForm.openaiBaseUrl}
+                  onChange={(e) => setLabLlmForm((prev) => ({ ...prev, openaiBaseUrl: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="lab-openai-model">文本模型</label>
+                <input
+                  id="lab-openai-model"
+                  className="input-base"
+                  placeholder="例如 gpt-4.1-mini"
+                  value={labLlmForm.openaiModel}
+                  onChange={(e) => setLabLlmForm((prev) => ({ ...prev, openaiModel: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="lab-openai-vision-model">视觉模型</label>
+                <input
+                  id="lab-openai-vision-model"
+                  className="input-base"
+                  placeholder="可选，留空则使用文本模型"
+                  value={labLlmForm.openaiVisionModel}
+                  onChange={(e) => setLabLlmForm((prev) => ({ ...prev, openaiVisionModel: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="max-w-sm">
+              <label className="field-label" htmlFor="lab-reasoning-effort">模型推理等级</label>
+              <select
+                id="lab-reasoning-effort"
+                className="input-base"
+                value={labLlmForm.reasoningEffort}
+                onChange={(e) => setLabLlmForm((prev) => ({ ...prev, reasoningEffort: e.target.value as ReasoningEffort }))}
+              >
+                {REASONING_EFFORT_LEVELS.map((level) => <option key={level} value={level}>{reasoningEffortLabels[level]}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={onSaveLabLlm} className="button-primary" disabled={labLlmSaving}>
+                {labLlmSaving ? "保存中..." : "保存公用模型"}
+              </button>
+              {labLlm.config.hasOpenaiApiKey ? (
+                <button type="button" onClick={onRemoveLabLlm} className="button-secondary" disabled={labLlmSaving}>
+                  移除公用模型
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className={labLlm?.config.configured ? "status-pill success" : "status-pill warning"}>
+              {labLlm?.config.configured ? `可直接使用：${labLlm.config.openaiModel}` : "负责人或管理员尚未配置公用模型"}
+            </span>
+            <span className="text-slate-500">
+              {labLlm?.config.configured ? "成员无需填写个人模型密钥。" : "配置完成后，成员即可直接使用，无需填写个人模型密钥。"}
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="app-panel px-5 py-5">

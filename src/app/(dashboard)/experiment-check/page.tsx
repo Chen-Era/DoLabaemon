@@ -182,7 +182,7 @@ export default function ExperimentCheckPage() {
   }
 
   async function resolveInput() {
-    if (!query.trim()) return;
+    if (!query.trim() || !labId) return;
     setSearching(true);
     const { response, data } = await requestJson<{
       autoSelectedCode?: string | null;
@@ -223,7 +223,7 @@ export default function ExperimentCheckPage() {
       }>("/api/experiment-techniques/ai-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), limit: 5 }),
+        body: JSON.stringify({ labId, query: query.trim(), limit: 5 }),
         timeoutMs: 100000,
       }));
     } catch {

@@ -63,6 +63,11 @@ export function canManageAiPolicy(role: LabRole | "PI" | "ADMIN" | "MEMBER") {
   return role === "PI" || role === "ADMIN";
 }
 
+/** PI and ADMIN may manage shared credentials for their own laboratory. */
+export function canManageLabLlmConfig(role: LabRole | "PI" | "ADMIN" | "MEMBER") {
+  return role === "PI" || role === "ADMIN";
+}
+
 export function canReviewExperimentTechniques(
   role: LabRole | "PI" | "ADMIN" | "MEMBER",
 ) {

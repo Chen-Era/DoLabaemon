@@ -6,7 +6,7 @@ import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoParseReagent } from "@/lib/demo-store";
-import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
+import { getRuntimeLlmConfigForLabMember } from "@/lib/llm/runtime-config";
 import { toSafeJsonValue } from "@/lib/json/safe-json";
 import { parseReagentInput } from "@/lib/reagent-ingest/parse-reagent";
 
@@ -121,8 +121,9 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
+    const membership = await timeRouteStep(routeDiagnostics, "labAccess", () => assertLabAccess(user.id, parsed.data.labId));
+    const llmConfig = await timeRouteStep(routeDiagnostics, "loadConfig", () => getRuntimeLlmConfigForLabMember(user.id, parsed.data.labId));
     if (isDemoMode()) {
-      const llmConfig = await timeRouteStep(routeDiagnostics, "loadConfig", () => getRuntimeLlmConfigForUser(user.id));
       const out = demoParseReagent({
         labId: parsed.data.labId,
         userId: user.id,
@@ -156,8 +157,6 @@ export async function POST(req: Request) {
         },
       );
     }
-    const membership = await timeRouteStep(routeDiagnostics, "labAccess", () => assertLabAccess(user.id, parsed.data.labId));
-    const llmConfig = await timeRouteStep(routeDiagnostics, "loadConfig", () => getRuntimeLlmConfigForUser(user.id));
     const { parsed: structured, parseSource, verificationStatus, verificationMethod, verificationReason, ai, diagnostics } = await timeRouteStep(
       routeDiagnostics,
       "parse",

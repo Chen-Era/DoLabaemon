@@ -106,6 +106,16 @@ type DemoLlmConfig = UserLlmConfigInput & {
   userId: string;
 };
 
+type DemoLabLlmConfig = {
+  labId: string;
+  encryptedOpenaiApiKey: string;
+  openaiBaseUrl: string | null;
+  openaiModel: string;
+  openaiVisionModel: string | null;
+  reasoningEffort: string;
+  isEnabled: boolean;
+};
+
 type DemoLabAiPolicy = {
   labId: string;
   allowAutoLearn: boolean;
@@ -177,6 +187,7 @@ type DemoStoreShape = {
   drafts: DemoDraft[];
   experimentResolveDrafts: DemoExperimentResolveDraft[];
   llmConfigs: DemoLlmConfig[];
+  labLlmConfigs: DemoLabLlmConfig[];
   aiPolicies: DemoLabAiPolicy[];
   knowledgeMutationLogs: DemoKnowledgeMutationLog[];
   reagentKnowledgeEntries: DemoReagentKnowledgeEntry[];
@@ -232,6 +243,7 @@ function createDefaultStore(): DemoStoreShape {
     drafts: [],
     experimentResolveDrafts: [],
     llmConfigs: [],
+    labLlmConfigs: [],
     aiPolicies: [
       {
         labId: demoLabId,
@@ -271,6 +283,7 @@ function readStore(): DemoStoreShape {
     drafts: Array.isArray(parsed.drafts) ? parsed.drafts : [],
     experimentResolveDrafts: Array.isArray(parsed.experimentResolveDrafts) ? parsed.experimentResolveDrafts : [],
     llmConfigs: Array.isArray(parsed.llmConfigs) ? parsed.llmConfigs : [],
+    labLlmConfigs: Array.isArray(parsed.labLlmConfigs) ? parsed.labLlmConfigs : [],
     aiPolicies: Array.isArray(parsed.aiPolicies) ? parsed.aiPolicies : base.aiPolicies,
     knowledgeMutationLogs: Array.isArray(parsed.knowledgeMutationLogs) ? parsed.knowledgeMutationLogs : [],
     reagentKnowledgeEntries: Array.isArray(parsed.reagentKnowledgeEntries) ? parsed.reagentKnowledgeEntries : base.reagentKnowledgeEntries,
@@ -328,6 +341,28 @@ export function demoUpsertLlmConfig(userId: string, input: UserLlmConfigInput) {
   }
   writeStore(store);
   return next;
+}
+
+export function demoGetLabLlmConfig(labId: string): DemoLabLlmConfig | null {
+  return readStore().labLlmConfigs.find((item) => item.labId === labId) ?? null;
+}
+
+export function demoUpsertLabLlmConfig(input: DemoLabLlmConfig) {
+  const store = readStore();
+  const existingIndex = store.labLlmConfigs.findIndex((item) => item.labId === input.labId);
+  if (existingIndex >= 0) {
+    store.labLlmConfigs[existingIndex] = input;
+  } else {
+    store.labLlmConfigs.push(input);
+  }
+  writeStore(store);
+  return input;
+}
+
+export function demoDeleteLabLlmConfig(labId: string) {
+  const store = readStore();
+  store.labLlmConfigs = store.labLlmConfigs.filter((item) => item.labId !== labId);
+  writeStore(store);
 }
 
 export function demoGetLabMembership(userId: string, labId: string) {

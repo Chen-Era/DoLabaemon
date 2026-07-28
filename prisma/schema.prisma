@@ -135,9 +135,24 @@ model Lab {
   checks             ExperimentCheckRun[]
   invitations        Invitation[]
   aiPolicy           LabAiPolicy?
+  llmConfig          LabLlmConfig?
   knowledgeLogs      KnowledgeMutationLog[]
   techniqueDrafts    ExperimentTechniqueDraft[]
   techniqueRevisions ExperimentTechniqueRevision[]
+}
+
+model LabLlmConfig {
+  id                     String   @id @default(cuid())
+  labId                  String   @unique
+  encryptedOpenaiApiKey  String
+  openaiBaseUrl          String?
+  openaiModel            String
+  openaiVisionModel      String?
+  reasoningEffort        String   @default("off")
+  isEnabled              Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  lab                    Lab      @relation(fields: [labId], references: [id], onDelete: Cascade)
 }
 
 model LabMember {

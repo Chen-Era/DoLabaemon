@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import {
   canDeleteLab,
+  canManageLabLlmConfig,
   canRemoveMember,
   canReviewExperimentTechniques,
   canReviewJoinRequests,
@@ -47,6 +48,14 @@ describe("canReviewExperimentTechniques permission matrix", () => {
 
   void it("explicitly denies MEMBER", () => {
     assert.equal(canReviewExperimentTechniques("MEMBER"), false);
+  });
+});
+
+describe("canManageLabLlmConfig permission matrix", () => {
+  void it("grants PI and ADMIN while denying MEMBER", () => {
+    assert.equal(canManageLabLlmConfig("PI"), true);
+    assert.equal(canManageLabLlmConfig("ADMIN"), true);
+    assert.equal(canManageLabLlmConfig("MEMBER"), false);
   });
 });
 

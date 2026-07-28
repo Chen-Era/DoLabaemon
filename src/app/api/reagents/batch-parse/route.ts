@@ -7,7 +7,7 @@ import { demoParseReagent } from "@/lib/demo-store";
 import { toSafeJsonValue } from "@/lib/json/safe-json";
 import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
-import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
+import { getRuntimeLlmConfigForLabMember } from "@/lib/llm/runtime-config";
 import { extractBatchRows } from "@/lib/reagent-ingest/extract-batch-rows";
 import { parseReagentInput } from "@/lib/reagent-ingest/parse-reagent";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
@@ -54,12 +54,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    const membership = isDemoMode() ? null : await assertLabAccess(user.id, parsed.data.labId);
-    const llmConfig = isDemoMode() ? null : await getRuntimeLlmConfigForUser(user.id);
+    const membership = await assertLabAccess(user.id, parsed.data.labId);
+    const llmConfig = await getRuntimeLlmConfigForLabMember(user.id, parsed.data.labId);
 
     const extractedRows = await extractBatchRows(parsed.data.rawText, parsed.data.lang, {
       allowLlm: !isDemoMode(),
-      llmConfig: llmConfig ?? undefined,
+      llmConfig,
     });
 
     if (!extractedRows.length) {
@@ -114,16 +114,14 @@ export async function POST(req: Request) {
             note,
             lang: parsed.data.lang,
           }, {
-            llmConfig: llmConfig ?? undefined,
-            flowContext: llmConfig && membership
-              ? {
-                  flow: "reagent-parse",
-                  labId: parsed.data.labId,
-                  userId: user.id,
-                  role: membership.role,
-                  llmConfig,
-                }
-              : undefined,
+            llmConfig,
+            flowContext: {
+              flow: "reagent-parse",
+              labId: parsed.data.labId,
+              userId: user.id,
+              role: membership.role,
+              llmConfig,
+            },
           });
 
           const draft = await prisma.reagentParseDraft.create({

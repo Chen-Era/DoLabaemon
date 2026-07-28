@@ -134,6 +134,7 @@ REAGENT_SEARCH_ENABLED="false"
 | `DATABASE_URL` | PostgreSQL 连接字符串。 |
 | `NEXTAUTH_URL`、`NEXTAUTH_SECRET` | 登录地址与会话加密密钥。本地开发地址为 `http://localhost:3000`。 |
 | `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`、`OPENAI_VISION_MODEL` | OpenAI 兼容模型服务的地址、密钥与模型名称。 |
+| `LAB_LLM_CONFIG_ENCRYPTION_KEY` | 实验室公用模型 API Key 的 AES-256-GCM 加密主密钥；生产环境用 `openssl rand -base64 32` 生成且仅保存在服务器环境变量中。 |
 | `REAGENT_SEARCH_*` | 联网核验所需的搜索服务配置。 |
 | `LLM_ENABLED_SKILLS`、`LLM_ENABLED_MCP_SERVERS` | 启用的 Skill 与 MCP 服务。 |
 | `LLM_SELF_CHECK_ENABLED`、`LLM_AUTO_LEARN_ENABLED` | 是否启用 AI 自检与自动学习写回。 |
@@ -301,6 +302,7 @@ This configuration uses `mimo-2.5-pro` for text and `mimo-2.5` for images. It di
 | `DATABASE_URL` | PostgreSQL connection string. |
 | `NEXTAUTH_URL`, `NEXTAUTH_SECRET` | The sign-in URL and session encryption secret. The local development URL is `http://localhost:3000`. |
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_VISION_MODEL` | Endpoint, key, and model names for an OpenAI-compatible model service. |
+| `LAB_LLM_CONFIG_ENCRYPTION_KEY` | AES-256-GCM root key for laboratory shared-model API keys; generate it with `openssl rand -base64 32` and keep it only in the production environment. |
 | `REAGENT_SEARCH_*` | Search-service settings for online verification. |
 | `LLM_ENABLED_SKILLS`, `LLM_ENABLED_MCP_SERVERS` | Enabled Skills and MCP services. |
 | `LLM_SELF_CHECK_ENABLED`, `LLM_AUTO_LEARN_ENABLED` | Whether to enable AI self-checks and automatic learning write-back. |

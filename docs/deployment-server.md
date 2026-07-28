@@ -62,6 +62,7 @@ cp .env.example .env
 - `NEXTAUTH_SECRET`
 - `OPENAI_API_KEY`
 - `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_VISION_MODEL`（按你的模型提供方填写）
+- `LAB_LLM_CONFIG_ENCRYPTION_KEY`（实验室公用模型密钥的加密主密钥）
 
 关键要求：
 
@@ -79,6 +80,8 @@ cp .env.example .env
 ```bash
 openssl rand -base64 32
 ```
+
+请为 `NEXTAUTH_SECRET` 和 `LAB_LLM_CONFIG_ENCRYPTION_KEY` 分别生成不同的随机值。后者只留在服务器 `.env` 中：应用会用它以 AES-256-GCM 加密实验室公用模型的 API Key，数据库和浏览器均不会获得明文。已有部署升级后必须先配置该变量，再由 PI/管理员在“模型与联网配置”页保存实验室公用模型。
 
 ## 4. 启动数据库和应用
 
