@@ -223,6 +223,13 @@ export default function SettingsPage() {
     setProviderPresetId(matchProviderPreset(value)?.id ?? CUSTOM_PROVIDER_PRESET_ID);
   }
 
+  function onSelectedLabChange(labId: string) {
+    setSelectedLabId(labId);
+    setPolicy(null);
+    setLabLlm(null);
+    setLabLlmForm(initialLabLlmForm);
+  }
+
   async function loadPolicy(labId: string) {
     if (!labId) return;
     const { response, data } = await requestJson<AiPolicyView>(`/api/settings/ai-policy?labId=${encodeURIComponent(labId)}`);
@@ -327,7 +334,7 @@ export default function SettingsPage() {
       }
       setConfig(data);
       setForm((prev) => ({ ...prev, openaiApiKey: "", searchApiKey: "" }));
-      setMsg("配置已保存，后续模型调用将优先使用这里的设置。");
+      setMsg("个人配置已保存；它会优先于当前实验室的公用模型。");
     } catch {
       setMsg("网络异常，请稍后重试");
     } finally {
@@ -377,7 +384,7 @@ export default function SettingsPage() {
       }
       setLabLlm(data);
       setLabLlmForm((prev) => ({ ...prev, openaiApiKey: "" }));
-      setMsg("实验室公用模型已保存；该实验室成员的 AI 请求将直接使用它。");
+      setMsg("实验室公用模型已保存；未配置个人 API Key 的成员将直接使用它。");
     } catch {
       setMsg("网络异常，请稍后重试");
     } finally {
@@ -443,7 +450,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <section className="page-header">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">模型与联网配置</h1>
-        <p className="section-copy mt-1.5 max-w-3xl text-sm">保存后，试剂识别和实验解析会优先使用这里的设置。</p>
+        <p className="section-copy mt-1.5 max-w-3xl text-sm">生效顺序：个人模型配置 → 当前实验室公用模型 → 服务器默认模型。</p>
       </section>
 
       <section className="app-panel px-4 py-3">
@@ -480,7 +487,7 @@ export default function SettingsPage() {
       <div className="data-grid cols-2">
         <section className="app-panel px-5 py-5">
           <div className="mb-4">
-            <h2 className="text-base font-semibold text-slate-900">模型配置</h2>
+            <h2 className="text-base font-semibold text-slate-900">个人模型配置</h2>
             <p className="section-copy mt-1 text-sm">密钥留空会保留已保存的值；服务地址和模型名留空则使用环境变量。</p>
           </div>
           <div className="space-y-4">
@@ -707,7 +714,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div className="max-w-sm">
             <label className="field-label" htmlFor="policy-lab">实验室</label>
-            <select id="policy-lab" className="input-base" value={selectedLabId} onChange={(e) => setSelectedLabId(e.target.value)}>
+            <select id="policy-lab" className="input-base" value={selectedLabId} onChange={(e) => onSelectedLabChange(e.target.value)}>
               {labs.map((item) => (
                 <option key={item.lab.id} value={item.lab.id}>
                   {item.lab.name} / {roleLabel(item.role)}
@@ -785,8 +792,25 @@ export default function SettingsPage() {
         <div className="mb-4">
           <h2 className="text-base font-semibold text-slate-900">实验室公用大模型</h2>
           <p className="section-copy mt-1 text-sm">
-            由负责人或管理员维护。密钥会在服务器端加密保存，成员只能使用模型，无法读取或导出密钥。
+            由负责人或管理员维护。密钥会在服务器端加密保存；未配置个人 API Key 的成员可直接使用，且无法读取或导出密钥。
           </p>
+        </div>
+        <div className="mb-4 max-w-sm">
+          <label className="field-label" htmlFor="lab-llm-lab">配置实验室</label>
+          <select
+            id="lab-llm-lab"
+            className="input-base"
+            value={selectedLabId}
+            disabled={!labs.length}
+            onChange={(e) => onSelectedLabChange(e.target.value)}
+          >
+            {labs.length ? labs.map((item) => (
+              <option key={item.lab.id} value={item.lab.id}>
+                {item.lab.name} / {roleLabel(item.role)}
+              </option>
+            )) : <option value="">暂无可用实验室</option>}
+          </select>
+          <p className="field-hint">公用模型只保存到这里选定的实验室，不会影响其他实验室。</p>
         </div>
         {!selectedLabId ? (
           <p className="text-sm text-slate-500">请先选择一个实验室。</p>

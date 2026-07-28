@@ -120,18 +120,23 @@ export async function getRuntimeLlmConfigForUser(userId: string): Promise<Runtim
   return buildRuntimeConfig(saved);
 }
 
+function hasPersonalLlmApiKey(saved: UserLlmConfigInput | null) {
+  return Boolean(cleanText(saved?.openaiApiKey));
+}
+
 /**
  * Resolve model credentials in the context of exactly one lab membership.
- * The shared credential is an atomic override: its key, endpoint, models and
- * reasoning control always come from the same lab record, never from a member.
+ * A member's explicitly saved API key takes precedence. Otherwise, an enabled
+ * shared credential is an atomic fallback: its key, endpoint, models and
+ * reasoning control always come from the same lab record.
  */
 export async function getRuntimeLlmConfigForLabMember(userId: string, labId: string): Promise<RuntimeLlmConfig> {
   await assertLabAccess(userId, labId);
-  const [saved, labOverride] = await Promise.all([
-    getUserLlmConfig(userId) as Promise<UserLlmConfigInput | null>,
-    getLabLlmRuntimeOverride(labId),
-  ]);
+  const saved = (await getUserLlmConfig(userId)) as UserLlmConfigInput | null;
   const personalOrEnvironment = buildRuntimeConfig(saved);
+  if (hasPersonalLlmApiKey(saved)) return personalOrEnvironment;
+
+  const labOverride = await getLabLlmRuntimeOverride(labId);
   if (!labOverride) return personalOrEnvironment;
   return {
     ...personalOrEnvironment,

@@ -183,7 +183,7 @@ test("enabledSkills follows LLM_ENABLED_SKILLS once set, even to an empty list",
   }
 });
 
-test("an enabled lab model atomically overrides a member's personal model", async () => {
+test("a member's personal model takes precedence over an enabled lab model", async () => {
   await upsertUserLlmConfig("demo-user", {
     openaiApiKey: "personal-secret",
     openaiBaseUrl: "https://personal.example/v1",
@@ -200,25 +200,37 @@ test("an enabled lab model atomically overrides a member's personal model", asyn
   });
 
   const runtime = await getRuntimeLlmConfigForLabMember("demo-user", "demo-lab");
-  assert.equal(runtime.source, "lab");
-  assert.equal(runtime.apiKey, "lab-secret");
-  assert.equal(runtime.baseURL, "https://lab.example/v1");
-  assert.equal(runtime.model, "lab-model");
-  assert.equal(runtime.visionModel, "lab-vision");
-  assert.equal(runtime.reasoningEffort, "high");
+  assert.equal(runtime.source, "user");
+  assert.equal(runtime.apiKey, "personal-secret");
+  assert.equal(runtime.baseURL, "https://personal.example/v1");
+  assert.equal(runtime.model, "personal-model");
+  assert.equal(runtime.visionModel, "personal-vision");
+  assert.equal(runtime.reasoningEffort, "low");
 });
 
 test("shared model configs are isolated by lab and expose no API key in their view", async () => {
-  const created = demoCreateLab({ userId: "demo-user", name: "第二实验室" });
+  const registered = await demoRegister({
+    email: `shared-${Math.random().toString(36).slice(2)}@example.com`,
+    password: "secret123",
+    mode: "create",
+    labName: "第一共享实验室",
+  });
+  assert.ok(!("error" in registered));
+  assert.ok(registered.labId);
+  await upsertLabLlmConfig(registered.labId, {
+    openaiApiKey: "first-lab-secret",
+    openaiModel: "first-lab-model",
+  });
+  const created = demoCreateLab({ userId: registered.userId, name: "第二共享实验室" });
   assert.ok(!("error" in created));
   await upsertLabLlmConfig(created.labId, {
     openaiApiKey: "second-lab-secret",
     openaiModel: "second-lab-model",
   });
 
-  const first = await getRuntimeLlmConfigForLabMember("demo-user", "demo-lab");
-  const second = await getRuntimeLlmConfigForLabMember("demo-user", created.labId);
-  assert.equal(first.model, "lab-model");
+  const first = await getRuntimeLlmConfigForLabMember(registered.userId, registered.labId);
+  const second = await getRuntimeLlmConfigForLabMember(registered.userId, created.labId);
+  assert.equal(first.model, "first-lab-model");
   assert.equal(second.model, "second-lab-model");
   assert.equal(second.apiKey, "second-lab-secret");
 
@@ -228,7 +240,15 @@ test("shared model configs are isolated by lab and expose no API key in their vi
 });
 
 test("a partial shared-model update preserves its encrypted key and endpoint", async () => {
-  const created = demoCreateLab({ userId: "demo-user", name: "部分更新实验室" });
+  const registered = await demoRegister({
+    email: `partial-${Math.random().toString(36).slice(2)}@example.com`,
+    password: "secret123",
+    mode: "create",
+    labName: "部分更新实验室",
+  });
+  assert.ok(!("error" in registered));
+  assert.ok(registered.labId);
+  const created = { labId: registered.labId };
   assert.ok(!("error" in created));
   await upsertLabLlmConfig(created.labId, {
     openaiApiKey: "preserved-secret",
@@ -237,7 +257,7 @@ test("a partial shared-model update preserves its encrypted key and endpoint", a
   });
   await upsertLabLlmConfig(created.labId, { openaiModel: "updated-model" });
 
-  const runtime = await getRuntimeLlmConfigForLabMember("demo-user", created.labId);
+  const runtime = await getRuntimeLlmConfigForLabMember(registered.userId, created.labId);
   assert.equal(runtime.apiKey, "preserved-secret");
   assert.equal(runtime.baseURL, "https://preserved.example/v1");
   assert.equal(runtime.model, "updated-model");
