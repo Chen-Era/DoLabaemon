@@ -692,6 +692,11 @@ a {
   color: var(--text-faint);
 }
 
+/* The icon is absolutely positioned, so it needs dedicated text clearance. */
+.input-base.input-with-leading-icon {
+  padding-left: 2.75rem;
+}
+
 .input-base:hover:not(:disabled) {
   border-color: #aebfce;
 }

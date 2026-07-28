@@ -8,18 +8,19 @@ import { AccountActions } from "@/components/common/account-actions";
 import {
   AddReagentIcon,
   CloseIcon,
-  ExperimentIcon,
-  KnowledgeIcon,
-  LabsIcon,
   MenuIcon,
-  ReagentsIcon,
-  SettingsIcon,
+  SidebarAddReagentIcon,
+  SidebarExperimentCheckIcon,
+  SidebarKnowledgeIcon,
+  SidebarLabsIcon,
+  SidebarReagentsIcon,
+  SidebarSettingsIcon,
 } from "@/components/common/app-icons";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: typeof LabsIcon;
+  icon: typeof SidebarLabsIcon;
 };
 
 type NavGroup = {
@@ -31,17 +32,17 @@ const navGroups: NavGroup[] = [
   {
     label: "实验",
     items: [
-      { href: "/labs", label: "实验室", icon: LabsIcon },
-      { href: "/reagents", label: "试剂清单", icon: ReagentsIcon },
-      { href: "/reagents/new", label: "录入试剂", icon: AddReagentIcon },
-      { href: "/experiment-check", label: "实验检查", icon: ExperimentIcon },
+      { href: "/labs", label: "实验室", icon: SidebarLabsIcon },
+      { href: "/reagents", label: "试剂清单", icon: SidebarReagentsIcon },
+      { href: "/reagents/new", label: "录入试剂", icon: SidebarAddReagentIcon },
+      { href: "/experiment-check", label: "实验检查", icon: SidebarExperimentCheckIcon },
     ],
   },
   {
     label: "管理",
     items: [
-      { href: "/knowledge", label: "实验知识库", icon: KnowledgeIcon },
-      { href: "/settings", label: "设置", icon: SettingsIcon },
+      { href: "/knowledge", label: "实验知识库", icon: SidebarKnowledgeIcon },
+      { href: "/settings", label: "设置", icon: SidebarSettingsIcon },
     ],
   },
 ];
@@ -182,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       onClick={() => setSidebarOpen(false)}
                     >
                       <span className="sidebar-nav-link-badge">
-                        <Icon />
+                        <Icon className="h-5 w-5" />
                       </span>
                       <span className="sidebar-nav-link-label">{item.label}</span>
                     </Link>

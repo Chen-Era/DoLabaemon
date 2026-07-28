@@ -904,7 +904,7 @@ export default function LabsPage() {
                 <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   id="apply-lab-search"
-                  className="input-base pl-9"
+                  className="input-base input-with-leading-icon"
                   placeholder="输入实验室名称关键词"
                   autoComplete="off"
                   value={applyQuery}

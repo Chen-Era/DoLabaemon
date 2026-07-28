@@ -86,6 +86,83 @@ export function KnowledgeIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+/** Navigation-only icons use a new, task-first visual language. */
+export function SidebarLabsIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M4 20h16" />
+      <path d="M5.5 16h13v4h-13z" />
+      <path d="M7 3v8.5a2 2 0 0 0 4 0V3" />
+      <path d="M13 5v6.5a2 2 0 0 0 4 0V5" />
+      <path d="M7 8h4" />
+      <path d="M13 9h4" />
+    </BaseIcon>
+  );
+}
+
+export function SidebarReagentsIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="4" y="3" width="5" height="7" rx="1.4" />
+      <path d="M5.5 3V2h2v1" />
+      <path d="M6 7h1" />
+      <rect x="4" y="14" width="5" height="7" rx="1.4" />
+      <path d="M5.5 14v-1h2v1" />
+      <path d="M6 18h1" />
+      <path d="M12 5h8" />
+      <path d="M12 9h5" />
+      <path d="M12 16h8" />
+      <path d="M12 20h5" />
+    </BaseIcon>
+  );
+}
+
+export function SidebarAddReagentIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M11 3.5S5.5 10 5.5 14.2A5.5 5.5 0 0 0 16.5 14.2C16.5 10 11 3.5 11 3.5Z" />
+      <path d="M8.5 15.5c.55 1.15 1.4 1.75 2.5 1.75" />
+      <path d="M19 4v5" />
+      <path d="M16.5 6.5h5" />
+    </BaseIcon>
+  );
+}
+
+export function SidebarExperimentCheckIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V2.5h6V4" />
+      <path d="m8.5 12 2.2 2.2 4.8-4.8" />
+      <path d="M9 18h6" />
+    </BaseIcon>
+  );
+}
+
+export function SidebarKnowledgeIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <circle cx="12" cy="12" r="2.2" />
+      <ellipse cx="12" cy="12" rx="8" ry="3.7" />
+      <ellipse cx="12" cy="12" rx="3.7" ry="8" transform="rotate(60 12 12)" />
+      <circle cx="17.6" cy="8.7" r=".9" />
+    </BaseIcon>
+  );
+}
+
+export function SidebarSettingsIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+      <circle cx="9" cy="6" r="2" />
+      <circle cx="16" cy="12" r="2" />
+      <circle cx="7" cy="18" r="2" />
+    </BaseIcon>
+  );
+}
+
 export function SortIcon({ className = "" }: IconProps) {
   return (
     <BaseIcon className={`h-3.5 w-3.5 shrink-0${className ? ` ${className}` : ""}`}>

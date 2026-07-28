@@ -393,7 +393,7 @@ function TechniqueAtlas({
               <span className="sr-only">双语搜索</span>
               <SearchIcon className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <input
-                className="input-base pl-9"
+                className="input-base input-with-leading-icon"
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);

@@ -381,7 +381,7 @@ export default function ReagentsPage() {
                 </span>
                 <input
                   id="reagent-search"
-                  className="input-base pl-8"
+                  className="input-base input-with-leading-icon"
                   placeholder="搜索名称、货号、标签、靶点"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}

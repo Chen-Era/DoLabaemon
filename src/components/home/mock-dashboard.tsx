@@ -1,4 +1,8 @@
-import { ExperimentIcon, LabsIcon, ReagentsIcon } from "@/components/common/app-icons";
+import {
+  SidebarExperimentCheckIcon,
+  SidebarLabsIcon,
+  SidebarReagentsIcon,
+} from "@/components/common/app-icons";
 import styles from "./mock-dashboard.module.css";
 
 const rows = [
@@ -19,15 +23,15 @@ export function MockDashboard() {
         <nav className={styles.sidebar} aria-label="工作区预览导航">
           <span className={styles.productMark}>D</span>
           <span className={`${styles.navItem} ${styles.navItemActive}`}>
-            <ReagentsIcon />
+            <SidebarReagentsIcon />
             <span>试剂</span>
           </span>
           <span className={styles.navItem}>
-            <ExperimentIcon />
+            <SidebarExperimentCheckIcon />
             <span>检查</span>
           </span>
           <span className={styles.navItem}>
-            <LabsIcon />
+            <SidebarLabsIcon />
             <span>实验室</span>
           </span>
         </nav>
