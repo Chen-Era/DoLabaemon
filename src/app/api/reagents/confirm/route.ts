@@ -20,14 +20,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
     if (isDemoMode()) {
-      const out = demoConfirmReagent(parsed.data);
+      const out = demoConfirmReagent(parsed.data, user);
       if ("error" in out) {
         return NextResponse.json({ error: out.error, code: out.code }, { status: 400 });
       }
       return NextResponse.json(out);
     }
     await assertLabAccess(user.id, parsed.data.editedPayload.labId);
-    const out = await confirmReagentDraft(parsed.data);
+    const out = await confirmReagentDraft(parsed.data, user);
     return NextResponse.json(out);
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {

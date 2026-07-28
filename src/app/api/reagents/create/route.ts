@@ -15,13 +15,13 @@ export async function POST(req: Request) {
     }
     await assertLabAccess(user.id, parsed.data.labId);
     if (isDemoMode()) {
-      const out = demoCreateReagent(parsed.data);
+      const out = demoCreateReagent(parsed.data, user);
       if ("error" in out) {
         return NextResponse.json({ error: out.error, code: out.code }, { status: 409 });
       }
       return NextResponse.json({ item: out }, { status: 201 });
     }
-    const item = await createReagent(parsed.data);
+    const item = await createReagent(parsed.data, user);
     return NextResponse.json({ item }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";

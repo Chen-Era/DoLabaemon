@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { ConfirmDraftItem } from "@/lib/reagent-ingest/types";
+import { buildReagentUploadProvenance, type ReagentUploader } from "@/lib/reagent-provenance";
 
 export type ConfirmReagentResult =
   | {
@@ -76,7 +77,10 @@ function createPrimerMeta(data: ConfirmDraftItem["editedPayload"]["primerMeta"])
     : undefined;
 }
 
-export async function confirmReagentDraft(input: ConfirmDraftItem): Promise<ConfirmReagentResult> {
+export async function confirmReagentDraft(
+  input: ConfirmDraftItem,
+  uploader: ReagentUploader,
+): Promise<ConfirmReagentResult> {
   return prisma.$transaction(async (tx) => {
     const draft = await tx.reagentParseDraft.findUnique({ where: { id: input.draftId } });
     if (!draft || draft.isConfirmed) {
@@ -114,6 +118,7 @@ export async function confirmReagentDraft(input: ConfirmDraftItem): Promise<Conf
         note: p.note,
         quantity: 1,
         experimentTags: p.experimentTags,
+        ...buildReagentUploadProvenance(uploader),
         antibodyMeta: createAntibodyMeta(p.antibodyMeta),
         primerMeta: createPrimerMeta(p.primerMeta),
       },

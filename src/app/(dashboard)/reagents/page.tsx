@@ -24,6 +24,8 @@ type Reagent = {
   arrivalDate?: string | null;
   note?: string | null;
   createdAt?: string | null;
+  uploadedByName?: string | null;
+  uploadedAt?: string | null;
   experimentTags?: string[];
   antibodyMeta?: {
     role?: string | null;
@@ -33,13 +35,26 @@ type Reagent = {
   } | null;
   primerMeta?: { targetName?: string | null; isReferenceGene?: boolean | null } | null;
 };
-type SortKey = "name" | "catalogNo" | "category" | "vendor" | "createdAt";
+type SortKey = "name" | "catalogNo" | "category" | "vendor" | "uploadedAt";
 type SortDirection = "asc" | "desc";
 type EditorState = { mode: "create" } | { mode: "edit"; reagent: Reagent } | null;
 
 const checkboxClass = "h-4 w-4 accent-blue-600";
 const stepperButtonClass =
   "inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--line-strong)] bg-white text-slate-500 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40";
+
+function formatUploadTime(value?: string | null) {
+  if (!value) return "时间未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function toUserMessage(error?: string, code?: string) {
   if (code === "PRISMA_CLIENT_OUTDATED") return "当前开发服务器仍在使用旧的 Prisma Client，请重启 dev server 后再打开试剂页。";
@@ -54,7 +69,7 @@ export default function ReagentsPage() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("ALL");
-  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({ key: "createdAt", direction: "desc" });
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({ key: "uploadedAt", direction: "desc" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const reagentRequestIdRef = useRef(0);
@@ -245,7 +260,15 @@ export default function ReagentsPage() {
       const matchesTag = tagFilter === "ALL" || item.experimentTags?.includes(tagFilter);
       if (!matchesTag) return false;
       if (!loweredSearch) return true;
-      const haystack = [item.name, item.catalogNo, item.category, ...(item.experimentTags ?? []), item.antibodyMeta?.targetName, item.primerMeta?.targetName]
+      const haystack = [
+        item.name,
+        item.catalogNo,
+        item.category,
+        item.uploadedByName,
+        ...(item.experimentTags ?? []),
+        item.antibodyMeta?.targetName,
+        item.primerMeta?.targetName,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -433,6 +456,12 @@ export default function ReagentsPage() {
                     <SortIcon className={`transition-transform ${sort.key === "vendor" && sort.direction === "asc" ? "rotate-180" : ""}`} />
                   </button>
                 </th>
+                <th aria-sort={sortDirectionFor("uploadedAt")}>
+                  <button type="button" className="table-header-sort" onClick={() => toggleSort("uploadedAt")}>
+                    上传信息
+                    <SortIcon className={`transition-transform ${sort.key === "uploadedAt" && sort.direction === "asc" ? "rotate-180" : ""}`} />
+                  </button>
+                </th>
                 <th>实验标签 / 靶点</th>
                 <th className="w-28">库存</th>
                 <th className="w-24 text-right">操作</th>
@@ -442,7 +471,7 @@ export default function ReagentsPage() {
               {loading
                 ? Array.from({ length: 4 }).map((_, index) => (
                     <tr key={`skeleton-${index}`}>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <div className="skeleton h-5 w-full" />
                       </td>
                     </tr>
@@ -471,6 +500,12 @@ export default function ReagentsPage() {
                         <td className="max-w-56">
                           <p className="truncate text-sm font-medium text-slate-700">{it.vendor || "未标注供应商"}</p>
                           <p className="mt-1 text-xs text-slate-500">{stockSummary(it) || "暂未填写储存信息"}</p>
+                        </td>
+                        <td className="min-w-40">
+                          <p className="truncate text-sm font-medium text-slate-700">{it.uploadedByName || "上传者未知"}</p>
+                          <time className="mt-1 block text-xs text-slate-500" dateTime={it.uploadedAt ?? undefined}>
+                            {formatUploadTime(it.uploadedAt)}
+                          </time>
                         </td>
                         <td>
                           <div className="flex flex-wrap items-center gap-1">
@@ -542,7 +577,7 @@ export default function ReagentsPage() {
                   })}
               {!loading && !sortedItems.length ? (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="empty-state">没有匹配的试剂，调整搜索词或标签过滤试试。</div>
                   </td>
                 </tr>

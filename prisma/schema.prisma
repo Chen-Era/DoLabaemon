@@ -101,6 +101,7 @@ model User {
   techniqueDrafts    ExperimentTechniqueDraft[]    @relation("TechniqueDraftCreator")
   techniqueReviews   ExperimentTechniqueDraft[]    @relation("TechniqueDraftReviewer")
   techniqueRevisions ExperimentTechniqueRevision[] @relation("TechniqueRevisionPublisher")
+  uploadedReagents   Reagent[]                     @relation("ReagentUploader")
 }
 
 model UserLlmConfig {
@@ -192,11 +193,16 @@ model Reagent {
   note             String?
   experimentTags   String[]        @default([])
   createdAt        DateTime        @default(now())
+  uploadedById     String?
+  uploadedByName   String
+  uploadedAt       DateTime        @default(now())
   lab              Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  uploadedBy       User?           @relation("ReagentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   antibodyMeta     AntibodyMeta?
   primerMeta       PrimerMeta?
 
   @@unique([labId, catalogNo])
+  @@index([uploadedById, uploadedAt])
 }
 
 model AntibodyMeta {

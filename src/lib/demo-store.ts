@@ -18,6 +18,7 @@ import {
   type ParsedPrimerMeta,
   type ReagentCategory,
 } from "@/lib/reagent-tagging";
+import { buildReagentUploadProvenance, LEGACY_REAGENT_UPLOADER_NAME, type ReagentUploader } from "@/lib/reagent-provenance";
 import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
 import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
 
@@ -60,6 +61,9 @@ type DemoReagent = {
   antibodyMeta?: DemoAntibodyMeta | null;
   primerMeta?: DemoPrimerMeta | null;
   createdAt: string;
+  uploadedById?: string | null;
+  uploadedByName?: string | null;
+  uploadedAt?: string | null;
 };
 
 export type DemoReagentWriteInput = {
@@ -872,7 +876,24 @@ export function demoListInvites(labId: string) {
 
 export function demoListReagents(labId: string) {
   const store = readStore();
-  return store.reagents.filter((x) => x.labId === labId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return store.reagents
+    .filter((x) => x.labId === labId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map((reagent) => ({
+      ...reagent,
+      uploadedByName: reagent.uploadedByName ?? LEGACY_REAGENT_UPLOADER_NAME,
+      uploadedAt: reagent.uploadedAt ?? reagent.createdAt,
+    }));
+}
+
+function demoUploader(store: DemoStoreShape, uploader?: ReagentUploader): ReagentUploader {
+  if (uploader) return uploader;
+  const user = store.users[0];
+  return {
+    id: user?.id ?? "demo-user",
+    name: user?.displayName,
+    email: user?.email,
+  };
 }
 
 export function demoParseReagent(input: { labId: string; userId: string; name: string; catalogNo?: string; note?: string }) {
@@ -898,7 +919,7 @@ export function demoConfirmReagent(input: {
     antibodyMeta?: DemoAntibodyMeta | null;
     primerMeta?: DemoPrimerMeta | null;
   };
-}) {
+}, uploader?: ReagentUploader) {
   const store = readStore();
   const draft = store.drafts.find((d) => d.id === input.draftId);
   if (!draft || draft.isConfirmed) {
@@ -922,6 +943,7 @@ export function demoConfirmReagent(input: {
   }
 
   const reagentId = uid("reagent");
+  const now = new Date().toISOString();
   store.reagents.push({
     id: reagentId,
     labId: input.editedPayload.labId,
@@ -935,7 +957,9 @@ export function demoConfirmReagent(input: {
     experimentTags: input.editedPayload.experimentTags ?? draft.parsedOutput.experimentTags,
     antibodyMeta: input.editedPayload.antibodyMeta ?? draft.parsedOutput.antibodyMeta,
     primerMeta: input.editedPayload.primerMeta ?? draft.parsedOutput.primerMeta,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    uploadedAt: now,
+    ...buildReagentUploadProvenance(demoUploader(store, uploader)),
   });
   writeStore(store);
   return { action: "created" as const, reagentId };
@@ -946,7 +970,7 @@ function demoAdjustedQuantity(current: number | null | undefined, delta: number)
   return Math.round(Math.max(0, baseline + delta) * 1000) / 1000;
 }
 
-export function demoCreateReagent(input: DemoReagentWriteInput) {
+export function demoCreateReagent(input: DemoReagentWriteInput, uploader?: ReagentUploader) {
   const store = readStore();
   const existing = store.reagents.find(
     (reagent) => reagent.labId === input.labId && reagent.catalogNo === input.catalogNo,
@@ -954,6 +978,7 @@ export function demoCreateReagent(input: DemoReagentWriteInput) {
   if (existing) {
     return { error: "该货号在当前实验室已存在，可直接编辑原有记录。", code: "CATALOG_NO_EXISTS" as const };
   }
+  const now = new Date().toISOString();
   const reagent: DemoReagent = {
     id: uid("reagent"),
     labId: input.labId,
@@ -971,7 +996,9 @@ export function demoCreateReagent(input: DemoReagentWriteInput) {
     experimentTags: input.experimentTags ?? [],
     antibodyMeta: input.antibodyMeta ?? null,
     primerMeta: input.primerMeta ?? null,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    uploadedAt: now,
+    ...buildReagentUploadProvenance(demoUploader(store, uploader)),
   };
   store.reagents.push(reagent);
   writeStore(store);

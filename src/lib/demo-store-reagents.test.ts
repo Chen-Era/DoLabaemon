@@ -39,10 +39,17 @@ const baseInput = {
 describe("demo reagent management", () => {
   void it("creates, updates and deletes a reagent", () => {
     resetStore();
-    const created = demoStore.demoCreateReagent(baseInput);
+    const created = demoStore.demoCreateReagent(baseInput, {
+      id: "demo-user",
+      name: "王小明",
+      email: "wang@example.com",
+    });
     assert.ok(!("error" in created));
     assert.equal(created.name, baseInput.name);
     assert.equal(created.storageCondition, "-20°C");
+    assert.equal(created.uploadedById, "demo-user");
+    assert.equal(created.uploadedByName, "王小明");
+    assert.ok(created.uploadedAt);
 
     const updated = demoStore.demoUpdateReagent(created.id, {
       ...baseInput,
@@ -54,6 +61,7 @@ describe("demo reagent management", () => {
     assert.equal(updated.name, "Rabbit anti-LC3B (updated)");
     assert.equal(updated.quantity, 5);
     assert.equal(updated.expiryDate, "2027-01-01");
+    assert.equal(updated.uploadedByName, "王小明");
 
     const removed = demoStore.demoDeleteReagent(created.id);
     assert.ok(!("error" in removed));
@@ -71,6 +79,35 @@ describe("demo reagent management", () => {
 
     const renamed = demoStore.demoUpdateReagent(created.id, { ...baseInput, catalogNo: "2775S" });
     assert.ok(!("error" in renamed));
+  });
+
+  void it("records the confirming user as the uploader for parsed entries", () => {
+    resetStore();
+    const draft = demoStore.demoParseReagent({
+      labId: DEMO_LAB_ID,
+      userId: "demo-user",
+      name: "Rabbit anti-LC3B",
+      catalogNo: "2775S",
+    });
+    const confirmed = demoStore.demoConfirmReagent(
+      {
+        draftId: draft.draftId,
+        editedPayload: {
+          labId: DEMO_LAB_ID,
+          name: "Rabbit anti-LC3B",
+          catalogNo: "2775S",
+          category: "ANTIBODY",
+        },
+      },
+      { id: "demo-user", name: "李四", email: "li@example.com" },
+    );
+    assert.ok(!("error" in confirmed));
+    assert.equal(confirmed.action, "created");
+
+    const [reagent] = demoStore.demoListReagents(DEMO_LAB_ID);
+    assert.equal(reagent.uploadedByName, "李四");
+    assert.equal(reagent.uploadedById, "demo-user");
+    assert.ok(reagent.uploadedAt);
   });
 
   void it("adjusts quantity with a zero floor and treats empty stock as zero", () => {

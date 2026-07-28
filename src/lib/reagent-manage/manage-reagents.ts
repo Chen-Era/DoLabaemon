@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ReagentCreateInput, ReagentUpdateInput } from "@/lib/reagent-manage/types";
+import { buildReagentUploadProvenance, type ReagentUploader } from "@/lib/reagent-provenance";
 
 const REAGENT_INCLUDE = { antibodyMeta: true, primerMeta: true } as const;
 
@@ -76,7 +77,7 @@ export async function getReagentAccessContext(reagentId: string) {
   return reagent;
 }
 
-export async function createReagent(input: ReagentCreateInput) {
+export async function createReagent(input: ReagentCreateInput, uploader: ReagentUploader) {
   const existing = await prisma.reagent.findUnique({
     where: { labId_catalogNo: { labId: input.labId, catalogNo: input.catalogNo } },
     select: { id: true },
@@ -91,6 +92,7 @@ export async function createReagent(input: ReagentCreateInput) {
       data: {
         labId: input.labId,
         ...writeData(input),
+        ...buildReagentUploadProvenance(uploader),
         antibodyMeta: antibody ? { create: antibody } : undefined,
         primerMeta: primer ? { create: primer } : undefined,
       },

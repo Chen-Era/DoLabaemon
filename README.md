@@ -105,6 +105,19 @@ npm run dev
 
 从 `.env.example` 复制生成 `.env` 后，按需要填写以下配置：
 
+### 推荐配置：MiMo Token Plan
+
+使用 MiMo Token Plan 时，在服务商提供的 OpenAI 兼容接口地址与 API 密钥之外，推荐使用以下模型和开关：
+
+```dotenv
+OPENAI_MODEL="mimo-2.5-pro"
+OPENAI_VISION_MODEL="mimo-2.5"
+LLM_REASONING_EFFORT="off"
+REAGENT_SEARCH_ENABLED="false"
+```
+
+这组配置使用 `mimo-2.5-pro` 处理文本，`mimo-2.5` 处理图像，关闭项目的模型推理等级和联网搜索。`OPENAI_BASE_URL` 与 `OPENAI_API_KEY` 请按 MiMo Token Plan 提供的值填写。
+
 | 配置 | 用途 |
 | --- | --- |
 | `DEMO_MODE` | `true` 使用演示数据；`false` 使用 PostgreSQL。 |

@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const results = await Promise.all(
       parsed.data.items.map(async (item) => {
         try {
-          const result = isDemoMode() ? demoConfirmReagent(item) : await confirmReagentDraft(item);
+          const result = isDemoMode() ? demoConfirmReagent(item, user) : await confirmReagentDraft(item, user);
           if ("error" in result) {
             return { ok: false as const, draftId: item.draftId, error: result.error };
           }
