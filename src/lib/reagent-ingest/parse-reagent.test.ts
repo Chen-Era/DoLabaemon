@@ -486,6 +486,86 @@ test("parseReagentInput coerces lowercase antibody roles and drops invented tags
   );
 });
 
+test("parseReagentInput supplements a tagless primary antibody after LLM parsing", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "ANTIBODY",
+          subCategory: "Primary Antibody",
+          vendor: "Abcam",
+          confidence: 0.9,
+          warnings: [],
+          experimentTags: [],
+          antibodyMeta: { role: "PRIMARY", hostSpecies: "Rabbit", targetSpecies: null, targetName: "SQSTM1" },
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Anti-SQSTM1 / p62 antibody",
+          catalogNo: "ab109012",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parsed.category, "ANTIBODY");
+      assert.equal(result.parsed.antibodyMeta?.role, "PRIMARY");
+      assert.ok(result.parsed.experimentTags.includes("WB_PRIMARY_ANTIBODY"));
+    },
+  );
+});
+
+test("parseReagentInput removes primary-antibody tags from an explicit secondary antibody", async () => {
+  await withEnv(
+    {
+      OPENAI_BASE_URL: "https://api.minimaxi.com/v1",
+      OPENAI_MODEL: "MiniMax-M1-80k",
+    },
+    async () => {
+      const client = createFakeClient([
+        JSON.stringify({
+          category: "ANTIBODY",
+          subCategory: "Secondary Antibody",
+          vendor: "Jackson ImmunoResearch",
+          confidence: 0.9,
+          warnings: [],
+          experimentTags: ["WB_PRIMARY_ANTIBODY"],
+          antibodyMeta: { role: "PRIMARY", hostSpecies: "Goat", targetSpecies: "Rabbit", targetName: null },
+          primerMeta: null,
+        }),
+      ]);
+
+      const result = await parseReagentInput(
+        {
+          name: "Goat anti-rabbit IgG (H+L), HRP secondary antibody",
+          catalogNo: "111-035-144",
+          lang: "zh",
+        },
+        {
+          client: client as never,
+          searchWeb: async () => [],
+          fetchPages: async () => [],
+        },
+      );
+
+      assert.equal(result.parsed.antibodyMeta?.role, "SECONDARY");
+      assert.ok(!result.parsed.experimentTags.includes("WB_PRIMARY_ANTIBODY"));
+      assert.ok(result.parsed.experimentTags.includes("WB_SECONDARY_ANTIBODY"));
+    },
+  );
+});
+
 test("parseReagentInput salvages truncated model output instead of falling back", async () => {
   await withEnv(
     {
@@ -690,7 +770,7 @@ test("parseReagentInput keeps web verification when knowledge skip is disabled",
             enabledMcpServers: [],
             selfCheckEnabled: false,
             autoLearnEnabled: false,
-            thinkingEnabled: false,
+            reasoningEffort: "off",
             knowledgeVerifySkipEnabled: false,
           },
           searchWeb: async () => [{ title: "R&D RANKL 390-TN", url: "https://www.rndsystems.com/390-tn", snippet: "product page", domain: "www.rndsystems.com" }],

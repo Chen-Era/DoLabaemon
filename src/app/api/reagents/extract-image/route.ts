@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getLlmClient } from "@/lib/llm/client";
+import { createChatCompletionWithParamFallback, getLlmClient, getLlmReasoningRequestControls } from "@/lib/llm/client";
 import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { isDemoMode } from "@/lib/demo-mode";
 import { assertLabAccess } from "@/lib/permissions";
@@ -56,7 +56,13 @@ export async function POST(req: Request) {
     const llmConfig = await getRuntimeLlmConfigForUser(user.id);
     const client = getLlmClient({ apiKey: llmConfig.apiKey, baseURL: llmConfig.baseURL });
     const model = getVisionModel({ visionModel: llmConfig.visionModel, model: llmConfig.model });
-    const response = await client.chat.completions.create(
+    const { reasoningParams, omitTemperature } = getLlmReasoningRequestControls({
+      baseURL: llmConfig.baseURL,
+      model,
+      reasoningEffort: llmConfig.reasoningEffort,
+    });
+    const response = await createChatCompletionWithParamFallback(
+      client,
       {
         model,
         messages: [
@@ -76,12 +82,13 @@ export async function POST(req: Request) {
             ],
           },
         ],
-        temperature: 0,
+        ...(omitTemperature ? {} : { temperature: 0 }),
+        ...reasoningParams,
       },
       { timeout: VISION_REQUEST_TIMEOUT_MS },
     );
 
-    const text = response.choices[0]?.message?.content?.trim() || "";
+    const text = (response as { choices?: Array<{ message?: { content?: string | null } }> }).choices?.[0]?.message?.content?.trim() || "";
 
     if (!text || isLikelyVisionRefusal(text)) {
       return NextResponse.json(

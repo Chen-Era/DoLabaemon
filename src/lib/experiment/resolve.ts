@@ -172,7 +172,7 @@ export async function resolveExperimentInput(input: ResolveInput): Promise<Exper
     if (apiKey) {
       const client = getLlmClient({ apiKey: input.llmConfig?.apiKey, baseURL: input.llmConfig?.baseURL });
       const model = input.llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-      const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL), thinkingEnabled: input.llmConfig?.thinkingEnabled }, {
+      const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(input.llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL), reasoningEffort: input.llmConfig?.reasoningEffort }, {
         model,
         input: [
           {

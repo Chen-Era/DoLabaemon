@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
+import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from "@/lib/llm/reasoning-effort";
 import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { cleanUrlText } from "@/lib/url/clean-url";
 
@@ -31,41 +33,115 @@ function getProvider(baseURL?: string | null) {
   return "custom";
 }
 
-// Thinking (reasoning) switches are spelled differently by every provider:
-// OpenAI's Responses API takes a reasoning effort, DashScope takes
-// enable_thinking, GLM (bigmodel) takes a thinking object, OpenRouter takes
-// reasoning.enabled, DeepSeek/Moonshot select thinking purely by model name
-// (nothing to send), and MiniMax M1 cannot disable thinking at all — its
+// Reasoning controls are spelled differently by every provider, and only some
+// accept a real effort level:
+// OpenAI's Responses API takes reasoning.effort directly; OpenRouter takes
+// reasoning.enabled plus the same effort levels; DashScope has no effort but
+// accepts a thinking_budget in tokens, so the levels map onto budgets (an
+// out-of-range rejection names the param and is dropped by the param-fallback
+// retry below); GLM (bigmodel) takes a thinking on/off object; DeepSeek and
+// Kimi use model-specific controls; and MiniMax M1 cannot disable thinking — its
 // reasoning_split flag (added below) only keeps <think> out of the JSON
-// content, so no thinking param is sent regardless of the toggle.
-function thinkingParamsForProvider(baseURL: string | null | undefined, thinkingEnabled: boolean): Record<string, unknown> {
+// content, so no reasoning param is sent regardless of the level.
+const DASHSCOPE_THINKING_BUDGET: Record<Exclude<ReasoningEffort, "off">, number> = {
+  low: 1024,
+  medium: 8192,
+  high: 32768,
+};
+
+function normalizedModelName(model?: string | null) {
+  return model?.trim().toLowerCase() ?? "";
+}
+
+function isMiMoV25Model(model: string) {
+  return /(?:xiaomi\/)?mimo-(?:v)?2\.5(?:-pro)?/.test(model);
+}
+
+export function getLlmReasoningRequestControls(input: {
+  baseURL?: string | null;
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
+}) {
+  const { baseURL, model } = input;
+  const effort = normalizeReasoningEffort(input.reasoningEffort) ?? DEFAULT_REASONING_EFFORT;
   const normalized = normalizeBaseUrl(baseURL);
   const provider = getProvider(baseURL);
+  const normalizedModel = normalizedModelName(model);
+  const enabled = effort !== "off";
+  if (isMiMoV25Model(normalizedModel)) {
+    // MiMo V2.5 models expose a binary thinking switch only. They explicitly
+    // reject reasoning_effort and thinking_budget, so the global non-off
+    // levels all mean "enabled at the provider's default intensity".
+    const usesNativeMiMoApi = normalized.includes("xiaomimimo");
+    return {
+      reasoningParams: usesNativeMiMoApi
+        ? { thinking: { type: enabled ? "enabled" : "disabled" } }
+        : { enable_thinking: enabled },
+      // The native V2.5 thinking API fixes temperature internally; omit it
+      // when reasoning is enabled instead of claiming a custom value applies.
+      omitTemperature: usesNativeMiMoApi && enabled,
+    };
+  }
   if (provider === "openai") {
-    return thinkingEnabled ? { reasoning: { effort: "medium" } } : {};
+    return { reasoningParams: enabled ? { reasoning: { effort } } : {}, omitTemperature: false };
   }
   if (provider === "minimax") {
-    return {};
+    return { reasoningParams: {}, omitTemperature: false };
   }
   if (normalized.includes("dashscope")) {
-    return { enable_thinking: thinkingEnabled };
+    return {
+      reasoningParams: enabled ? { enable_thinking: true, thinking_budget: DASHSCOPE_THINKING_BUDGET[effort] } : { enable_thinking: false },
+      omitTemperature: false,
+    };
   }
   if (normalized.includes("bigmodel")) {
-    return { thinking: { type: thinkingEnabled ? "enabled" : "disabled" } };
+    return { reasoningParams: { thinking: { type: enabled ? "enabled" : "disabled" } }, omitTemperature: false };
   }
   if (normalized.includes("openrouter")) {
-    return { reasoning: { enabled: thinkingEnabled } };
+    return { reasoningParams: enabled ? { reasoning: { enabled: true, effort } } : { reasoning: { enabled: false } }, omitTemperature: false };
   }
-  if (normalized.includes("deepseek") || normalized.includes("moonshot")) {
-    return {};
+  if (normalized.includes("deepseek")) {
+    // DeepSeek V4 accepts high/max only. Mapping low/medium to high keeps the
+    // requested ordering without sending unsupported values; legacy models
+    // can reject the optional fields and use the shared fallback below.
+    return {
+      reasoningParams: enabled
+        ? { thinking: { type: "enabled" }, reasoning_effort: "high" }
+        : { thinking: { type: "disabled" } },
+      omitTemperature: false,
+    };
+  }
+  if (normalized.includes("moonshot")) {
+    const temperatureLocked = normalizedModel.startsWith("kimi-k2.6") || normalizedModel.startsWith("kimi-k2.7-code");
+    if (normalizedModel.startsWith("kimi-k3")) {
+      // K3 always reasons and rejects thinking. "off" cannot be represented.
+      return {
+        reasoningParams: enabled ? { reasoning_effort: effort === "low" ? "low" : "high" } : {},
+        omitTemperature: false,
+      };
+    }
+    if (normalizedModel.startsWith("kimi-k2.7-code")) {
+      // This model always reasons and accepts no reasoning control fields.
+      return { reasoningParams: {}, omitTemperature: temperatureLocked };
+    }
+    if (normalizedModel.startsWith("kimi-k2.6") || normalizedModel.startsWith("kimi-k2.5")) {
+      return {
+        reasoningParams: { thinking: { type: enabled ? "enabled" : "disabled" } },
+        omitTemperature: temperatureLocked,
+      };
+    }
+    return { reasoningParams: {}, omitTemperature: false };
   }
   // Self-hosted OpenAI-compatible endpoints (MiMo / vLLM / Ollama / ...)
   // disagree on where the switch lives, so write both the top-level param and
   // the chat-template kwarg; whichever the server rejects gets dropped by the
   // param-fallback retry below.
   return {
-    enable_thinking: thinkingEnabled,
-    chat_template_kwargs: { enable_thinking: thinkingEnabled },
+    reasoningParams: {
+      enable_thinking: enabled,
+      chat_template_kwargs: { enable_thinking: enabled },
+    },
+    omitTemperature: false,
   };
 }
 
@@ -107,6 +183,10 @@ function extractTextFromChat(response: unknown) {
 // sent optimistically and dropped only if the server complains about them.
 function namesUnsupportedParam(error: unknown, param: string) {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  // Several OpenAI-compatible servers report the nested field name rather
+  // than its chat-template parent. The top-level enable_thinking field is
+  // removed first; on the next retry this removes the remaining wrapper.
+  if (param === "chat_template_kwargs" && message.includes("enable_thinking")) return true;
   return message.includes(param.toLowerCase());
 }
 
@@ -127,6 +207,17 @@ async function createWithParamFallback<T>(
   }
 }
 
+const CHAT_COMPLETION_DROPPABLE_PARAMS = [
+  "reasoning_split",
+  "temperature",
+  "enable_thinking",
+  "thinking_budget",
+  "chat_template_kwargs",
+  "thinking",
+  "reasoning",
+  "reasoning_effort",
+];
+
 export function getLlmClient(config?: Pick<RuntimeLlmConfig, "apiKey" | "baseURL">) {
   const apiKey = config?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -139,21 +230,38 @@ export function getLlmClient(config?: Pick<RuntimeLlmConfig, "apiKey" | "baseURL
   });
 }
 
+// Keep direct chat-completion callers (notably visual OCR) on the same
+// provider compatibility and fallback path as text generation.
+export async function createChatCompletionWithParamFallback(
+  client: ReturnType<typeof getLlmClient>,
+  requestBody: Record<string, unknown>,
+  requestOptions?: Parameters<ReturnType<typeof getLlmClient>["chat"]["completions"]["create"]>[1],
+) {
+  return createWithParamFallback(
+    (body) => client.chat.completions.create(body as unknown as Parameters<typeof client.chat.completions.create>[0], requestOptions),
+    requestBody,
+    CHAT_COMPLETION_DROPPABLE_PARAMS,
+  );
+}
+
 export async function generateLlmText(
   client: ReturnType<typeof getLlmClient>,
-  config: (Pick<RuntimeLlmConfig, "baseURL"> & { thinkingEnabled?: boolean }) | undefined,
+  config: (Pick<RuntimeLlmConfig, "baseURL"> & { reasoningEffort?: ReasoningEffort | null }) | undefined,
   options: GenerateTextOptions,
 ): Promise<GenerateTextResult> {
   const provider = getProvider(config?.baseURL);
-  const thinkingEnabled = config?.thinkingEnabled ?? false;
-  const thinkingParams = thinkingParamsForProvider(config?.baseURL, thinkingEnabled);
+  const { reasoningParams, omitTemperature } = getLlmReasoningRequestControls({
+    baseURL: config?.baseURL,
+    model: options.model,
+    reasoningEffort: config?.reasoningEffort,
+  });
 
   if (provider === "openai") {
     const requestBody = {
       model: options.model,
       input: formatInputForResponses(options.input),
       temperature: options.temperature ?? 0,
-      ...thinkingParams,
+      ...reasoningParams,
       // includeSources implies the caller enabled native web search; the tool
       // must be declared or the API errors out / never returns sources.
       ...(options.includeSources
@@ -180,15 +288,11 @@ export async function generateLlmText(
   const requestBody = {
     model: options.model,
     messages: formatInputForChat(options.input),
-    temperature: options.temperature ?? 0,
-    ...thinkingParams,
+    ...(omitTemperature ? {} : { temperature: options.temperature ?? 0 }),
+    ...reasoningParams,
     ...(provider === "minimax" ? { reasoning_split: true } : {}),
   };
-  const response = await createWithParamFallback(
-    (body) => client.chat.completions.create(body as unknown as Parameters<typeof client.chat.completions.create>[0]),
-    requestBody,
-    ["reasoning_split", "temperature", "enable_thinking", "chat_template_kwargs", "thinking", "reasoning"],
-  );
+  const response = await createChatCompletionWithParamFallback(client, requestBody);
   return {
     text: extractTextFromChat(response),
     sources: [],

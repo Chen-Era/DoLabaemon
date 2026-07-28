@@ -32,6 +32,7 @@ async function main() {
   const { parseLlmJson } = await import("@/lib/llm/json-output");
   const { normalizeLlmParsedPayload } = await import("@/lib/llm/normalize");
   const { buildReagentParsePrompt } = await import("@/lib/llm/prompts/reagent-parse");
+  const { envReasoningEffort } = await import("@/lib/llm/reasoning-effort");
   const { reagentParsedSchema } = await import("@/lib/llm/schemas");
 
   const client = getLlmClient();
@@ -41,7 +42,7 @@ async function main() {
   for (const testCase of CASES) {
     const startedAt = Date.now();
     try {
-      const result = await generateLlmText(client, { baseURL: process.env.OPENAI_BASE_URL, thinkingEnabled: process.env.LLM_THINKING_ENABLED === "true" }, {
+      const result = await generateLlmText(client, { baseURL: process.env.OPENAI_BASE_URL, reasoningEffort: envReasoningEffort() }, {
         model,
         input: [
           { role: "system", content: buildReagentParsePrompt(testCase.lang) },

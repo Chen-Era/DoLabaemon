@@ -118,7 +118,7 @@ model UserLlmConfig {
   enabledMcpServers          String[] @default([])
   selfCheckEnabled           Boolean  @default(true)
   autoLearnEnabled           Boolean  @default(false)
-  thinkingEnabled            Boolean  @default(false)
+  reasoningEffort            String   @default("off")
   knowledgeVerifySkipEnabled Boolean  @default(true)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

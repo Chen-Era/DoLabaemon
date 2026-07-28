@@ -5,11 +5,12 @@ import { coerceReagentParsedPayload, coerceVerifiedReagentPayload, normalizeLlmP
 import { buildReagentParsePrompt } from "@/lib/llm/prompts/reagent-parse";
 import { buildReagentVerifyPrompt } from "@/lib/llm/prompts/reagent-verify";
 import { getNativeWebSearchToolType } from "@/lib/llm/model-capabilities";
+import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
 import type { RuntimeLlmConfig } from "@/lib/llm/runtime-config";
 import { reagentParsedSchema, verifiedReagentParsedSchema } from "@/lib/llm/schemas";
 import { retrieveReagentKnowledgeRuntime } from "@/lib/reagent-knowledge/runtime";
 import type { ReagentKnowledgeRetrievalResult } from "@/lib/reagent-knowledge/types";
-import { buildHeuristicParse } from "@/lib/reagent-tagging";
+import { buildHeuristicParse, enrichParsedReagentResult } from "@/lib/reagent-tagging";
 import { fetchVerificationPages, type VerificationPage } from "@/lib/reagent-ingest/fetch-verification-pages";
 import { isExternalSearchConfigured, searchReagentWeb } from "@/lib/reagent-ingest/web-search";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -74,7 +75,7 @@ const DEFAULT_KNOWLEDGE_VERIFY_THRESHOLD = 0.9;
 type LlmCallConfig = {
   model: string;
   baseUrl: string | null | undefined;
-  thinkingEnabled: boolean;
+  reasoningEffort: ReasoningEffort;
 };
 
 function knowledgeVerifyThreshold() {
@@ -159,7 +160,7 @@ async function generateInitialDraft(
   input: ParseReagentInput,
   retrieval: ReagentKnowledgeRetrievalResult,
 ) {
-  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, reasoningEffort: llm.reasoningEffort }, {
     model: llm.model,
     input: [
       {
@@ -195,7 +196,7 @@ async function verifyWithNativeWebSearch(
   const toolType = getNativeWebSearchToolType({ baseUrl: llm.baseUrl, model: llm.model });
   if (!toolType) return null;
 
-  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, reasoningEffort: llm.reasoningEffort }, {
     model: llm.model,
     input: [
       {
@@ -230,7 +231,7 @@ async function verifyWithExternalEvidence(
   externalEvidence: VerificationPage[],
 ) {
   const verificationMethod = externalEvidence.length ? "external_search" : "none";
-  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, thinkingEnabled: llm.thinkingEnabled }, {
+  const result = await withTimeout(generateLlmText(client, { baseURL: llm.baseUrl, reasoningEffort: llm.reasoningEffort }, {
     model: llm.model,
     input: [
       {
@@ -267,8 +268,11 @@ async function finalizeResult(
     sourceCount: number;
   },
 ): Promise<ParseReagentResult> {
+  const parsed = enrichParsedReagentResult(options.input, result.parsed);
+  const enrichedResult = { ...result, parsed };
+
   if (!options.flowContext || !options.execution) {
-    return result;
+    return enrichedResult;
   }
 
   try {
@@ -277,7 +281,7 @@ async function finalizeResult(
       context: options.flowContext,
       domain: "REAGENT",
       entityKey: `${options.input.name}::${options.input.catalogNo}`,
-      afterData: result.parsed,
+      afterData: parsed,
       evidenceLines: options.evidenceLines,
       retrievalConfidence: options.retrievalConfidence,
       sourceCount: options.sourceCount,
@@ -288,7 +292,7 @@ async function finalizeResult(
     }
 
     return {
-      ...result,
+      ...enrichedResult,
       ai: {
         enabledSkills: finalized.execution.enabledSkills,
         enabledMcpServers: finalized.execution.enabledMcpServers,
@@ -307,7 +311,7 @@ async function finalizeResult(
       errorName: error instanceof Error ? error.name : typeof error,
       errorMessage: error instanceof Error ? error.message : String(error),
     });
-    return result;
+    return enrichedResult;
   }
 }
 
@@ -347,7 +351,7 @@ export async function parseReagentInput(
   const llmCall: LlmCallConfig = {
     model,
     baseUrl: activeBaseUrl,
-    thinkingEnabled: llmConfig?.thinkingEnabled ?? false,
+    reasoningEffort: llmConfig?.reasoningEffort ?? "off",
   };
   // 无 flowContext（如测试、脚本直调）时默认启用结构化输出契约，保持既有输出格式。
   const structuredOutputSkillEnabled = execution

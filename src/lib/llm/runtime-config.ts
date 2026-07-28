@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/demo-mode";
 import { demoGetLlmConfig, demoUpsertLlmConfig } from "@/lib/demo-store";
+import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
+import { DEFAULT_REASONING_EFFORT, envReasoningEffort, reasoningEffortFromLegacyConfig } from "@/lib/llm/reasoning-effort";
 import { cleanUrlText } from "@/lib/url/clean-url";
 
 // Built-in skills enabled by default when LLM_ENABLED_SKILLS is unset.
@@ -20,6 +22,9 @@ export type UserLlmConfigInput = {
   enabledMcpServers?: string[];
   selfCheckEnabled?: boolean;
   autoLearnEnabled?: boolean;
+  reasoningEffort?: ReasoningEffort | null;
+  // Legacy demo-store records may still have this field. Production records
+  // are converted by the Prisma migration and never write it back.
   thinkingEnabled?: boolean | null;
   knowledgeVerifySkipEnabled?: boolean | null;
 };
@@ -37,7 +42,7 @@ export type RuntimeLlmConfig = {
   enabledMcpServers: string[];
   selfCheckEnabled: boolean;
   autoLearnEnabled: boolean;
-  thinkingEnabled: boolean;
+  reasoningEffort: ReasoningEffort;
   knowledgeVerifySkipEnabled: boolean;
 };
 
@@ -71,7 +76,7 @@ function getEnvConfig(): UserLlmConfigInput {
     enabledMcpServers: cleanList(process.env.LLM_ENABLED_MCP_SERVERS?.split(",")),
     selfCheckEnabled: envBoolean(process.env.LLM_SELF_CHECK_ENABLED, true),
     autoLearnEnabled: envBoolean(process.env.LLM_AUTO_LEARN_ENABLED, false),
-    thinkingEnabled: envBoolean(process.env.LLM_THINKING_ENABLED, false),
+    reasoningEffort: envReasoningEffort() ?? DEFAULT_REASONING_EFFORT,
     knowledgeVerifySkipEnabled: envBoolean(process.env.LLM_KNOWLEDGE_VERIFY_SKIP_ENABLED, true),
   };
 }
@@ -93,7 +98,7 @@ function buildRuntimeConfig(saved?: UserLlmConfigInput | null): RuntimeLlmConfig
       : cleanList(env.enabledMcpServers),
     selfCheckEnabled: saved?.selfCheckEnabled ?? env.selfCheckEnabled ?? true,
     autoLearnEnabled: saved?.autoLearnEnabled ?? env.autoLearnEnabled ?? false,
-    thinkingEnabled: saved?.thinkingEnabled ?? env.thinkingEnabled ?? false,
+    reasoningEffort: reasoningEffortFromLegacyConfig(saved) ?? env.reasoningEffort ?? DEFAULT_REASONING_EFFORT,
     knowledgeVerifySkipEnabled: saved?.knowledgeVerifySkipEnabled ?? env.knowledgeVerifySkipEnabled ?? true,
   };
 }
@@ -106,7 +111,7 @@ export async function getUserLlmConfig(userId: string) {
 }
 
 export async function getRuntimeLlmConfigForUser(userId: string): Promise<RuntimeLlmConfig> {
-  const saved = await getUserLlmConfig(userId);
+  const saved = (await getUserLlmConfig(userId)) as UserLlmConfigInput | null;
   return buildRuntimeConfig(saved);
 }
 
@@ -125,7 +130,7 @@ export async function upsertUserLlmConfig(userId: string, input: UserLlmConfigIn
     enabledMcpServers: cleanList(input.enabledMcpServers),
     selfCheckEnabled: input.selfCheckEnabled ?? current?.selfCheckEnabled ?? true,
     autoLearnEnabled: input.autoLearnEnabled ?? current?.autoLearnEnabled ?? false,
-    thinkingEnabled: input.thinkingEnabled ?? current?.thinkingEnabled ?? false,
+    reasoningEffort: reasoningEffortFromLegacyConfig(input) ?? reasoningEffortFromLegacyConfig(current) ?? DEFAULT_REASONING_EFFORT,
     knowledgeVerifySkipEnabled: input.knowledgeVerifySkipEnabled ?? current?.knowledgeVerifySkipEnabled ?? true,
   };
 
@@ -155,7 +160,7 @@ export async function getLlmConfigView(userId: string) {
       enabledMcpServers: cleanList(saved?.enabledMcpServers),
       selfCheckEnabled: saved?.selfCheckEnabled ?? null,
       autoLearnEnabled: saved?.autoLearnEnabled ?? null,
-      thinkingEnabled: saved?.thinkingEnabled ?? null,
+      reasoningEffort: reasoningEffortFromLegacyConfig(saved),
       knowledgeVerifySkipEnabled: saved?.knowledgeVerifySkipEnabled ?? null,
       hasOpenaiApiKey: Boolean(cleanText(saved?.openaiApiKey)),
       hasSearchApiKey: Boolean(cleanText(saved?.searchApiKey)),
@@ -170,7 +175,7 @@ export async function getLlmConfigView(userId: string) {
       enabledMcpServers: runtime.enabledMcpServers,
       selfCheckEnabled: runtime.selfCheckEnabled,
       autoLearnEnabled: runtime.autoLearnEnabled,
-      thinkingEnabled: runtime.thinkingEnabled,
+      reasoningEffort: runtime.reasoningEffort,
       knowledgeVerifySkipEnabled: runtime.knowledgeVerifySkipEnabled,
       hasApiKey: Boolean(runtime.apiKey),
       hasSearchApiKey: Boolean(runtime.searchApiKey),

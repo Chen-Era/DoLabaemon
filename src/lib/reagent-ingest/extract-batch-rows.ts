@@ -293,7 +293,7 @@ async function supplementRowsWithSearch(
 async function parseWithLlm(rawText: string, lang: "zh" | "en", llmConfig?: RuntimeLlmConfig) {
   const client = getLlmClient({ apiKey: llmConfig?.apiKey, baseURL: llmConfig?.baseURL });
   const model = llmConfig?.model || process.env.OPENAI_MODEL || "MiniMax-M1-80k";
-  const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL), thinkingEnabled: llmConfig?.thinkingEnabled }, {
+  const result = await withTimeout(generateLlmText(client, { baseURL: cleanUrlText(llmConfig?.baseURL) ?? cleanUrlText(process.env.OPENAI_BASE_URL), reasoningEffort: llmConfig?.reasoningEffort }, {
     model,
     input: [
       {

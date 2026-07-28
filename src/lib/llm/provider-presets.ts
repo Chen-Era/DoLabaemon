@@ -23,7 +23,7 @@ export const llmProviderPresets: LlmProviderPreset[] = [
     id: "deepseek",
     label: "DeepSeek",
     baseUrl: "https://api.deepseek.com/v1",
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
   },
   {
     id: "glm",
@@ -36,7 +36,7 @@ export const llmProviderPresets: LlmProviderPreset[] = [
     id: "kimi",
     label: "Moonshot Kimi",
     baseUrl: "https://api.moonshot.cn/v1",
-    model: "kimi-k2-0905-preview",
+    model: "kimi-k2.6",
   },
   {
     id: "minimax",
@@ -44,6 +44,13 @@ export const llmProviderPresets: LlmProviderPreset[] = [
     baseUrl: "https://api.minimaxi.com/v1",
     model: "MiniMax-M1-80k",
     visionModel: "MiniMax-VL-01",
+  },
+  {
+    id: "mimo",
+    label: "小米 MiMo",
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    model: "mimo-v2.5-pro",
+    note: "MiMo V2.5 Pro 仅支持开启/关闭思考，开启时使用模型默认强度。",
   },
   {
     id: "qwen",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateLlmText, getLlmClient } from "@/lib/llm/client";
+import { REASONING_EFFORT_LEVELS } from "@/lib/llm/reasoning-effort";
 import { getRuntimeLlmConfigForUser } from "@/lib/llm/runtime-config";
 import { requireUserFromRequest } from "@/lib/session";
 import { searchReagentWeb } from "@/lib/reagent-ingest/web-search";
@@ -20,7 +21,8 @@ const schema = z.object({
   enabledMcpServers: z.array(z.string()).default([]),
   selfCheckEnabled: z.boolean().default(true),
   autoLearnEnabled: z.boolean().default(false),
-  thinkingEnabled: z.boolean().default(false),
+  reasoningEffort: z.enum(REASONING_EFFORT_LEVELS).optional(),
+  thinkingEnabled: z.boolean().optional(),
   knowledgeVerifySkipEnabled: z.boolean().default(true),
 });
 
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    const input = parsed.data;
+    const { thinkingEnabled, reasoningEffort, ...input } = parsed.data;
     const runtime = await getRuntimeLlmConfigForUser(user.id);
     const modelResult: { ok: boolean; message: string } = { ok: false, message: "未测试" };
     const searchResult: { ok: boolean; message: string } = { ok: false, message: "未测试" };
@@ -53,7 +55,8 @@ export async function POST(req: Request) {
     } else {
       try {
         const client = getLlmClient({ apiKey, baseURL });
-        const response = await generateLlmText(client, { baseURL, thinkingEnabled: input.thinkingEnabled }, {
+        const selectedReasoningEffort = reasoningEffort ?? (thinkingEnabled === undefined ? runtime.reasoningEffort : thinkingEnabled ? "medium" : "off");
+        const response = await generateLlmText(client, { baseURL, reasoningEffort: selectedReasoningEffort }, {
           model,
           input: [{ role: "user", content: "Return exactly OK." }],
           temperature: 0,

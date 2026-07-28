@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { REASONING_EFFORT_LEVELS } from "@/lib/llm/reasoning-effort";
 import { getLlmConfigView, upsertUserLlmConfig } from "@/lib/llm/runtime-config";
 import { requireUserFromRequest } from "@/lib/session";
 
@@ -16,7 +17,10 @@ const schema = z.object({
   enabledMcpServers: z.array(z.string()).default([]),
   selfCheckEnabled: z.boolean().default(true),
   autoLearnEnabled: z.boolean().default(false),
-  thinkingEnabled: z.boolean().default(false),
+  reasoningEffort: z.enum(REASONING_EFFORT_LEVELS).optional(),
+  // Accept submissions from the pre-upgrade settings page without allowing a
+  // missing new field to reset the saved preference to "off".
+  thinkingEnabled: z.boolean().optional(),
   knowledgeVerifySkipEnabled: z.boolean().default(true),
 });
 
@@ -38,6 +42,7 @@ function classifyConfigError(error: unknown, action: "load" | "save") {
       message.includes("selfcheckenabled") ||
       message.includes("autolearnenabled") ||
       message.includes("thinkingenabled") ||
+      message.includes("reasoningeffort") ||
       message.includes("knowledgeverifyskipenabled") ||
       message.includes("openaivisionmodel"))
   ) {
@@ -92,7 +97,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload", code: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    await upsertUserLlmConfig(user.id, parsed.data);
+    const { thinkingEnabled, reasoningEffort, ...config } = parsed.data;
+    await upsertUserLlmConfig(user.id, {
+      ...config,
+      reasoningEffort: reasoningEffort ?? (thinkingEnabled === undefined ? undefined : thinkingEnabled ? "medium" : "off"),
+    });
     return NextResponse.json(await getLlmConfigView(user.id));
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { requestJson } from "@/lib/http";
 import { CUSTOM_PROVIDER_PRESET_ID, llmProviderPresets, matchProviderPreset } from "@/lib/llm/provider-presets";
+import type { ReasoningEffort } from "@/lib/llm/reasoning-effort";
+import { REASONING_EFFORT_LEVELS } from "@/lib/llm/reasoning-effort";
 
 type ConfigView = {
   saved?: {
@@ -16,7 +18,7 @@ type ConfigView = {
     enabledMcpServers?: string[];
     selfCheckEnabled?: boolean | null;
     autoLearnEnabled?: boolean | null;
-    thinkingEnabled?: boolean | null;
+    reasoningEffort?: ReasoningEffort | null;
     knowledgeVerifySkipEnabled?: boolean | null;
     hasOpenaiApiKey?: boolean;
     hasSearchApiKey?: boolean;
@@ -31,7 +33,7 @@ type ConfigView = {
     enabledMcpServers?: string[];
     selfCheckEnabled?: boolean;
     autoLearnEnabled?: boolean;
-    thinkingEnabled?: boolean;
+    reasoningEffort?: ReasoningEffort;
     knowledgeVerifySkipEnabled?: boolean;
     hasApiKey?: boolean;
     hasSearchApiKey?: boolean;
@@ -53,7 +55,7 @@ type FormState = {
   enabledMcpServers: string[];
   selfCheckEnabled: boolean;
   autoLearnEnabled: boolean;
-  thinkingEnabled: boolean;
+  reasoningEffort: ReasoningEffort;
   knowledgeVerifySkipEnabled: boolean;
 };
 
@@ -93,7 +95,7 @@ const initialForm: FormState = {
   enabledMcpServers: ["search", "fetch", "self-check"],
   selfCheckEnabled: true,
   autoLearnEnabled: false,
-  thinkingEnabled: false,
+  reasoningEffort: "off",
   knowledgeVerifySkipEnabled: true,
 };
 
@@ -108,6 +110,17 @@ const mcpOptions = [
   { id: "fetch", label: "网页读取" },
   { id: "self-check", label: "结果自检" },
 ];
+
+const reasoningEffortLabels: Record<ReasoningEffort, string> = {
+  off: "关闭",
+  low: "低",
+  medium: "中",
+  high: "高",
+};
+
+function isMiMoV25Model(model: string | null | undefined) {
+  return /(?:xiaomi\/)?mimo-(?:v)?2\.5(?:-pro)?/.test(model?.trim().toLowerCase() ?? "");
+}
 
 const checkboxClass = "h-4 w-4 shrink-0 accent-blue-600";
 
@@ -210,7 +223,7 @@ export default function SettingsPage() {
         enabledMcpServers: current.saved?.enabledMcpServers ?? current.runtime?.enabledMcpServers ?? initialForm.enabledMcpServers,
         selfCheckEnabled: current.saved?.selfCheckEnabled ?? current.runtime?.selfCheckEnabled ?? true,
         autoLearnEnabled: current.saved?.autoLearnEnabled ?? current.runtime?.autoLearnEnabled ?? false,
-        thinkingEnabled: current.saved?.thinkingEnabled ?? current.runtime?.thinkingEnabled ?? false,
+        reasoningEffort: current.saved?.reasoningEffort ?? current.runtime?.reasoningEffort ?? "off",
         knowledgeVerifySkipEnabled: current.saved?.knowledgeVerifySkipEnabled ?? current.runtime?.knowledgeVerifySkipEnabled ?? true,
       });
       setProviderPresetId(matchProviderPreset(current.saved?.openaiBaseUrl)?.id ?? CUSTOM_PROVIDER_PRESET_ID);
@@ -323,6 +336,8 @@ export default function SettingsPage() {
   }
 
   const runtime = config?.runtime;
+  const selectedModel = form.openaiModel || runtime?.model;
+  const usesBinaryThinking = isMiMoV25Model(selectedModel);
 
   return (
     <div className="space-y-6">
@@ -538,20 +553,34 @@ export default function SettingsPage() {
               />
               申请自动学习写回
             </label>
-            <label className="flex items-start gap-2.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                className={`${checkboxClass} mt-0.5`}
-                checked={form.thinkingEnabled}
-                onChange={(e) => setForm((prev) => ({ ...prev, thinkingEnabled: e.target.checked }))}
-              />
-              <span>
-                模型深度思考（推理）
-                <span className="mt-0.5 block text-xs text-slate-400">
-                  默认关闭，响应更快。开启后推理模型会先进行长链思考，解析更稳但更慢。
-                </span>
-              </span>
-            </label>
+            <div className="pt-1">
+              <p className="text-sm text-slate-700">模型推理等级</p>
+              <div className={`mt-1.5 grid gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 ${usesBinaryThinking ? "grid-cols-2" : "grid-cols-4"}`}>
+                {(usesBinaryThinking ? (["off", "medium"] as const) : REASONING_EFFORT_LEVELS).map((level) => {
+                  const active = usesBinaryThinking && level === "medium" ? form.reasoningEffort !== "off" : form.reasoningEffort === level;
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setForm((prev) => ({ ...prev, reasoningEffort: level }))}
+                      className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                        active
+                          ? "border-slate-200 bg-white text-blue-700 shadow-sm"
+                          : "border-transparent text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      {usesBinaryThinking && level === "medium" ? "开启（默认强度）" : reasoningEffortLabels[level]}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-slate-400">
+                {usesBinaryThinking
+                  ? "MiMo V2.5 Pro 官方 API 只支持思考开关；开启后由模型采用默认强度。"
+                  : "等级越高，推理模型思考越充分、解析更稳但更慢。OpenAI / OpenRouter 支持分级，通义千问映射为思考预算，其余平台按关闭/开启处理；MiniMax M1、Kimi K3 等固有推理模型不能关闭。"}
+              </p>
+            </div>
             <label className="flex items-start gap-2.5 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -665,6 +694,7 @@ export default function SettingsPage() {
             {[
               ["生效文本模型", runtime?.model || "未设置"],
               ["生效视觉模型", runtime?.visionModel || "未设置"],
+              ["推理等级", reasoningEffortLabels[runtime?.reasoningEffort ?? "off"]],
               ["联网搜索", runtime?.searchEnabled ? `启用 / ${runtime.searchProvider || "未指定服务商"}` : "未启用"],
               ["已启用能力", `${runtime?.enabledSkills?.length ?? 0} 项解析能力，${runtime?.enabledMcpServers?.length ?? 0} 项工具能力`],
             ].map(([label, value]) => (

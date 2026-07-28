@@ -34,6 +34,9 @@ export type ReagentParseInput = {
 
 export const standardSubCategories = [
   "Cell Culture Medium",
+  "Cell Stain",
+  "Cell Culture Vessel",
+  "Syringe",
   "Serum Supplement",
   "Selection Antibiotic",
   "Transfection Reagent",
@@ -65,12 +68,29 @@ export const standardSubCategories = [
 
 const referenceGeneTargets = ["GAPDH", "ACTB", "TUBULIN", "HPRT1", "18S", "RPLP0"] as const;
 
-const speciesPatterns = [
-  { pattern: /rabbit/, value: "Rabbit" },
-  { pattern: /mouse/, value: "Mouse" },
-  { pattern: /goat/, value: "Goat" },
-  { pattern: /rat/, value: "Rat" },
-] as const;
+const antibodySpecies = ["rabbit", "mouse", "goat", "rat", "donkey", "chicken", "human", "sheep", "hamster", "horse"] as const;
+
+const speciesPatterns = antibodySpecies.map((species) => ({
+  pattern: new RegExp(`\\b${species}\\b`),
+  value: species.slice(0, 1).toUpperCase() + species.slice(1),
+}));
+
+const antibodySignalPattern = /\b(anti[-–—\s]+|antibody|immunoglobulin|igg(?:\d+)?|igm|iga|mab|pab|monoclonal|polyclonal)\b|抗体|单克隆|多克隆/i;
+const secondaryAntibodyPattern = /\bsecondary\s+antibody\b|二抗|抗二抗/i;
+const isotypeControlPattern = /\b(isotype\s+control|igg\d*\s+control|normal\s+(?:rabbit|mouse|goat|rat|donkey|chicken|human)\s+igg)\b|同型对照/i;
+const elisaAntibodyPattern = /\b(capture|detection)\s+antibody\b|(?:捕获|检测)抗体|sandwich\s+elisa/i;
+const antibodyConjugatePattern = /\b(conjugated?|labelled?|labeled|biotinylated|alexa(?:\s+fluor)?|fitc|pe|apc|percp|cy3|cy5|bv\d+|hrp|fluorophore)\b/i;
+const antibodyPrimaryTagSet = new Set<ExperimentTag>(["WB_PRIMARY_ANTIBODY", "IF_PRIMARY_ANTIBODY", "FLOW_PRIMARY_ANTIBODY"]);
+
+function formatSpecies(species?: string | null) {
+  return species ? species.slice(0, 1).toUpperCase() + species.slice(1).toLowerCase() : null;
+}
+
+function isSecondaryAntibodyName(lowered: string) {
+  if (secondaryAntibodyPattern.test(lowered)) return true;
+  const species = antibodySpecies.join("|");
+  return new RegExp(`\\banti[-–—\\s]?(${species})\\s+(?:igg(?:\\d+)?|igm|iga|igy|immunoglobulin)\\b`, "i").test(lowered);
+}
 
 function buildSearchText(input: ReagentParseInput) {
   return [input.name, input.catalogNo, input.note].filter(Boolean).join(" | ");
@@ -121,6 +141,9 @@ const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
   { tag: "CELL_DISSOCIATION_REAGENT", pattern: /\b(trypsin|trypLE|accutase|cell dissociation|胰酶)\b/i },
   { tag: "CELL_FREEZING_REAGENT", pattern: /\b(dmso|cryostor|freezing medium|冻存液)\b/i },
   { tag: "CELL_COUNTING_REAGENT", pattern: /\b(trypan blue|cck-8|cell counting kit|resazurin)\b/i },
+  { tag: "CELL_STAIN_REAGENT", pattern: /\b(cell stain(?:ing)?|staining solution|fluorescent dye|calcein|ethidium homodimer|crystal violet|neutral red)\b|细胞染色|染色液|荧光染料/i },
+  { tag: "CELL_CULTURE_VESSEL", pattern: /\b(?:cell|tissue)\s+culture\b[\s\w-]{0,40}\b(?:dish|plate|flask|bottle|well)\b|\bculture\s*(?:dish|plate|flask|bottle)\b|培养(?:皿|板|瓶|孔板|器皿)|细胞培养(?:皿|板|瓶)/i },
+  { tag: "SYRINGE_CONSUMABLE", pattern: /\b(?:syringe|luer[-\s]?lock|syringe needle)\b|注射器/i },
   { tag: "MYCOPLASMA_TEST_REAGENT", pattern: /\b(mycoplasma|支原体)\b/ },
   { tag: "TRANSDUCTION_REAGENT", pattern: /\b(lentivirus|adenovirus|aav|viral transduction|polybrene)\b/ },
   {
@@ -173,7 +196,7 @@ function uniq<T>(items: T[]) {
 
 export function extractTargetName(name: string) {
   const lowered = name.toLowerCase();
-  const antiMatch = lowered.match(/\banti[-\s]+([a-z0-9/+-]+)/);
+  const antiMatch = lowered.match(/\banti[-–—\s]+([a-z0-9/+-]+)/);
   if (antiMatch?.[1]) return normalizeTargetName(antiMatch[1]);
   const antibodyMatch = lowered.match(/([a-z0-9/+-]+)\s+antibody/);
   if (antibodyMatch?.[1]) return normalizeTargetName(antibodyMatch[1]);
@@ -184,17 +207,22 @@ export function extractTargetName(name: string) {
 
 export function detectAntibodyMeta(name: string): ParsedAntibodyMeta | null {
   const lowered = name.toLowerCase();
-  if (!/anti-|antibody|igg/.test(lowered)) return null;
+  if (!antibodySignalPattern.test(lowered)) return null;
 
-  const isSecondary = /secondary|anti-rabbit|anti mouse|anti-mouse|anti goat|anti-goat|anti rat|anti-rat/.test(lowered);
-  const hostSpecies = speciesPatterns.find((item) => item.pattern.test(lowered))?.value ?? null;
-  const antiTargetSpeciesMatch = lowered.match(/anti[-\s]?(rabbit|mouse|goat|rat)/);
+  const isSecondary = isSecondaryAntibodyName(lowered);
+  const species = antibodySpecies.join("|");
+  const secondaryHostMatch = lowered.match(new RegExp(`\\b(${species})\\s+anti[-–—\\s]?(${species})\\b`, "i"));
+  const antiTargetSpeciesMatch = lowered.match(new RegExp(`\\banti[-–—\\s]?(${species})\\b`, "i"));
+  const hostSpecies = isSecondary
+    ? formatSpecies(secondaryHostMatch?.[1]) ?? speciesPatterns.find((item) => item.pattern.test(lowered))?.value ?? null
+    : speciesPatterns.find((item) => item.pattern.test(lowered))?.value ?? null;
+  const isRoleAmbiguous = isotypeControlPattern.test(lowered) || elisaAntibodyPattern.test(lowered) || (antibodyConjugatePattern.test(lowered) && !/\bprimary\s+antibody\b|一抗/i.test(lowered));
 
   return {
-    role: isSecondary ? "SECONDARY" : "PRIMARY",
+    role: isSecondary ? "SECONDARY" : isRoleAmbiguous ? null : "PRIMARY",
     hostSpecies,
     targetSpecies: isSecondary ? antiTargetSpeciesMatch?.[1] ?? null : null,
-    targetName: isSecondary ? null : extractTargetName(name),
+    targetName: isSecondary || isRoleAmbiguous ? null : extractTargetName(name),
   };
 }
 
@@ -259,7 +287,9 @@ export function detectExperimentTags(name: string, antibodyMeta: ParsedAntibodyM
   }
 
   if (antibodyMeta?.role === "PRIMARY") {
-    tags.push("WB_PRIMARY_ANTIBODY", "IF_PRIMARY_ANTIBODY", "FLOW_PRIMARY_ANTIBODY");
+    tags.push("WB_PRIMARY_ANTIBODY");
+    if (/\b(if|immunofluorescence|immunostaining)\b|免疫荧光|荧光染色/i.test(lowered)) tags.push("IF_PRIMARY_ANTIBODY");
+    if (/\b(flow|facs)\b|流式/i.test(lowered)) tags.push("FLOW_PRIMARY_ANTIBODY");
   }
 
   if (antibodyMeta?.role === "SECONDARY") {
@@ -269,7 +299,7 @@ export function detectExperimentTags(name: string, antibodyMeta: ParsedAntibodyM
     }
   }
 
-  if (/capture antibody|detection antibody|sandwich elisa/.test(lowered)) {
+  if (/capture antibody|detection antibody|sandwich elisa|捕获抗体|检测抗体/.test(lowered)) {
     tags.push("ELISA_DETECTION_ANTIBODY");
   }
 
@@ -277,7 +307,7 @@ export function detectExperimentTags(name: string, antibodyMeta: ParsedAntibodyM
     tags.push("FLOW_PRIMARY_ANTIBODY");
   }
 
-  if (/antibody/.test(lowered) && /flow|facs|cd\d+/.test(lowered) && /fitc|pe|apc|percp|bv\d+|fluor/.test(lowered)) {
+  if (antibodySignalPattern.test(lowered) && /flow|facs|cd\d+|流式/.test(lowered) && /fitc|pe|apc|percp|bv\d+|fluor/.test(lowered)) {
     tags.push("FLOW_FLUORESCENT_ANTIBODY");
   }
 
@@ -289,7 +319,7 @@ export function detectCategory(name: string): ReagentCategory {
   const signals = buildSignalSet(name);
   const isGeneDelivery = /\b(lentivirus|adenovirus|aav|transfect|lipofectamine|lipo\s*3000|lipo3000|electroporation|转染|转导)\b/.test(lowered);
   if (/primer|probe/.test(lowered)) return "PRIMER";
-  if (/anti-|antibody|igg/.test(lowered)) return "ANTIBODY";
+  if (antibodySignalPattern.test(lowered)) return "ANTIBODY";
   if (/kit|master mix|assay|panel/.test(lowered)) return "KIT";
   if (/buffer|medium|serum|pbs|tbs|tris|glycine|diluent/.test(lowered)) return "BUFFER";
   if (
@@ -315,7 +345,7 @@ export function detectCategory(name: string): ReagentCategory {
     return "BIOLOGICAL";
   }
   if (/trizol|dnase|rnase|triton|dapi|paraformaldehyde|methanol|acetone|puromycin|blasticidin|g418|dmso/.test(lowered) || isGeneDelivery) return "CHEMICAL";
-  if (/membrane|plate|slide|filter/.test(lowered)) return "CONSUMABLE";
+  if (/membrane|plate|slide|filter|dish|flask|syringe|pipette tip|tube|培养皿|培养板|培养瓶|注射器/.test(lowered)) return "CONSUMABLE";
   return "OTHER";
 }
 
@@ -323,6 +353,9 @@ export function detectSubCategory(name: string, tags: ExperimentTag[], category?
   const signals = buildSignalSet(name);
   if (tags.includes("TRANSFECTION_REAGENT")) return "Transfection Reagent";
   if (tags.includes("CELL_CULTURE_MEDIUM")) return "Cell Culture Medium";
+  if (tags.includes("CELL_STAIN_REAGENT")) return "Cell Stain";
+  if (tags.includes("CELL_CULTURE_VESSEL")) return "Cell Culture Vessel";
+  if (tags.includes("SYRINGE_CONSUMABLE")) return "Syringe";
   if (tags.includes("SERUM_SUPPLEMENT")) return "Serum Supplement";
   if (tags.includes("SELECTION_ANTIBIOTIC")) return "Selection Antibiotic";
   if (tags.includes("EXOSOME_ISOLATION_REAGENT")) return "Exosome Isolation Reagent";
@@ -351,6 +384,61 @@ export function detectSubCategory(name: string, tags: ExperimentTag[], category?
   if (signals.isSmallMoleculeLike && category === "CHEMICAL") return "Small Molecule Compound";
   if (tags.includes("GENE_DELIVERY_REAGENT")) return "Gene Delivery Reagent";
   return null;
+}
+
+type ParsedReagentResultLike = {
+  category: ReagentCategory;
+  subCategory?: string | null;
+  experimentTags?: ExperimentTag[];
+  antibodyMeta?: ParsedAntibodyMeta | null;
+};
+
+// LLM outputs are intentionally conservative and may omit a tag even when the
+// product name itself supplies unambiguous evidence. Apply these deterministic
+// repairs after every parse path, rather than only in the failure fallback.
+export function enrichParsedReagentResult<T extends ParsedReagentResultLike>(input: ReagentParseInput, parsed: T): T {
+  const searchText = buildSearchText(input);
+  const detectedAntibodyMeta = detectAntibodyMeta(input.name);
+  const isAntibody = parsed.category === "ANTIBODY" || Boolean(detectedAntibodyMeta);
+  const shouldUseDetectedSecondary = detectedAntibodyMeta?.role === "SECONDARY";
+  const shouldClearPrimaryRole = detectedAntibodyMeta?.role === null;
+  const parsedAntibodyMeta = parsed.antibodyMeta ?? null;
+  const antibodyMeta = isAntibody
+    ? {
+        role: shouldUseDetectedSecondary
+          ? "SECONDARY"
+          : shouldClearPrimaryRole
+            ? null
+            : parsedAntibodyMeta?.role ?? detectedAntibodyMeta?.role ?? null,
+        hostSpecies: shouldUseDetectedSecondary
+          ? detectedAntibodyMeta?.hostSpecies ?? parsedAntibodyMeta?.hostSpecies ?? null
+          : parsedAntibodyMeta?.hostSpecies ?? detectedAntibodyMeta?.hostSpecies ?? null,
+        targetSpecies: shouldUseDetectedSecondary
+          ? detectedAntibodyMeta?.targetSpecies ?? parsedAntibodyMeta?.targetSpecies ?? null
+          : parsedAntibodyMeta?.targetSpecies ?? detectedAntibodyMeta?.targetSpecies ?? null,
+        targetName: shouldUseDetectedSecondary || shouldClearPrimaryRole
+          ? null
+          : parsedAntibodyMeta?.targetName ?? detectedAntibodyMeta?.targetName ?? null,
+      }
+    : parsedAntibodyMeta;
+  const detectedTags = detectExperimentTags(searchText, antibodyMeta);
+  const experimentTags = uniq([...(parsed.experimentTags ?? []), ...detectedTags]).filter(
+    (tag) => antibodyMeta?.role === "PRIMARY" || !antibodyPrimaryTagSet.has(tag),
+  );
+  const consumableTagDetected = experimentTags.some((tag) => tag === "CELL_CULTURE_VESSEL" || tag === "SYRINGE_CONSUMABLE");
+  const category = isAntibody ? "ANTIBODY" : consumableTagDetected ? "CONSUMABLE" : parsed.category;
+  const detectedSubCategory = detectSubCategory(searchText, experimentTags, category);
+  const subCategory = ["Cell Stain", "Cell Culture Vessel", "Syringe"].includes(detectedSubCategory ?? "")
+    ? detectedSubCategory
+    : parsed.subCategory;
+
+  return {
+    ...parsed,
+    category,
+    subCategory,
+    experimentTags,
+    antibodyMeta,
+  } as T;
 }
 
 export function buildHeuristicParse(input: string | ReagentParseInput, warningPrefix = "Fallback parse for"): HeuristicParsedReagent {

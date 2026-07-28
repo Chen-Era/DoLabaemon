@@ -25,6 +25,7 @@ function buildCompactOutputContract(lang: "zh" | "en", context: { tagList: strin
       `subCategory should prefer these standard values when applicable: ${context.subCategoryList}.`,
       `experimentTags must be chosen from: ${context.tagList}.`,
       "Use uppercase antibody roles: PRIMARY or SECONDARY.",
+      "Antibody tag rule: when category=ANTIBODY and antibodyMeta.role=PRIMARY, include WB_PRIMARY_ANTIBODY at minimum. Never add a PRIMARY antibody tag when antibodyMeta.role=SECONDARY; add IF/FLOW/ELISA antibody tags only when supported by product evidence.",
     ].join(" ");
   }
   return [
@@ -34,6 +35,7 @@ function buildCompactOutputContract(lang: "zh" | "en", context: { tagList: strin
     `subCategory 若适用，优先使用这些标准值：${context.subCategoryList}。`,
     `experimentTags 只能从以下固定词表中选择：${context.tagList}。`,
     "antibodyMeta.role 必须使用大写 PRIMARY 或 SECONDARY。",
+    "抗体标签规则：当 category=ANTIBODY 且 antibodyMeta.role=PRIMARY 时，至少必须包含 WB_PRIMARY_ANTIBODY。若 antibodyMeta.role=SECONDARY，绝不可添加任何一抗标签；IF/FLOW/ELISA 抗体标签仅在商品证据支持时添加。",
   ].join(" ");
 }
 
