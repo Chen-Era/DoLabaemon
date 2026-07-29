@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { reagentCategoryLabel } from "@/lib/reagent-category";
+import { useLocale } from "@/components/common/locale-provider";
 
 export function CopySelectedButton({
   rows,
@@ -14,6 +15,7 @@ export function CopySelectedButton({
     uploadedAt?: string | null;
   }>;
 }) {
+  const { localize } = useLocale();
   const [copied, setCopied] = useState(false);
 
   const onCopy = async () => {
@@ -21,7 +23,13 @@ export function CopySelectedButton({
     const header = "name\tcatalogNo\tcategory\tuploader\tuploadedAt";
     const body = rows
       .map((x) =>
-        [x.name, x.catalogNo, reagentCategoryLabel(x.category), x.uploadedByName || "上传者未知", x.uploadedAt || "时间未知"].join("\t"),
+        [
+          x.name,
+          x.catalogNo,
+          reagentCategoryLabel(x.category),
+          x.uploadedByName || localize("上传者未知", "Unknown uploader"),
+          x.uploadedAt || localize("时间未知", "Unknown time"),
+        ].join("\t"),
       )
       .join("\n");
     await navigator.clipboard.writeText(`${header}\n${body}`);
@@ -31,7 +39,7 @@ export function CopySelectedButton({
 
   return (
     <button type="button" onClick={onCopy} className="button-secondary" disabled={!rows.length}>
-      {copied ? "已复制" : `复制所选${rows.length ? `（${rows.length}）` : ""}`}
+      {copied ? localize("已复制", "Copied") : localize(`复制所选${rows.length ? `（${rows.length}）` : ""}`, `Copy selected${rows.length ? ` (${rows.length})` : ""}`)}
     </button>
   );
 }

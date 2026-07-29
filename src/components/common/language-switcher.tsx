@@ -1,27 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useLocale } from "@/components/common/locale-provider";
 
 export function LanguageSwitcher() {
-  const [lang, setLang] = useState<"zh" | "en">("zh");
+  const { locale, setLocale, t } = useLocale();
 
   return (
-    <div className="language-switcher" role="group" aria-label="界面语言">
+    <div className="language-switcher" role="group" aria-label={t("language.interfaceLabel")}>
       <button
         type="button"
-        className={`language-switcher-option ${lang === "zh" ? "is-active" : ""}`.trim()}
-        onClick={() => setLang("zh")}
-        aria-pressed={lang === "zh"}
+        className={`language-switcher-option ${locale === "zh" ? "is-active" : ""}`.trim()}
+        onClick={() => void setLocale("zh")}
+        aria-pressed={locale === "zh"}
       >
-        中文
+        {t("language.chinese")}
       </button>
       <button
         type="button"
-        className={`language-switcher-option ${lang === "en" ? "is-active" : ""}`.trim()}
-        onClick={() => setLang("en")}
-        aria-pressed={lang === "en"}
+        className={`language-switcher-option ${locale === "en" ? "is-active" : ""}`.trim()}
+        onClick={() => void setLocale("en")}
+        aria-pressed={locale === "en"}
       >
-        英文
+        {t("language.english")}
       </button>
     </div>
   );

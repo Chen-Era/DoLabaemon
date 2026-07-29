@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AlertIcon, CheckIcon, ChevronDownIcon, CopyIcon, LabsIcon, SearchIcon } from "@/components/common/app-icons";
+import { useLocale } from "@/components/common/locale-provider";
 import { requestJson } from "@/lib/http";
 
 type Item = { role: string; lab: { id: string; name: string } };
@@ -20,44 +21,50 @@ type JoinRequestPending = JoinRequestMine & {
 };
 type LabSearchItem = { id: string; name: string; memberCount: number };
 type FeedbackMessage = { kind: "success" | "error"; text: string };
+type Localize = (zh: string, en: string) => string;
 
-function roleStyle(role: string) {
+function roleStyle(role: string, localize: Localize) {
   if (role === "PI") {
     return {
-      label: "负责人",
+      label: localize("负责人", "Principal investigator"),
       chip: "border-violet-200 bg-violet-50 text-violet-700",
       marker: "bg-violet-500",
     };
   }
   if (role === "ADMIN") {
     return {
-      label: "管理员",
+      label: localize("管理员", "Administrator"),
       chip: "border-cyan-200 bg-cyan-50 text-cyan-700",
       marker: "bg-cyan-500",
     };
   }
   return {
-    label: "成员",
+    label: localize("成员", "Member"),
     chip: "border-slate-200 bg-slate-50 text-slate-600",
     marker: "bg-slate-400",
   };
 }
 
-function requestStatusStyle(status: string) {
+function requestStatusStyle(status: string, localize: Localize) {
   if (status === "APPROVED") {
-    return { label: "已通过", chip: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+    return { label: localize("已通过", "Approved"), chip: "border-emerald-200 bg-emerald-50 text-emerald-700" };
   }
   if (status === "REJECTED") {
-    return { label: "已拒绝", chip: "border-red-200 bg-red-50 text-red-600" };
+    return { label: localize("已拒绝", "Rejected"), chip: "border-red-200 bg-red-50 text-red-600" };
   }
-  return { label: "待审批", chip: "border-amber-200 bg-amber-50 text-amber-700" };
+  return { label: localize("待审批", "Pending review"), chip: "border-amber-200 bg-amber-50 text-amber-700" };
 }
 
-function formatTime(value?: string | null) {
+function formatTime(value: string | null | undefined, locale: "zh" | "en") {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString(locale === "en" ? "en-US" : "zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 async function copyText(text: string) {
@@ -102,6 +109,7 @@ function Feedback({ message }: { message: FeedbackMessage | null }) {
 }
 
 export default function LabsPage() {
+  const { locale, localize } = useLocale();
   const [items, setItems] = useState<Item[]>([]);
   const [createForm, setCreateForm] = useState({ name: "" });
   const [joinForm, setJoinForm] = useState({ inviteId: "" });
@@ -168,17 +176,17 @@ export default function LabsPage() {
         return;
       }
       if (!response.ok) {
-        setLoadError(data?.error ?? "加载实验室失败，请稍后重试。");
+        setLoadError(data?.error ?? localize("加载实验室失败，请稍后重试。", "Unable to load labs. Please try again."));
         return;
       }
       setLoadError(null);
       syncItems(data?.items ?? []);
     } catch {
-      setLoadError("网络异常，暂时无法读取实验室工作区。");
+      setLoadError(localize("网络异常，暂时无法读取实验室工作区。", "A network error prevented the lab workspace from loading."));
     } finally {
       setLoading(false);
     }
-  }, [syncItems]);
+  }, [localize, syncItems]);
 
   const loadJoinRequests = useCallback(async () => {
     try {
@@ -258,7 +266,7 @@ export default function LabsPage() {
     event.preventDefault();
     const name = createForm.name.trim();
     if (!name) {
-      setCreateMsg({ kind: "error", text: "请输入实验室名称。" });
+      setCreateMsg({ kind: "error", text: localize("请输入实验室名称。", "Enter a lab name.") });
       return;
     }
 
@@ -272,15 +280,15 @@ export default function LabsPage() {
       });
       setCreateMsg(
         response.ok
-          ? { kind: "success", text: "实验室已创建，你是这里的负责人。" }
-          : { kind: "error", text: data?.error ?? "创建失败" },
+          ? { kind: "success", text: localize("实验室已创建，你是这里的负责人。", "Lab created. You are its principal investigator.") }
+          : { kind: "error", text: data?.error ?? localize("创建失败", "Unable to create the lab.") },
       );
       if (response.ok) {
         setCreateForm({ name: "" });
         await loadLabs();
       }
     } catch {
-      setCreateMsg({ kind: "error", text: "网络异常，请稍后重试。" });
+      setCreateMsg({ kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") });
     } finally {
       setCreating(false);
     }
@@ -290,7 +298,7 @@ export default function LabsPage() {
     event.preventDefault();
     const inviteId = joinForm.inviteId.trim();
     if (!inviteId) {
-      setJoinMsg({ kind: "error", text: "请输入邀请码。" });
+      setJoinMsg({ kind: "error", text: localize("请输入邀请码。", "Enter an invitation code.") });
       return;
     }
 
@@ -304,15 +312,15 @@ export default function LabsPage() {
       });
       setJoinMsg(
         response.ok
-          ? { kind: "success", text: "已加入实验室，现在可以开始使用。" }
-          : { kind: "error", text: data?.error ?? "加入失败" },
+          ? { kind: "success", text: localize("已加入实验室，现在可以开始使用。", "You have joined the lab and can get started.") }
+          : { kind: "error", text: data?.error ?? localize("加入失败", "Unable to join the lab.") },
       );
       if (response.ok) {
         setJoinForm({ inviteId: "" });
         await loadLabs();
       }
     } catch {
-      setJoinMsg({ kind: "error", text: "网络异常，请稍后重试。" });
+      setJoinMsg({ kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") });
     } finally {
       setJoining(false);
     }
@@ -321,7 +329,7 @@ export default function LabsPage() {
   async function applyJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!applySelected) {
-      setApplyMsg({ kind: "error", text: "请先搜索并选择要申请加入的实验室。" });
+      setApplyMsg({ kind: "error", text: localize("请先搜索并选择要申请加入的实验室。", "Search for and select a lab to join first.") });
       return;
     }
 
@@ -340,7 +348,13 @@ export default function LabsPage() {
         },
       );
       if (response.ok) {
-        setApplyMsg({ kind: "success", text: `已向「${applySelected.name}」提交申请，等待负责人审批。` });
+        setApplyMsg({
+          kind: "success",
+          text: localize(
+            `已向「${applySelected.name}」提交申请，等待负责人审批。`,
+            `Your request to join “${applySelected.name}” has been submitted and is awaiting review.`,
+          ),
+        });
         setApplySelected(null);
         setApplyQuery("");
         setApplyMessage("");
@@ -348,14 +362,14 @@ export default function LabsPage() {
       } else {
         const text =
           data?.code === "ALREADY_IN_LAB"
-            ? "你已经是该实验室的成员。"
+            ? localize("你已经是该实验室的成员。", "You are already a member of this lab.")
             : data?.code === "REQUEST_ALREADY_PENDING"
-              ? "你已经提交过申请，请等待审批。"
-              : (data?.error ?? "提交申请失败");
+              ? localize("你已经提交过申请，请等待审批。", "You have already submitted a request. Please wait for review.")
+              : (data?.error ?? localize("提交申请失败", "Unable to submit the request."));
         setApplyMsg({ kind: "error", text });
       }
     } catch {
-      setApplyMsg({ kind: "error", text: "网络异常，请稍后重试。" });
+      setApplyMsg({ kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") });
     } finally {
       setApplying(false);
     }
@@ -376,18 +390,27 @@ export default function LabsPage() {
       if (response.ok) {
         setReviewMsg(
           action === "approve"
-            ? { kind: "success", text: `已通过 ${request.user.email} 加入「${request.lab.name}」的申请。` }
-            : { kind: "success", text: `已拒绝 ${request.user.email} 的申请。` },
+            ? {
+                kind: "success",
+                text: localize(
+                  `已通过 ${request.user.email} 加入「${request.lab.name}」的申请。`,
+                  `Approved ${request.user.email}'s request to join “${request.lab.name}”.`,
+                ),
+              }
+            : {
+                kind: "success",
+                text: localize(`已拒绝 ${request.user.email} 的申请。`, `Rejected ${request.user.email}'s request.`),
+              },
         );
         setPendingRequests((previous) => previous.filter((item) => item.id !== request.id));
         if (action === "approve" && expandedLabs[request.lab.id]) {
           await loadMembers(request.lab.id);
         }
       } else {
-        setReviewMsg({ kind: "error", text: data?.error ?? "操作失败，请稍后重试。" });
+        setReviewMsg({ kind: "error", text: data?.error ?? localize("操作失败，请稍后重试。", "The action failed. Please try again.") });
       }
     } catch {
-      setReviewMsg({ kind: "error", text: "网络异常，请稍后重试。" });
+      setReviewMsg({ kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") });
     } finally {
       setReviewingId(null);
     }
@@ -402,10 +425,16 @@ export default function LabsPage() {
         setMembersByLab((previous) => ({ ...previous, [labId]: data?.items ?? [] }));
         setCurrentUserId(data?.currentUserId ?? null);
       } else {
-        setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: data?.error ?? "加载成员失败" } }));
+        setMembersMsg((previous) => ({
+          ...previous,
+          [labId]: { kind: "error", text: data?.error ?? localize("加载成员失败", "Unable to load members.") },
+        }));
       }
     } catch {
-      setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: "网络异常，请稍后重试。" } }));
+      setMembersMsg((previous) => ({
+        ...previous,
+        [labId]: { kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") },
+      }));
     }
   }
 
@@ -451,13 +480,25 @@ export default function LabsPage() {
         }));
         setMembersMsg((previous) => ({
           ...previous,
-          [labId]: { kind: "success", text: `已将 ${member.displayName || member.email} 移出实验室。` },
+          [labId]: {
+            kind: "success",
+            text: localize(
+              `已将 ${member.displayName || member.email} 移出实验室。`,
+              `${member.displayName || member.email} has been removed from the lab.`,
+            ),
+          },
         }));
       } else {
-        setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: data?.error ?? "移除失败" } }));
+        setMembersMsg((previous) => ({
+          ...previous,
+          [labId]: { kind: "error", text: data?.error ?? localize("移除失败", "Unable to remove the member.") },
+        }));
       }
     } catch {
-      setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: "网络异常，请稍后重试。" } }));
+      setMembersMsg((previous) => ({
+        ...previous,
+        [labId]: { kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") },
+      }));
     } finally {
       endMemberOperation(key);
       setConfirmRemoveKey(null);
@@ -482,13 +523,25 @@ export default function LabsPage() {
         }));
         setMembersMsg((previous) => ({
           ...previous,
-          [labId]: { kind: "success", text: `已将 ${member.displayName || member.email} 设为${roleStyle(updatedRole).label}。` },
+          [labId]: {
+            kind: "success",
+            text: localize(
+              `已将 ${member.displayName || member.email} 设为${roleStyle(updatedRole, localize).label}。`,
+              `${member.displayName || member.email} is now ${roleStyle(updatedRole, localize).label}.`,
+            ),
+          },
         }));
       } else {
-        setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: data?.error ?? "更新角色失败" } }));
+        setMembersMsg((previous) => ({
+          ...previous,
+          [labId]: { kind: "error", text: data?.error ?? localize("更新角色失败", "Unable to update the role.") },
+        }));
       }
     } catch {
-      setMembersMsg((previous) => ({ ...previous, [labId]: { kind: "error", text: "网络异常，请稍后重试。" } }));
+      setMembersMsg((previous) => ({
+        ...previous,
+        [labId]: { kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") },
+      }));
     } finally {
       endMemberOperation(key);
     }
@@ -509,11 +562,14 @@ export default function LabsPage() {
       } else {
         setMembersMsg((previous) => ({
           ...previous,
-          [lab.id]: { kind: "error", text: data?.error ?? "删除实验室失败" },
+          [lab.id]: { kind: "error", text: data?.error ?? localize("删除实验室失败", "Unable to delete the lab.") },
         }));
       }
     } catch {
-      setMembersMsg((previous) => ({ ...previous, [lab.id]: { kind: "error", text: "网络异常，请稍后重试。" } }));
+      setMembersMsg((previous) => ({
+        ...previous,
+        [lab.id]: { kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") },
+      }));
     } finally {
       setDeleting(false);
     }
@@ -530,20 +586,20 @@ export default function LabsPage() {
   async function sendInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!invite.labId) {
-      setInviteMsg({ kind: "error", text: "请选择要邀请成员加入的实验室。" });
+      setInviteMsg({ kind: "error", text: localize("请选择要邀请成员加入的实验室。", "Select a lab to invite a member to.") });
       return;
     }
     const membership = items.find((item) => item.lab.id === invite.labId);
     if (!membership || !["PI", "ADMIN"].includes(membership.role)) {
-      setInviteMsg({ kind: "error", text: "只有该实验室的负责人或管理员可以创建邀请。" });
+      setInviteMsg({ kind: "error", text: localize("只有该实验室的负责人或管理员可以创建邀请。", "Only the lab's principal investigator or administrators can create invitations.") });
       return;
     }
     if (invite.role === "ADMIN" && membership.role !== "PI") {
-      setInviteMsg({ kind: "error", text: "只有负责人可以授予管理员角色。" });
+      setInviteMsg({ kind: "error", text: localize("只有负责人可以授予管理员角色。", "Only the principal investigator can grant the administrator role.") });
       return;
     }
     if (!invite.email.trim()) {
-      setInviteMsg({ kind: "error", text: "请输入成员邮箱。" });
+      setInviteMsg({ kind: "error", text: localize("请输入成员邮箱。", "Enter the member's email address.") });
       return;
     }
 
@@ -565,14 +621,14 @@ export default function LabsPage() {
           email: invite.email.trim(),
           labName: data.labName ?? membership.lab.name,
         });
-        setInviteMsg({ kind: "success", text: "邀请码已创建，发给新成员即可。" });
+        setInviteMsg({ kind: "success", text: localize("邀请码已创建，发给新成员即可。", "Invitation code created. Send it to the new member.") });
         setInvite((previous) => ({ ...previous, email: "", role: "MEMBER" }));
         await loadInvites(invite.labId);
       } else {
-        setInviteMsg({ kind: "error", text: data?.error ?? "邀请失败" });
+        setInviteMsg({ kind: "error", text: data?.error ?? localize("邀请失败", "Unable to create the invitation.") });
       }
     } catch {
-      setInviteMsg({ kind: "error", text: "网络异常，请稍后重试。" });
+      setInviteMsg({ kind: "error", text: localize("网络异常，请稍后重试。", "A network error occurred. Please try again.") });
     } finally {
       setInviting(false);
     }
@@ -589,11 +645,11 @@ export default function LabsPage() {
               <LabsIcon className="h-5 w-5" />
             </span>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">实验室协作</h1>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">每个实验室单独管理成员、试剂和实验准备。</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">{localize("实验室协作", "Lab collaboration")}</h1>
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">{localize("每个实验室单独管理成员、试剂和实验准备。", "Each lab manages its own members, reagents, and experiment preparation.")}</p>
             </div>
           </div>
-          <p className="text-sm text-cyan-100">{loading ? "正在加载…" : `已加入 ${items.length} 个实验室`}</p>
+          <p className="text-sm text-cyan-100">{loading ? localize("正在加载…", "Loading…") : localize(`已加入 ${items.length} 个实验室`, `Joined ${items.length} lab${items.length === 1 ? "" : "s"}`)}</p>
         </div>
       </section>
 
@@ -601,7 +657,7 @@ export default function LabsPage() {
         <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between" role="alert">
           <span>{loadError}</span>
           <button type="button" className="button-secondary shrink-0" onClick={() => void loadLabs()}>
-            重新加载
+            {localize("重新加载", "Reload")}
           </button>
         </div>
       ) : null}
@@ -610,18 +666,18 @@ export default function LabsPage() {
         <section className="app-panel overflow-hidden">
           <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950">我的实验室</h2>
-              <p className="section-copy mt-1.5 max-w-xl text-sm">每个实验室的数据和权限都单独管理。</p>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950">{localize("我的实验室", "My labs")}</h2>
+              <p className="section-copy mt-1.5 max-w-xl text-sm">{localize("每个实验室的数据和权限都单独管理。", "Data and permissions are managed separately for each lab.")}</p>
             </div>
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {loading ? "正在加载" : "已加载"}
+              {loading ? localize("正在加载", "Loading") : localize("已加载", "Loaded")}
             </span>
           </div>
 
           <div className="p-4 md:p-5">
             {loading ? (
-              <div className="space-y-3" aria-label="正在加载实验室">
+              <div className="space-y-3" aria-label={localize("正在加载实验室", "Loading labs")}>
                 {[0, 1, 2].map((item) => (
                   <div key={item} className="h-24 animate-pulse rounded-xl bg-slate-100" />
                 ))}
@@ -629,7 +685,7 @@ export default function LabsPage() {
             ) : items.length ? (
               <div className="space-y-2.5">
                 {items.map((item) => {
-                  const tone = roleStyle(item.role);
+                  const tone = roleStyle(item.role, localize);
                   const isManager = ["PI", "ADMIN"].includes(item.role);
                   const isPi = item.role === "PI";
                   const expanded = Boolean(expandedLabs[item.lab.id]);
@@ -649,7 +705,7 @@ export default function LabsPage() {
                           </span>
                           <div className="min-w-0">
                             <h3 className="truncate font-semibold text-slate-950">{item.lab.name}</h3>
-                            <p className="mt-1 text-sm text-slate-500">你在这个实验室的角色是{tone.label}。</p>
+                            <p className="mt-1 text-sm text-slate-500">{localize(`你在这个实验室的角色是${tone.label}。`, `Your role in this lab is ${tone.label}.`)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2.5">
@@ -663,7 +719,7 @@ export default function LabsPage() {
                               onClick={() => toggleMembers(item.lab.id)}
                               aria-expanded={expanded}
                             >
-                              管理成员
+                              {localize("管理成员", "Manage members")}
                               <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
                             </button>
                           ) : null}
@@ -672,13 +728,13 @@ export default function LabsPage() {
 
                       {expanded ? (
                         <div className="border-t border-slate-200 px-4 py-4">
-                          <h4 className="text-sm font-semibold text-slate-950">成员列表</h4>
+                          <h4 className="text-sm font-semibold text-slate-950">{localize("成员列表", "Members")}</h4>
                           <div className="mt-3 space-y-2">
                             {!members ? (
-                              <p className="text-sm text-slate-500">正在加载成员…</p>
+                              <p className="text-sm text-slate-500">{localize("正在加载成员…", "Loading members…")}</p>
                             ) : members.length ? (
                               members.map((member) => {
-                                const memberTone = roleStyle(member.role);
+                                const memberTone = roleStyle(member.role, localize);
                                 const key = `${item.lab.id}:${member.userId}`;
                                 const memberBusy = Boolean(memberOperations[key]);
                                 const canChangeRole =
@@ -711,7 +767,7 @@ export default function LabsPage() {
                                         isPi ? (
                                           <select
                                             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-60"
-                                            aria-label={`设置 ${member.displayName || member.email} 的角色`}
+                                            aria-label={localize(`设置 ${member.displayName || member.email} 的角色`, `Set role for ${member.displayName || member.email}`)}
                                             value={member.role}
                                             disabled={memberBusy}
                                             onChange={(event) => {
@@ -719,18 +775,18 @@ export default function LabsPage() {
                                               if (role !== member.role) void changeMemberRole(item.lab.id, member, role);
                                             }}
                                           >
-                                            <option value="MEMBER">成员</option>
-                                            <option value="ADMIN">管理员</option>
+                                            <option value="MEMBER">{localize("成员", "Member")}</option>
+                                            <option value="ADMIN">{localize("管理员", "Administrator")}</option>
                                           </select>
                                         ) : (
                                           <button
                                             type="button"
                                             className="w-fit rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
-                                            aria-label={`将 ${member.displayName || member.email} 设为成员`}
+                                            aria-label={localize(`将 ${member.displayName || member.email} 设为成员`, `Set ${member.displayName || member.email} as a member`)}
                                             disabled={memberBusy}
                                             onClick={() => void changeMemberRole(item.lab.id, member, "MEMBER")}
                                           >
-                                            {memberBusy ? "正在处理…" : "设为成员"}
+                                            {memberBusy ? localize("正在处理…", "Working…") : localize("设为成员", "Set as member")}
                                           </button>
                                         )
                                       ) : null}
@@ -743,14 +799,14 @@ export default function LabsPage() {
                                               disabled={memberBusy}
                                               onClick={() => void removeMember(item.lab.id, member)}
                                             >
-                                              {memberBusy ? "正在处理…" : "确认移除"}
+                                              {memberBusy ? localize("正在处理…", "Working…") : localize("确认移除", "Confirm removal")}
                                             </button>
                                             <button
                                               type="button"
                                               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                                               onClick={() => setConfirmRemoveKey(null)}
                                             >
-                                              取消
+                                              {localize("取消", "Cancel")}
                                             </button>
                                           </div>
                                         ) : (
@@ -760,7 +816,7 @@ export default function LabsPage() {
                                             disabled={memberBusy}
                                             onClick={() => setConfirmRemoveKey(key)}
                                           >
-                                            移除
+                                            {localize("移除", "Remove")}
                                           </button>
                                         )
                                       ) : null}
@@ -769,7 +825,7 @@ export default function LabsPage() {
                                 );
                               })
                             ) : (
-                              <p className="text-sm text-slate-500">暂无成员。</p>
+                              <p className="text-sm text-slate-500">{localize("暂无成员。", "No members yet.")}</p>
                             )}
                           </div>
                           <div className="mt-3">
@@ -778,14 +834,14 @@ export default function LabsPage() {
 
                           {isPi ? (
                             <div className="mt-4 rounded-lg border border-red-200 bg-red-50/60 px-3 py-3">
-                              <p className="text-sm font-semibold text-red-700">危险操作</p>
+                              <p className="text-sm font-semibold text-red-700">{localize("危险操作", "Danger zone")}</p>
                               <p className="mt-1 text-xs leading-5 text-red-600">
-                                删除实验室后，其中的试剂、成员关系和邀请都会被清除，且无法恢复。
+                                {localize("删除实验室后，其中的试剂、成员关系和邀请都会被清除，且无法恢复。", "Deleting a lab permanently removes its reagents, memberships, and invitations.")}
                               </p>
                               {deleteConfirm?.labId === item.lab.id ? (
                                 <div className="mt-3 space-y-2.5">
                                   <label className="block text-xs font-medium text-red-700" htmlFor={`delete-confirm-${item.lab.id}`}>
-                                    输入实验室名称「{item.lab.name}」以确认删除
+                                    {localize(`输入实验室名称「${item.lab.name}」以确认删除`, `Enter the lab name “${item.lab.name}” to confirm deletion`)}
                                   </label>
                                   <input
                                     id={`delete-confirm-${item.lab.id}`}
@@ -803,14 +859,14 @@ export default function LabsPage() {
                                       disabled={deleting || deleteConfirm.typed.trim() !== item.lab.name}
                                       onClick={() => void deleteLab(item.lab)}
                                     >
-                                      {deleting ? "正在删除…" : "永久删除实验室"}
+                                      {deleting ? localize("正在删除…", "Deleting…") : localize("永久删除实验室", "Permanently delete lab")}
                                     </button>
                                     <button
                                       type="button"
                                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                                       onClick={() => setDeleteConfirm(null)}
                                     >
-                                      取消
+                                      {localize("取消", "Cancel")}
                                     </button>
                                   </div>
                                 </div>
@@ -820,7 +876,7 @@ export default function LabsPage() {
                                   className="mt-2.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                                   onClick={() => setDeleteConfirm({ labId: item.lab.id, typed: "" })}
                                 >
-                                  删除实验室
+                                  {localize("删除实验室", "Delete lab")}
                                 </button>
                               )}
                             </div>
@@ -836,9 +892,9 @@ export default function LabsPage() {
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
                   <LabsIcon className="h-5 w-5" />
                 </span>
-                <h3 className="mt-4 font-semibold text-slate-950">还没有实验室工作区</h3>
+                <h3 className="mt-4 font-semibold text-slate-950">{localize("还没有实验室工作区", "No lab workspace yet")}</h3>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                  你可以创建实验室、按名称申请加入同事的实验室，或使用邀请码直接加入。
+                  {localize("你可以创建实验室、按名称申请加入同事的实验室，或使用邀请码直接加入。", "Create a lab, request to join a colleague's lab by name, or join directly with an invitation code.")}
                 </p>
               </div>
             )}
@@ -846,27 +902,27 @@ export default function LabsPage() {
         </section>
 
         <section className="app-panel p-5 md:p-6">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-950">创建或加入实验室</h2>
-          <p className="section-copy mt-1.5 text-sm">创建新实验室、用邀请码加入，或按名称提交加入申请。</p>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-950">{localize("创建或加入实验室", "Create or join a lab")}</h2>
+          <p className="section-copy mt-1.5 text-sm">{localize("创建新实验室、用邀请码加入，或按名称提交加入申请。", "Create a new lab, join with an invitation code, or submit a request by name.")}</p>
 
           <div className="mt-5 space-y-5">
             <form className="border-t border-slate-200 pt-5" onSubmit={createLab}>
               <div>
-                <p className="text-sm font-semibold text-slate-950">创建实验室</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">创建者会自动成为负责人。</p>
+                <p className="text-sm font-semibold text-slate-950">{localize("创建实验室", "Create a lab")}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{localize("创建者会自动成为负责人。", "The creator automatically becomes the principal investigator.")}</p>
               </div>
               <label className="field-label mt-4" htmlFor="create-lab-name">
-                实验室名称
+                {localize("实验室名称", "Lab name")}
               </label>
               <input
                 id="create-lab-name"
                 className="input-base"
-                placeholder="例如：肿瘤免疫实验室"
+                placeholder={localize("例如：肿瘤免疫实验室", "e.g. Tumor Immunology Lab")}
                 value={createForm.name}
                 onChange={(event) => setCreateForm({ name: event.target.value })}
               />
               <button type="submit" className="button-primary mt-3 w-full" disabled={creating}>
-                {creating ? "正在创建…" : "创建工作区"}
+                {creating ? localize("正在创建…", "Creating…") : localize("创建工作区", "Create workspace")}
               </button>
               <div className="mt-3">
                 <Feedback message={createMsg} />
@@ -874,20 +930,20 @@ export default function LabsPage() {
             </form>
 
             <form className="border-t border-slate-200 pt-5" onSubmit={joinLab}>
-              <p className="text-sm font-semibold text-slate-950">邀请码加入</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">粘贴负责人或管理员提供的邀请码。</p>
+              <p className="text-sm font-semibold text-slate-950">{localize("邀请码加入", "Join with an invitation code")}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{localize("粘贴负责人或管理员提供的邀请码。", "Paste an invitation code from the principal investigator or an administrator.")}</p>
               <label className="field-label mt-4" htmlFor="join-invite-id">
-                邀请码
+                {localize("邀请码", "Invitation code")}
               </label>
               <input
                 id="join-invite-id"
                 className="input-base font-mono text-sm"
-                placeholder="粘贴邀请码"
+                placeholder={localize("粘贴邀请码", "Paste invitation code")}
                 value={joinForm.inviteId}
                 onChange={(event) => setJoinForm({ inviteId: event.target.value })}
               />
               <button type="submit" className="button-secondary mt-3 w-full" disabled={joining}>
-                {joining ? "正在加入…" : "使用邀请码加入"}
+                {joining ? localize("正在加入…", "Joining…") : localize("使用邀请码加入", "Join with code")}
               </button>
               <div className="mt-3">
                 <Feedback message={joinMsg} />
@@ -895,17 +951,17 @@ export default function LabsPage() {
             </form>
 
             <form className="border-t border-slate-200 pt-5" onSubmit={applyJoin}>
-              <p className="text-sm font-semibold text-slate-950">按名称申请加入</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">搜索实验室并提交申请，负责人审批通过后即可进入。</p>
+              <p className="text-sm font-semibold text-slate-950">{localize("按名称申请加入", "Request to join by name")}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{localize("搜索实验室并提交申请，负责人审批通过后即可进入。", "Search for a lab and submit a request. You can join once the principal investigator approves it.")}</p>
               <label className="field-label mt-4" htmlFor="apply-lab-search">
-                搜索实验室
+                {localize("搜索实验室", "Search labs")}
               </label>
               <div className="relative">
                 <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   id="apply-lab-search"
                   className="input-base input-with-leading-icon"
-                  placeholder="输入实验室名称关键词"
+                  placeholder={localize("输入实验室名称关键词", "Enter lab name keywords")}
                   autoComplete="off"
                   value={applyQuery}
                   onChange={(event) => {
@@ -918,23 +974,23 @@ export default function LabsPage() {
                 <div className="mt-2.5 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-emerald-800">{applySelected.name}</p>
-                    <p className="text-xs text-emerald-600">{applySelected.memberCount} 名成员 · 已选择</p>
+                    <p className="text-xs text-emerald-600">{localize(`${applySelected.memberCount} 名成员 · 已选择`, `${applySelected.memberCount} member${applySelected.memberCount === 1 ? "" : "s"} · selected`)}</p>
                   </div>
                   <button
                     type="button"
                     className="shrink-0 text-xs font-semibold text-emerald-700 underline-offset-2 hover:underline"
                     onClick={() => setApplySelected(null)}
                   >
-                    更换
+                    {localize("更换", "Change")}
                   </button>
                 </div>
               ) : null}
-              {!applySelected && applySearching ? <p className="mt-2 text-xs text-slate-500">搜索中…</p> : null}
+              {!applySelected && applySearching ? <p className="mt-2 text-xs text-slate-500">{localize("搜索中…", "Searching…")}</p> : null}
               {!applySelected && !applySearching && applyQuery.trim() && applyResults.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">没有找到匹配的实验室。</p>
+                <p className="mt-2 text-xs text-slate-500">{localize("没有找到匹配的实验室。", "No matching labs found.")}</p>
               ) : null}
               {!applySelected && applyResults.length ? (
-                <ul className="mt-2 space-y-1.5" aria-label="搜索结果">
+                <ul className="mt-2 space-y-1.5" aria-label={localize("搜索结果", "Search results")}>
                   {applyResults.map((lab) => (
                     <li key={lab.id}>
                       <button
@@ -947,7 +1003,7 @@ export default function LabsPage() {
                         }}
                       >
                         <span className="truncate text-sm font-medium text-slate-900">{lab.name}</span>
-                        <span className="shrink-0 text-xs text-slate-500">{lab.memberCount} 名成员</span>
+                        <span className="shrink-0 text-xs text-slate-500">{localize(`${lab.memberCount} 名成员`, `${lab.memberCount} member${lab.memberCount === 1 ? "" : "s"}`)}</span>
                       </button>
                     </li>
                   ))}
@@ -956,20 +1012,20 @@ export default function LabsPage() {
               {applySelected ? (
                 <>
                   <label className="field-label mt-3" htmlFor="apply-message">
-                    给负责人的留言（选填）
+                    {localize("给负责人的留言（选填）", "Message to the principal investigator (optional)")}
                   </label>
                   <textarea
                     id="apply-message"
                     className="input-base min-h-20 resize-y"
                     maxLength={500}
-                    placeholder="简单介绍自己，方便负责人审批"
+                    placeholder={localize("简单介绍自己，方便负责人审批", "Briefly introduce yourself to help with review")}
                     value={applyMessage}
                     onChange={(event) => setApplyMessage(event.target.value)}
                   />
                 </>
               ) : null}
               <button type="submit" className="button-secondary mt-3 w-full" disabled={applying || !applySelected}>
-                {applying ? "正在提交…" : "提交加入申请"}
+                {applying ? localize("正在提交…", "Submitting…") : localize("提交加入申请", "Submit join request")}
               </button>
               <div className="mt-3">
                 <Feedback message={applyMsg} />
@@ -981,13 +1037,13 @@ export default function LabsPage() {
 
       <section className="app-panel overflow-hidden">
         <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-950">加入申请</h2>
-          <p className="section-copy mt-1.5 max-w-2xl text-sm">审批待加入的申请，或查看自己提交的申请进度。</p>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-950">{localize("加入申请", "Join requests")}</h2>
+          <p className="section-copy mt-1.5 max-w-2xl text-sm">{localize("审批待加入的申请，或查看自己提交的申请进度。", "Review pending requests or track the requests you submitted.")}</p>
         </div>
 
         <div className="grid gap-6 p-5 md:p-6 lg:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold text-slate-950">待我审批</h3>
+            <h3 className="text-sm font-semibold text-slate-950">{localize("待我审批", "Awaiting my review")}</h3>
             <div className="mt-3 space-y-2.5">
               {pendingRequests.length ? (
                 pendingRequests.map((request) => (
@@ -998,10 +1054,10 @@ export default function LabsPage() {
                           {request.user.displayName || request.user.email}
                         </p>
                         <p className="truncate text-xs text-slate-500">
-                          {request.user.displayName ? `${request.user.email} · ` : ""}申请加入「{request.lab.name}」
+                          {request.user.displayName ? `${request.user.email} · ` : ""}{localize(`申请加入「${request.lab.name}」`, `Requested to join “${request.lab.name}”`)}
                         </p>
                       </div>
-                      <span className="text-xs text-slate-400">{formatTime(request.createdAt)}</span>
+                      <span className="text-xs text-slate-400">{formatTime(request.createdAt, locale)}</span>
                     </div>
                     {request.message ? (
                       <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">
@@ -1015,7 +1071,7 @@ export default function LabsPage() {
                         disabled={reviewingId === request.id}
                         onClick={() => void reviewRequest(request, "approve")}
                       >
-                        通过
+                        {localize("通过", "Approve")}
                       </button>
                       <button
                         type="button"
@@ -1023,14 +1079,14 @@ export default function LabsPage() {
                         disabled={reviewingId === request.id}
                         onClick={() => void reviewRequest(request, "reject")}
                       >
-                        拒绝
+                        {localize("拒绝", "Reject")}
                       </button>
                     </div>
                   </article>
                 ))
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
-                  暂无待审批的申请。
+                  {localize("暂无待审批的申请。", "No requests are awaiting review.")}
                 </p>
               )}
             </div>
@@ -1040,11 +1096,11 @@ export default function LabsPage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-slate-950">我的申请</h3>
+            <h3 className="text-sm font-semibold text-slate-950">{localize("我的申请", "My requests")}</h3>
             <div className="mt-3 space-y-2.5">
               {mineRequests.length ? (
                 mineRequests.map((request) => {
-                  const status = requestStatusStyle(request.status);
+                  const status = requestStatusStyle(request.status, localize);
                   return (
                     <article
                       key={request.id}
@@ -1053,8 +1109,8 @@ export default function LabsPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">{request.lab.name}</p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {formatTime(request.createdAt)} 提交
-                          {request.status === "APPROVED" ? " · 你已是该实验室成员" : ""}
+                          {localize(`${formatTime(request.createdAt, locale)} 提交`, `Submitted ${formatTime(request.createdAt, locale)}`)}
+                          {request.status === "APPROVED" ? localize(" · 你已是该实验室成员", " · You are now a member of this lab") : ""}
                         </p>
                       </div>
                       <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${status.chip}`}>
@@ -1065,7 +1121,7 @@ export default function LabsPage() {
                 })
               ) : (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
-                  还没有提交过加入申请。
+                  {localize("还没有提交过加入申请。", "You have not submitted any join requests yet.")}
                 </p>
               )}
             </div>
@@ -1076,9 +1132,9 @@ export default function LabsPage() {
       <section className="app-panel overflow-hidden">
         <div className="border-b border-slate-200 px-6 py-5">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">邀请成员</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-slate-950">{localize("邀请成员", "Invite members")}</h2>
             <p className="section-copy mt-1.5 max-w-2xl text-sm">
-              负责人和管理员可以按邮箱创建邀请码；新成员在注册页选择「用邀请码加入」即可直接进入实验室，无需再建新实验室。
+              {localize("负责人和管理员可以按邮箱创建邀请码；新成员在注册页选择「用邀请码加入」即可直接进入实验室，无需再建新实验室。", "Principal investigators and administrators can create invitation codes by email. New members can choose “Join with an invitation code” during registration to enter the lab directly.")}
             </p>
           </div>
         </div>
@@ -1086,7 +1142,7 @@ export default function LabsPage() {
         <form className="grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-[1.25fr_1.25fr_0.8fr_auto] lg:items-end" onSubmit={sendInvite}>
           <div>
             <label className="field-label" htmlFor="invite-lab">
-              选择实验室
+              {localize("选择实验室", "Select lab")}
             </label>
             <select
               id="invite-lab"
@@ -1110,13 +1166,13 @@ export default function LabsPage() {
                   </option>
                 ))
               ) : (
-                <option value="">请先创建或加入实验室</option>
+                <option value="">{localize("请先创建或加入实验室", "Create or join a lab first")}</option>
               )}
             </select>
           </div>
           <div>
             <label className="field-label" htmlFor="invite-email">
-              成员邮箱
+              {localize("成员邮箱", "Member email")}
             </label>
             <input
               id="invite-email"
@@ -1131,7 +1187,7 @@ export default function LabsPage() {
           </div>
           <div>
             <label className="field-label" htmlFor="invite-role">
-              授予角色
+              {localize("授予角色", "Assign role")}
             </label>
             <select
               id="invite-role"
@@ -1140,16 +1196,16 @@ export default function LabsPage() {
               onChange={(event) => setInvite({ ...invite, role: event.target.value as AssignableRole })}
               disabled={!items.length || !canInvite}
             >
-              <option value="MEMBER">成员</option>
-              {canInviteAdmin ? <option value="ADMIN">管理员</option> : null}
+              <option value="MEMBER">{localize("成员", "Member")}</option>
+              {canInviteAdmin ? <option value="ADMIN">{localize("管理员", "Administrator")}</option> : null}
             </select>
           </div>
           <button type="submit" className="button-primary h-10 whitespace-nowrap" disabled={!items.length || !canInvite || inviting}>
-            {inviting ? "正在创建…" : "创建邀请"}
+            {inviting ? localize("正在创建…", "Creating…") : localize("创建邀请", "Create invitation")}
           </button>
           {items.length && !canInvite ? (
             <p className="md:col-span-2 lg:col-span-4 text-sm text-amber-700">
-              你不是这个实验室的负责人或管理员，无法创建邀请。
+              {localize("你不是这个实验室的负责人或管理员，无法创建邀请。", "You are not this lab's principal investigator or an administrator, so you cannot create invitations.")}
             </p>
           ) : null}
           <div className="md:col-span-2 lg:col-span-4">
@@ -1160,7 +1216,7 @@ export default function LabsPage() {
         {createdInvite ? (
           <div className="mx-5 mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
             <p className="text-sm font-semibold text-emerald-800">
-              邀请 {createdInvite.email} 加入「{createdInvite.labName}」的邀请码（7 天内有效）：
+              {localize(`邀请 ${createdInvite.email} 加入「${createdInvite.labName}」的邀请码（7 天内有效）：`, `Invitation code for ${createdInvite.email} to join “${createdInvite.labName}” (valid for 7 days):`)}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <code className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800 [overflow-wrap:anywhere]">
@@ -1172,21 +1228,21 @@ export default function LabsPage() {
                 onClick={() => void copyInviteCode(createdInvite.code)}
               >
                 <CopyIcon className="h-3.5 w-3.5" />
-                {copiedCode === createdInvite.code ? "已复制" : "复制邀请码"}
+                {copiedCode === createdInvite.code ? localize("已复制", "Copied") : localize("复制邀请码", "Copy invitation code")}
               </button>
             </div>
             <p className="mt-2 text-xs leading-5 text-emerald-700">
-              把邀请码发给对方；TA 在注册页选择「用邀请码加入」，用该邮箱注册即可直接进入实验室。
+              {localize("把邀请码发给对方；TA 在注册页选择「用邀请码加入」，用该邮箱注册即可直接进入实验室。", "Send the code to the recipient. They can choose “Join with an invitation code” during registration with this email address to enter the lab directly.")}
             </p>
           </div>
         ) : null}
 
         {canInvite && invites.length ? (
           <div className="border-t border-slate-200 px-5 py-5 md:px-6">
-            <h3 className="text-sm font-semibold text-slate-950">当前有效的邀请</h3>
+            <h3 className="text-sm font-semibold text-slate-950">{localize("当前有效的邀请", "Active invitations")}</h3>
             <ul className="mt-3 space-y-2">
               {invites.map((item) => {
-                const inviteTone = roleStyle(item.role);
+                const inviteTone = roleStyle(item.role, localize);
                 return (
                   <li
                     key={item.id}
@@ -1198,7 +1254,7 @@ export default function LabsPage() {
                       </span>
                       <span className="truncate text-sm text-slate-800">{item.email}</span>
                       {item.expiresAt ? (
-                        <span className="shrink-0 text-xs text-slate-400">{formatTime(item.expiresAt)} 过期</span>
+                        <span className="shrink-0 text-xs text-slate-400">{localize(`${formatTime(item.expiresAt, locale)} 过期`, `Expires ${formatTime(item.expiresAt, locale)}`)}</span>
                       ) : null}
                     </div>
                     <button
@@ -1207,7 +1263,7 @@ export default function LabsPage() {
                       onClick={() => void copyInviteCode(item.id)}
                     >
                       <CopyIcon className="h-3.5 w-3.5" />
-                      {copiedCode === item.id ? "已复制" : "复制邀请码"}
+                      {copiedCode === item.id ? localize("已复制", "Copied") : localize("复制邀请码", "Copy invitation code")}
                     </button>
                   </li>
                 );

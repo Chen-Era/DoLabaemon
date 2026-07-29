@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/brand/logo";
 import { AccountActions } from "@/components/common/account-actions";
+import { LanguageSwitcher } from "@/components/common/language-switcher";
+import { useLocale } from "@/components/common/locale-provider";
 import {
   AddReagentIcon,
   CloseIcon,
@@ -58,6 +60,25 @@ const pageMeta = [
   { href: "/labs", title: "实验室" },
 ] as const;
 
+function navigationLabel(href: string | undefined) {
+  switch (href) {
+    case "/labs":
+      return "Labs";
+    case "/reagents":
+      return "Reagent list";
+    case "/reagents/new":
+      return "Add reagent";
+    case "/experiment-check":
+      return "Experiment check";
+    case "/knowledge":
+      return "Experiment knowledge";
+    case "/settings":
+      return "Settings";
+    default:
+      return "Research workspace";
+  }
+}
+
 function routeMatches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -65,6 +86,7 @@ function routeMatches(pathname: string, href: string) {
 function resolvePageMeta(pathname: string) {
   return pageMeta.find((item) => routeMatches(pathname, item.href)) ?? {
     title: "科研工作台",
+    href: undefined,
   };
 }
 
@@ -77,6 +99,7 @@ function isCurrentNavItem(pathname: string, href: string) {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { localize } = useLocale();
   const pathname = usePathname() ?? "/labs";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previousPathname, setPreviousPathname] = useState(pathname);
@@ -141,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         type="button"
         className={`sidebar-backdrop ${sidebarOpen ? "is-open" : ""}`.trim()}
         onClick={() => setSidebarOpen(false)}
-        aria-label="关闭导航菜单"
+        aria-label={localize("关闭导航菜单", "Close navigation menu")}
         aria-hidden={!sidebarOpen}
         tabIndex={-1}
       />
@@ -150,7 +173,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ref={sidebarRef}
         id="dashboard-navigation"
         className={`dashboard-sidebar ${sidebarOpen ? "is-open" : ""}`.trim()}
-        aria-label="主导航"
+        aria-label={localize("主导航", "Main navigation")}
       >
         <div className="dashboard-sidebar-brand">
           <Link href="/labs" className="dashboard-brand-link" onClick={() => setSidebarOpen(false)}>
@@ -160,15 +183,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               priority
             />
           </Link>
-          <button ref={closeButtonRef} type="button" className="btn-icon sidebar-close-button" onClick={() => setSidebarOpen(false)} aria-label="关闭导航">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="btn-icon sidebar-close-button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label={localize("关闭导航", "Close navigation")}
+          >
             <CloseIcon />
           </button>
         </div>
 
-        <nav className="sidebar-nav-scroll" aria-label="功能导航">
+        <nav className="sidebar-nav-scroll" aria-label={localize("功能导航", "Feature navigation")}>
           {navGroups.map((group) => (
             <div className="sidebar-nav-group-wrap" key={group.label}>
-              <p className="sidebar-nav-group">{group.label}</p>
+              <p className="sidebar-nav-group">{localize(group.label, group.label === "实验" ? "Research" : "Management")}</p>
               <div className="sidebar-nav-list">
                 {group.items.map((item) => {
                   const active = isCurrentNavItem(pathname, item.href);
@@ -185,7 +214,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <span className="sidebar-nav-link-badge">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <span className="sidebar-nav-link-label">{item.label}</span>
+                      <span className="sidebar-nav-link-label">{localize(item.label, navigationLabel(item.href))}</span>
                     </Link>
                   );
                 })}
@@ -195,6 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="sidebar-footer">
+          <LanguageSwitcher />
           <AccountActions />
         </div>
       </aside>
@@ -211,21 +241,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : menuButtonRef.current;
                   setSidebarOpen(true);
                 }}
-                aria-label="打开导航"
+                aria-label={localize("打开导航", "Open navigation")}
                 aria-expanded={sidebarOpen}
                 aria-controls="dashboard-navigation"
               >
                 <MenuIcon />
               </button>
               <div className="min-w-0">
-                <p className="dashboard-page-title">{currentPage.title}</p>
+                <p className="dashboard-page-title">{localize(currentPage.title, navigationLabel(currentPage.href))}</p>
               </div>
             </div>
 
             <div className="dashboard-topbar-actions">
               <Link href="/reagents/new" className="dashboard-quick-add">
                 <AddReagentIcon className="h-4 w-4" />
-                <span>录入试剂</span>
+                <span>{localize("录入试剂", "Add reagent")}</span>
               </Link>
             </div>
           </div>

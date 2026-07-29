@@ -47,13 +47,15 @@ flowchart LR
 
 ### 它能做什么
 
-#### 用库存检查实验准备
+#### 从库存记录到实验就绪
 
-系统会保存库存数量，并根据试剂标签、抗体靶点和引物信息核对实验要求。当前规则覆盖 WB、qPCR、IF、ELISA、FLOW，以及自噬和外泌体的相关判断。
+先选择一项已发布的具体末级技术，可按中英文名称、编号或别名检索；需要时也可以使用 AI 模糊匹配。系统把技术规则、可选实验方案和研究主题/通路规则合并检查。只有与该技术相容、且已有具体规则的主题才会显示，避免把没有依据的组合误判为可执行。
+
+检查范围包括试剂、耗材、仪器、样本、对照和软件。试剂会根据库存与能力标签自动核验；其余资源需要研究人员确认。结果会明确标为“可开始”“缺少必需项”或“仍待确认”；没有发布规则、资源维度不完整的技术不会给出可开始的结果。
 
 #### AI 整理，人工确认
 
-填写试剂名称或货号后，系统会生成结构化解析草稿。配置模型和搜索服务后，还可以联网核对并自检。入库前仍需人工确认，不能直接把自动生成的内容当作实验记录。
+填写试剂名称或货号后，系统会生成结构化解析草稿。也可以粘贴表格或上传、粘贴试剂清单图片，先转成可编辑文本再批量解析。配置模型和搜索服务后，还可以联网核对并自检。入库前仍需逐条确认，自动生成的内容不会直接成为实验记录。
 
 #### 维护规则和知识
 
@@ -68,7 +70,7 @@ Web 应用使用 Next.js，桌面端使用 Electron，两端共享一个项目�
 | 功能 | 说明 |
 | --- | --- |
 | 试剂库存 | 新建、编辑和删除试剂记录；按名称、货号、标签或靶点筛选；支持库存增减、批量删除和复制导出。 |
-| 实验可行性判断 | 根据库存检查实验的必需项与推荐项，并说明缺失的材料。 |
+| 实验资源检查 | 选择具体技术、实验方案和可选的研究主题/通路，同时检查方法需求与主题规则。试剂按库存自动核验；耗材、仪器、样本、对照和软件由用户确认。 |
 | 知识维护 | 可配置 Skill 与 MCP 服务；AI 解析会保留自检记录，并可按实验室策略启用知识自动写回。 |
 | 多实验室协作 | 实验室内成员共享库存；实验室之间的数据相互隔离。PI 和管理员可以邀请成员。 |
 
@@ -144,6 +146,12 @@ REAGENT_SEARCH_ENABLED="false"
 
 完整的默认值和说明见 [`.env.example`](.env.example)。不要将包含真实密钥的 `.env` 提交到仓库。
 
+#### 实验室公用模型
+
+在数据库模式下，PI 和管理员可在“模型与联网配置”中为各自的实验室保存公用模型。模型的生效顺序是：个人 API Key、当前实验室公用模型、服务器默认模型。成员没有个人 API Key 时可直接使用本实验室的配置；一个实验室的公用模型不会影响其他实验室。
+
+启用这项功能前，服务器必须配置 `LAB_LLM_CONFIG_ENCRYPTION_KEY`。它只保存在服务器环境变量中，用于以 AES-256-GCM 加密公用 API Key；数据库和浏览器不会获得明文。请为它生成独立的随机值，具体部署步骤见[服务器部署文档](docs/deployment-server.md)。
+
 ### 技术栈
 
 - Next.js 16、React 19、TypeScript 5 与 Tailwind CSS 4
@@ -217,11 +225,13 @@ flowchart LR
 
 #### From inventory records to experiment readiness
 
-The system stores more than inventory quantities. It checks experiment requirements using reagent tags, antibody targets, and primer information. Current rules cover WB, qPCR, IF, ELISA, and FLOW, with additional checks for autophagy and exosome work.
+Start by choosing a published, concrete leaf technique, searchable by its Chinese or English name, code, or alias. AI fuzzy matching is also available when needed. The system combines technique rules, optional experimental profiles, and research-topic or pathway rules. A topic appears only when it is compatible with the technique and has concrete rules, so unsupported combinations are not presented as ready to run.
+
+Checks cover reagents, consumables, instruments, samples, controls, and software. Reagents are verified automatically against inventory and capability tags; researchers confirm the other resources. The result is explicit: ready, blocked by a required item, or awaiting confirmation. A technique without published rules or complete resource coverage can never receive a ready result.
 
 #### AI organizes, people confirm
 
-After a reagent name or catalog number is entered, the system can generate a structured parsing draft. With model and search services configured, it can also run online verification and self-checks. The result still requires confirmation before it enters the inventory, so generated content does not become an experiment record automatically.
+After a reagent name or catalog number is entered, the system can generate a structured parsing draft. Paste a table, upload a reagent-list image, or paste an image from the clipboard to turn it into editable text before batch parsing. With model and search services configured, it can also run online verification and self-checks. Each result still needs confirmation before it enters the inventory, so generated content does not become an experiment record automatically.
 
 #### Maintainable rules and knowledge
 
@@ -236,7 +246,7 @@ The web application uses Next.js and the desktop client uses Electron. Both use 
 | Feature | Description |
 | --- | --- |
 | Reagent inventory | Create, edit, and delete reagent records. Filter by name, catalog number, tag, or target. Adjust quantities, delete in batches, and copy or export selected records. |
-| Experiment-readiness checks | Check required and recommended items against inventory and identify missing materials. |
+| Experiment resource checks | Select a concrete technique, experimental profile, and optional research topic or pathway. Method requirements and topic rules are checked together; reagents are verified against inventory while consumables, instruments, samples, controls, and software are confirmed by the user. |
 | Knowledge maintenance | Configure Skills and MCP services. AI parsing keeps self-check records, and knowledge write-back can be enabled by laboratory policy. |
 | Multi-laboratory collaboration | Members share inventory within a laboratory, while data is isolated between laboratories. PIs and administrators can invite members. |
 
@@ -311,6 +321,12 @@ This configuration uses `mimo-2.5-pro` for text and `mimo-2.5` for images. It di
 | `HERMES_KNOWLEDGE_EXPORT_PATH` | Path to Hermes-exported JSONL. |
 
 See [`.env.example`](.env.example) for complete defaults and notes. Do not commit an `.env` file that contains real keys.
+
+#### Laboratory shared models
+
+In database mode, PIs and administrators can save a shared model for their laboratory in **Model & Online Configuration**. Configuration takes effect in this order: a personal API key, the current laboratory's shared model, then the server default. Members without a personal API key can use their laboratory's configuration directly, and a shared model never affects another laboratory.
+
+Before enabling this feature, configure `LAB_LLM_CONFIG_ENCRYPTION_KEY` on the server. It stays only in the server environment and encrypts shared API keys with AES-256-GCM; neither the database nor the browser receives plaintext. Generate a separate random value for it and follow the [server deployment guide](docs/deployment-server.md) for the deployment steps.
 
 ### Tech stack
 

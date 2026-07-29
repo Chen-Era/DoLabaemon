@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { AlertIcon } from "@/components/common/app-icons";
+import { useLocale } from "@/components/common/locale-provider";
 
 type ConfirmDialogProps = {
   title: string;
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { localize } = useLocale();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export function ConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="关闭对话框"
+        aria-label={localize("关闭对话框", "Close dialog")}
         className="absolute inset-0 cursor-default bg-slate-900/45"
         onClick={busy ? undefined : onCancel}
       />
@@ -64,7 +66,7 @@ export function ConfirmDialog({
             {cancelLabel}
           </button>
           <button type="button" className="button-danger" onClick={onConfirm} disabled={busy}>
-            {busy ? "处理中..." : confirmLabel}
+            {busy ? localize("处理中...", "Working...") : confirmLabel}
           </button>
         </div>
       </div>

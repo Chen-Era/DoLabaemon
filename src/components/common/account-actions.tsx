@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
+import { useLocale } from "@/components/common/locale-provider";
 
 async function clearLocalSession() {
   await fetch("/api/auth/demo-logout", {
@@ -12,6 +13,7 @@ async function clearLocalSession() {
 }
 
 export function AccountActions() {
+  const { localize } = useLocale();
   const [busy, setBusy] = useState<"switch" | "logout" | null>(null);
 
   async function handleAction(mode: "switch" | "logout") {
@@ -24,14 +26,14 @@ export function AccountActions() {
   }
 
   return (
-    <div className="account-actions" aria-label="账户操作" aria-busy={busy !== null}>
+    <div className="account-actions" aria-label={localize("账户操作", "Account actions")} aria-busy={busy !== null}>
       <button
         type="button"
         className="button-secondary"
         disabled={busy !== null}
         onClick={() => handleAction("switch")}
       >
-        {busy === "switch" ? "切换中..." : "切换账号"}
+        {busy === "switch" ? localize("切换中...", "Switching...") : localize("切换账号", "Switch account")}
       </button>
       <button
         type="button"
@@ -39,7 +41,7 @@ export function AccountActions() {
         disabled={busy !== null}
         onClick={() => handleAction("logout")}
       >
-        {busy === "logout" ? "退出中..." : "退出登录"}
+        {busy === "logout" ? localize("退出中...", "Signing out...") : localize("退出登录", "Sign out")}
       </button>
     </div>
   );
