@@ -149,7 +149,7 @@ export default function KnowledgePage() {
                 实验技术知识库
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                335 项湿实验与仪器技术，覆盖资源、流程、QC、安全、证据和实验室修订治理。
+                收录 335 项湿实验和仪器技术，包含资源要求、操作流程、质量控制、安全信息、证据和修订记录。
               </p>
             </div>
           </div>
@@ -799,14 +799,14 @@ function AuditLog({
         <div>
           <h2 className="text-xl font-semibold text-slate-950">变更审计</h2>
           <p className="mt-1 text-sm text-slate-600">
-            发布与回滚均产生不可变修订和实验室审计记录。
+            每次发布或回滚都会生成不可修改的修订和实验室审计记录。
           </p>
         </div>
         <input
           className="input-base md:w-72"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索实体、流程或状态"
+          placeholder="按实体、流程或状态搜索"
         />
       </div>
       <div className="divide-y divide-slate-200">

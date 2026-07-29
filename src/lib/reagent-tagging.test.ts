@@ -127,3 +127,33 @@ test("tags protein markers and common chemical uses without treating every mediu
   assert.ok(mountingMedium.experimentTags.includes("MOUNTING_MEDIUM"));
   assert.ok(dmem.experimentTags.includes("CELL_CULTURE_MEDIUM"));
 });
+
+test("classifies the reusable capability tags used by technique readiness", () => {
+  const ficoll = buildHeuristicParse("Ficoll-Paque PLUS density gradient medium");
+  const collagenase = buildHeuristicParse("Collagenase type I tissue dissociation enzyme");
+  const qpcrProbe = buildHeuristicParse("TaqMan qPCR hydrolysis probe");
+  const elisaCapture = buildHeuristicParse("Human IL-6 ELISA capture antibody");
+  const flowPanel = buildHeuristicParse("CD3/CD4/CD8 flow cytometry antibody panel");
+
+  assert.ok(ficoll.experimentTags.includes("DENSITY_GRADIENT_MEDIUM"));
+  assert.ok(collagenase.experimentTags.includes("TISSUE_DISSOCIATION_ENZYME"));
+  assert.ok(qpcrProbe.experimentTags.includes("QPCR_PROBE"));
+  assert.ok(elisaCapture.experimentTags.includes("ELISA_CAPTURE_ANTIBODY"));
+  assert.ok(flowPanel.experimentTags.includes("FLOW_ANTIBODY_PANEL"));
+});
+
+test("classifies the new cross-domain reagent tags used by detailed baseline checklists", () => {
+  const anticoagulant = buildHeuristicParse("K2 EDTA anticoagulant blood collection tube");
+  const histology = buildHeuristicParse("Hematoxylin and eosin staining solution");
+  const viability = buildHeuristicParse("MTT cell viability assay kit");
+  const microbial = buildHeuristicParse("LB agar microbial culture medium");
+  const library = buildHeuristicParse("Illumina library preparation kit");
+  const analgesic = buildHeuristicParse("Buprenorphine analgesic solution");
+
+  assert.ok(anticoagulant.experimentTags.includes("ANTICOAGULANT_REAGENT"));
+  assert.ok(histology.experimentTags.includes("HISTOLOGY_STAIN_REAGENT"));
+  assert.ok(viability.experimentTags.includes("CELL_VIABILITY_ASSAY_REAGENT"));
+  assert.ok(microbial.experimentTags.includes("MICROBIAL_CULTURE_MEDIUM"));
+  assert.ok(library.experimentTags.includes("LIBRARY_PREPARATION_REAGENT"));
+  assert.ok(analgesic.experimentTags.includes("ANALGESIC_REAGENT"));
+});

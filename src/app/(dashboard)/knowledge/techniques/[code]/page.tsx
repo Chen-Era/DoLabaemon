@@ -242,7 +242,7 @@ export default async function TechniqueDetailPage({
           </section>
 
           <section className="app-panel p-5">
-            <h2 className="text-lg font-semibold text-slate-950">关键参数类别</h2>
+            <h2 className="text-lg font-semibold text-slate-950">需要记录的关键参数</h2>
             <div className="mt-4 space-y-3">
               {technique.keyParameters.map((parameter) => (
                 <div key={parameter.id} className="border-l-2 border-teal-500 pl-3">

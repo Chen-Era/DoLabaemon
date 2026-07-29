@@ -30,9 +30,9 @@ retrieveReagentKnowledgeRuntime()（src/lib/reagent-knowledge/runtime.ts）
 - 导入按行独立：合法行入库，坏行只记录行号与原因，不阻塞整批。
 - 重复导入幂等：按 `id` upsert；Hermes 条目统一 `hermes-` 前缀（缺失时导入器规范化后补上），与内置条目（无前缀）和学习条目（`reagent-` 前缀）天然区分。
 
-## 校验门（hermes-import.ts）
+## 校验步骤（hermes-import.ts）
 
-每行依次过五道闸，任何一道失败即拒收（`{ line, error }`）：
+每行会依次经过以下五项检查，任一项失败都会被拒绝（`{ line, error }`）：
 
 1. 非空行 + 合法 JSON（空行与文件末尾换行直接跳过，不计拒绝）。
 2. zod schema：`category` 必须命中 `reagentCategoryValues`（8 值）；`experimentTags` 必须全部命中 `rules/catalog.ts` 的 62 个枚举；`evidenceType` 仅 `exact_alias` / `pattern` / `keyword_family`；`confidenceHint` 在 0~1；`aliases` 至少 1 个。
@@ -56,7 +56,7 @@ retrieveReagentKnowledgeRuntime()（src/lib/reagent-knowledge/runtime.ts）
 - 实验归一：`retrievalConfidence ≥ 0.82` 时直接采用知识匹配短路（`src/lib/experiment/resolve.ts`）。
 - 兜底解析：有命中条目时解析置信度至少 0.86（`src/lib/reagent-tagging.ts`）。
 
-因此 Hermes 条目的别名质量是命门：一条覆盖中英文别名与货号写法的条目，一次精确别名命中即可把检索置信度顶到 0.98，让主流程在多数情况下无需再依赖联网核验；反之只有学名的条目几乎不起作用。这也是 curator skill 把"别名覆盖"列为质量红线的原因。
+Hermes 条目需要包含可靠的别名。一条覆盖中英文别名和货号写法的条目，精确别名命中时可使检索置信度达到 0.98，主流程在多数情况下无需再联网核验。只有学名的条目通常难以命中，这也是 curator skill 要求覆盖别名的原因。
 
 ## reagent-parser skill 的位置
 

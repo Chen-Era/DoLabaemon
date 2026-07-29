@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { evaluateTechniqueReadiness } from "@/lib/experiment-techniques/check";
 import { repositoryTechniqueByCode } from "@/lib/experiment-techniques/catalog";
 import { experimentTechniqueSchema } from "@/lib/experiment-techniques/types";
+import { experimentTags } from "@/lib/rules/catalog";
 import type {
   ExperimentTechnique,
   TechniqueRequirement,
@@ -23,15 +24,14 @@ function leafFixture(code: string = BASE_CODE): ExperimentTechnique {
   return clone;
 }
 
-/** Inventory that satisfies every AUTO_INVENTORY requirement via capabilityTags. */
+/** Inventory that satisfies every AUTO_INVENTORY requirement via canonical reagent tags. */
 function makeInventory(requirements: TechniqueRequirement[]): InventoryCapability[] {
   return requirements
     .filter((requirement) => requirement.verificationMode === "AUTO_INVENTORY")
     .map((requirement) => ({
       id: `inv-${requirement.id}`,
       name: requirement.matcherValues[0] ?? requirement.label.en,
-      capabilityTags: [...requirement.capabilityTags],
-      searchableValues: [...requirement.matcherValues],
+      experimentTags: [...requirement.capabilityTags],
     }));
 }
 
@@ -139,6 +139,98 @@ describe("evaluateTechniqueReadiness status matrix", () => {
     assert.equal(result.status, "NEEDS_CONFIRMATION");
     const item = result.items.find((entry) => entry.requirementId === withheld);
     assert.equal(item?.state, "UNCONFIRMED");
+  });
+});
+
+describe("canonical reagent capability tags", () => {
+  it("uses only the shared reagent tag vocabulary for automatic inventory checks", () => {
+    const knownTags = new Set(experimentTags);
+    for (const technique of repositoryTechniqueByCode.values()) {
+      for (const requirement of [
+        ...technique.requirements,
+        ...technique.profiles.flatMap((profile) => profile.additionalRequirements),
+      ]) {
+        for (const tag of requirement.capabilityTags) {
+          assert.ok(knownTags.has(tag), `${technique.code} references unknown reagent tag ${tag}`);
+        }
+        if (requirement.verificationMode === "AUTO_INVENTORY" && requirement.kind === "REAGENT") {
+          assert.ok(requirement.capabilityTags.length > 0, `${technique.code} auto requirement needs a canonical tag`);
+        }
+      }
+    }
+  });
+
+  it("matches a real qPCR inventory tag without using category or free-text fallback", () => {
+    const technique = leafFixture("QPCR");
+    const requirements = technique.requirements;
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: requirements
+        .filter((requirement) => requirement.verificationMode === "AUTO_INVENTORY")
+        .map((requirement, index) => ({
+          id: `qpcr-${index}`,
+          name: requirement.label.zh,
+          experimentTags: [...requirement.capabilityTags],
+        })),
+      confirmedRequirementIds: manualConfirmationIds(requirements),
+    });
+    assert.equal(result.status, "READY");
+  });
+
+  it("does not treat an untagged similarly named inventory item as a reagent match", () => {
+    const technique = leafFixture("QPCR");
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: [{ id: "untagged", name: "qPCR amplification chemistry", experimentTags: [] }],
+      confirmedRequirementIds: manualConfirmationIds(technique.requirements),
+    });
+    assert.equal(result.status, "BLOCKED");
+  });
+
+  it("gives every leaf technique a multi-item reagent checklist with an automatic inventory check", () => {
+    for (const technique of repositoryTechniqueByCode.values()) {
+      if (technique.isAbstract) continue;
+      const reagents = technique.requirements.filter(
+        (requirement) => requirement.kind === "REAGENT",
+      );
+      assert.ok(
+        reagents.length >= 3,
+        `${technique.code} must have at least three reagent requirements`,
+      );
+      assert.ok(
+        reagents.some(
+          (requirement) =>
+            requirement.verificationMode === "AUTO_INVENTORY" &&
+            requirement.capabilityTags.length > 0,
+        ),
+        `${technique.code} must retain at least one canonical automatic reagent check`,
+      );
+    }
+  });
+
+  it("keeps representative qPCR, flow, and immunofluorescence requirements specific", () => {
+    const reagentTags = (code: string) => {
+      const technique = leafFixture(code);
+      return new Set(
+        technique.requirements
+          .filter((requirement) => requirement.kind === "REAGENT")
+          .flatMap((requirement) => requirement.capabilityTags),
+      );
+    };
+
+    const qpcrTags = reagentTags("QPCR");
+    for (const tag of ["QPCR_MASTER_MIX", "PCR_PRIMER_SET", "NUCLEASE_FREE_WATER"]) {
+      assert.ok(qpcrTags.has(tag), `QPCR must require ${tag}`);
+    }
+
+    const flowTags = reagentTags("FLOW");
+    for (const tag of ["FLOW_ANTIBODY_PANEL", "FLOW_STAIN_BUFFER", "FLOW_VIABILITY_DYE"]) {
+      assert.ok(flowTags.has(tag), `FLOW must require ${tag}`);
+    }
+
+    const ifTags = reagentTags("IF");
+    assert.ok(ifTags.has("FIXATIVE"), "IF must include a fixative check");
+    assert.ok(ifTags.has("MOUNTING_MEDIUM"), "IF must include a mounting-medium check");
   });
 });
 

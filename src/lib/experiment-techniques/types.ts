@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { techniqueCategoryCodes } from "@/lib/experiment-techniques/data/blueprint";
+import { reagentCapabilityTags } from "@/lib/rules/catalog";
 
 export const techniqueStatusValues = ["DRAFT", "IN_REVIEW", "PUBLISHED", "DEPRECATED"] as const;
 export const techniqueSourceValues = ["SYSTEM", "CURATED", "AI_DRAFT"] as const;
@@ -40,7 +41,7 @@ export const techniqueRequirementSchema = z.object({
   level: z.enum(requirementLevelValues),
   verificationMode: z.enum(verificationModeValues),
   label: localizedLabelSchema,
-  capabilityTags: z.array(z.string().trim().min(1)).default([]),
+  capabilityTags: z.array(z.enum(reagentCapabilityTags)).default([]),
   matcherValues: z.array(z.string().trim().min(1)).default([]),
   condition: localizedLabelSchema.optional(),
 });

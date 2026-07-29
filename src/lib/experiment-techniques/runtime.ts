@@ -14,8 +14,10 @@ import {
   type LocalizedLabel,
   type TechniqueRequirement,
 } from "@/lib/experiment-techniques/types";
+import { resolveTechniqueReagentCapability } from "@/lib/experiment-techniques/reagent-capabilities";
 import { isDemoMode } from "@/lib/demo-mode";
 import { prisma } from "@/lib/prisma";
+import { isReagentCapabilityTag } from "@/lib/rules/catalog";
 
 type DbTechniqueWithRelations = DbExperimentTechnique & {
   requirements: DbTechniqueRequirement[];
@@ -35,14 +37,26 @@ function localized(value: unknown): LocalizedLabel {
 }
 
 function requirementFromDb(requirement: DbTechniqueRequirement): TechniqueRequirement {
+  const hasOnlyCanonicalTags = requirement.capabilityTags.every(isReagentCapabilityTag);
+  const legacyCapability = hasOnlyCanonicalTags
+    ? null
+    : requirement.capabilityTags.length === 1
+      ? resolveTechniqueReagentCapability(requirement.capabilityTags[0])
+      : {
+          verificationMode: "MANUAL_CONFIRMATION" as const,
+          capabilityTags: [],
+          matcherValues: requirement.capabilityTags,
+        };
   return {
     id: requirement.id,
     kind: requirement.kind,
     level: requirement.level,
-    verificationMode: requirement.verificationMode,
+    verificationMode: legacyCapability?.verificationMode ?? requirement.verificationMode,
     label: { zh: requirement.labelZh, en: requirement.labelEn },
-    capabilityTags: requirement.capabilityTags,
-    matcherValues: requirement.matcherValues,
+    capabilityTags: legacyCapability?.capabilityTags ?? requirement.capabilityTags.filter(isReagentCapabilityTag),
+    matcherValues: legacyCapability?.matcherValues.length
+      ? legacyCapability.matcherValues
+      : requirement.matcherValues,
     condition: requirement.condition ? localized(requirement.condition) : undefined,
   };
 }

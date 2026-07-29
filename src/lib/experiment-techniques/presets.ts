@@ -10,6 +10,8 @@ import type {
   TechniqueProfile,
   TechniqueRequirement,
 } from "@/lib/experiment-techniques/types";
+import { resolveTechniqueReagentCapability } from "@/lib/experiment-techniques/reagent-capabilities";
+import type { ExperimentTag } from "@/lib/rules/catalog";
 
 type PresetDefinition = {
   workflow: Array<[string, string]>;
@@ -389,6 +391,172 @@ function preset(
   };
 }
 
+type PresetReagentRequirement = {
+  key: string;
+  label: [string, string];
+  capabilityTags: ExperimentTag[];
+  level: "REQUIRED" | "RECOMMENDED";
+};
+
+function taggedReagent(
+  key: string,
+  label: [string, string],
+  capabilityTags: ExperimentTag[],
+  level: "REQUIRED" | "RECOMMENDED" = "RECOMMENDED",
+): PresetReagentRequirement {
+  return { key, label, capabilityTags, level };
+}
+
+function manualReagent(
+  key: string,
+  label: [string, string],
+  level: "REQUIRED" | "RECOMMENDED" = "REQUIRED",
+): PresetReagentRequirement {
+  return taggedReagent(key, label, [], level);
+}
+
+// These are the baseline reagent sets for techniques whose source blueprint
+// does not yet name every material. They keep the check useful without
+// pretending that a broad category or a name substring proves compatibility.
+// A blueprint's own reagentCapabilities are merged ahead of these entries.
+const presetReagentRequirements: Record<TechniquePresetCode, PresetReagentRequirement[]> = {
+  SAMPLE_PREPARATION: [
+    manualReagent("processing", ["样本处理或稳定化试剂", "Sample-processing or stabilization reagent"]),
+    taggedReagent("preservation", ["样本保存试剂", "Sample preservation reagent"], ["SAMPLE_PRESERVATION_REAGENT"]),
+    taggedReagent("disinfection", ["污染控制/消毒试剂", "Contamination-control or disinfection reagent"], ["DISINFECTION_REAGENT"]),
+  ],
+  CELL_CULTURE: [
+    taggedReagent("medium", ["适配的细胞培养基", "Compatible cell-culture medium"], ["CELL_CULTURE_MEDIUM"], "REQUIRED"),
+    taggedReagent("serum", ["血清或定义补充物", "Serum or defined supplement"], ["SERUM_SUPPLEMENT"], "REQUIRED"),
+    taggedReagent("mycoplasma", ["支原体检测或监测体系", "Mycoplasma testing or monitoring reagent"], ["MYCOPLASMA_TEST_REAGENT"]),
+  ],
+  TISSUE_MODEL: [
+    taggedReagent("medium", ["模型培养基", "Model-culture medium"], ["CELL_CULTURE_MEDIUM"], "REQUIRED"),
+    taggedReagent("matrix", ["细胞外基质包被或支撑材料", "Extracellular-matrix coating or support"], ["ECM_COATING_REAGENT"], "REQUIRED"),
+    taggedReagent("matrix-gel", ["三维基质或干细胞基质", "Three-dimensional or stem-cell matrix"], ["STEM_CELL_MATRIX"]),
+  ],
+  NUCLEIC_ACID_EXTRACTION: [
+    manualReagent("extraction", ["与目标核酸匹配的提取/纯化体系", "Extraction or purification chemistry matched to the target nucleic acid"]),
+    taggedReagent("water", ["无核酸酶水", "Nuclease-free water"], ["NUCLEASE_FREE_WATER"]),
+    taggedReagent("dnase", ["去除基因组DNA的DNase（按需）", "DNase for genomic-DNA removal when applicable"], ["DNASE_REAGENT"]),
+  ],
+  PCR_AMPLIFICATION: [
+    taggedReagent("primers", ["目标特异性引物组", "Target-specific primer set"], ["PCR_PRIMER_SET"], "REQUIRED"),
+    taggedReagent("water", ["无核酸酶水", "Nuclease-free water"], ["NUCLEASE_FREE_WATER"], "REQUIRED"),
+    taggedReagent("dntp", ["dNTP混合液", "dNTP mix"], ["DNTP_MIX"]),
+  ],
+  MOLECULAR_CLONING: [
+    manualReagent("assembly", ["与构建策略匹配的组装/克隆试剂", "Assembly or cloning chemistry matched to the construct strategy"]),
+    taggedReagent("polymerase", ["DNA聚合酶（按需）", "DNA polymerase when applicable"], ["DNA_POLYMERASE"]),
+    taggedReagent("water", ["无核酸酶水", "Nuclease-free water"], ["NUCLEASE_FREE_WATER"]),
+  ],
+  GENE_DELIVERY: [
+    taggedReagent("medium", ["受体细胞培养基", "Recipient-cell culture medium"], ["CELL_CULTURE_MEDIUM"], "REQUIRED"),
+    taggedReagent("delivery", ["递送试剂或载体", "Delivery reagent or vector"], ["GENE_DELIVERY_REAGENT"], "REQUIRED"),
+    taggedReagent("selection", ["选择抗生素（按需）", "Selection antibiotic when applicable"], ["SELECTION_ANTIBIOTIC"]),
+  ],
+  GENE_EDITING: [
+    taggedReagent("delivery", ["编辑组分递送试剂", "Editing-component delivery reagent"], ["GENE_DELIVERY_REAGENT"], "REQUIRED"),
+    taggedReagent("primers", ["基因分型引物组", "Genotyping primer set"], ["PCR_PRIMER_SET"]),
+    taggedReagent("polymerase", ["基因分型DNA聚合酶", "Genotyping DNA polymerase"], ["DNA_POLYMERASE"]),
+  ],
+  NUCLEIC_ACID_HYBRIDIZATION: [
+    manualReagent("probe", ["标记探针和杂交体系", "Labeled probe and hybridization chemistry"]),
+    taggedReagent("water", ["无核酸酶水", "Nuclease-free water"], ["NUCLEASE_FREE_WATER"]),
+    taggedReagent("blocking", ["封闭或背景抑制试剂", "Blocking or background-suppression reagent"], ["BLOCKING_REAGENT"]),
+  ],
+  PROTEIN_ANALYSIS: [
+    manualReagent("detection", ["与检测格式匹配的蛋白分析/检测试剂", "Protein-analysis or detection reagent matched to the assay format"]),
+    taggedReagent("lysis", ["蛋白裂解或样本制备试剂", "Protein lysis or sample-preparation reagent"], ["WB_LYSIS_BUFFER"]),
+    taggedReagent("quantification", ["蛋白定量试剂", "Protein-quantification reagent"], ["PROTEIN_QUANTIFICATION_REAGENT"]),
+  ],
+  IMMUNOASSAY: [
+    manualReagent("binding", ["与分析物匹配的结合/检测试剂", "Analyte-matched binding or detection reagent"]),
+    taggedReagent("blocking", ["免疫检测封闭试剂", "Immunoassay blocking reagent"], ["BLOCKING_REAGENT"]),
+    taggedReagent("wash", ["免疫检测洗涤缓冲液", "Immunoassay wash buffer"], ["ELISA_WASH_BUFFER"]),
+  ],
+  PROTEIN_PURIFICATION: [
+    manualReagent("matrix", ["与目标蛋白匹配的纯化介质/亲和材料", "Purification matrix or affinity material matched to the target protein"]),
+    taggedReagent("protease", ["蛋白酶抑制剂", "Protease inhibitor"], ["PROTEASE_INHIBITOR"]),
+    taggedReagent("quantification", ["蛋白定量试剂", "Protein-quantification reagent"], ["PROTEIN_QUANTIFICATION_REAGENT"]),
+  ],
+  MICROSCOPY: [
+    manualReagent("label", ["与成像模式匹配的标记或染色试剂", "Labeling or staining reagent matched to the imaging mode"]),
+    taggedReagent("fixative", ["固定液（固定样本时）", "Fixative for fixed specimens"], ["FIXATIVE"]),
+    taggedReagent("mounting", ["封片/抗淬灭介质（按需）", "Mounting or antifade medium when applicable"], ["MOUNTING_MEDIUM"]),
+  ],
+  HISTOLOGY: [
+    taggedReagent("fixative", ["组织固定液", "Tissue fixative"], ["FIXATIVE"], "REQUIRED"),
+    taggedReagent("stain", ["组织学染色试剂", "Histology staining reagent"], ["HISTOLOGY_STAIN_REAGENT"], "REQUIRED"),
+    taggedReagent("mounting", ["封片介质", "Mounting medium"], ["MOUNTING_MEDIUM"]),
+  ],
+  FLOW_CYTOMETRY: [
+    taggedReagent("panel", ["流式抗体面板", "Flow-cytometry antibody panel"], ["FLOW_ANTIBODY_PANEL"], "REQUIRED"),
+    taggedReagent("buffer", ["流式染色缓冲液", "Flow staining buffer"], ["FLOW_STAIN_BUFFER"], "REQUIRED"),
+    taggedReagent("viability", ["活死染料", "Viability dye"], ["FLOW_VIABILITY_DYE"]),
+  ],
+  CELL_BASED_ASSAY: [
+    taggedReagent("medium", ["细胞培养基", "Cell-culture medium"], ["CELL_CULTURE_MEDIUM"], "REQUIRED"),
+    taggedReagent("viability", ["细胞活力/功能检测试剂", "Cell-viability or functional-assay reagent"], ["CELL_VIABILITY_ASSAY_REAGENT"]),
+    taggedReagent("stain", ["细胞染色或读出试剂（按需）", "Cell-staining or readout reagent when applicable"], ["CELL_STAIN_REAGENT"]),
+  ],
+  MICROBIAL_CULTURE: [
+    taggedReagent("medium", ["微生物培养基", "Microbial culture medium"], ["MICROBIAL_CULTURE_MEDIUM"], "REQUIRED"),
+    taggedReagent("selection", ["选择性抗菌试剂（按需）", "Selective antimicrobial reagent when applicable"], ["SELECTION_ANTIBIOTIC"]),
+    taggedReagent("stain", ["微生物染色或读出试剂（按需）", "Microbial staining or readout reagent when applicable"], ["CELL_STAIN_REAGENT"]),
+  ],
+  INFECTION_ASSAY: [
+    manualReagent("agent", ["经鉴定的感染/干预试剂", "Identified infection or intervention reagent"]),
+    taggedReagent("cell-medium", ["宿主细胞培养基（按需）", "Host-cell culture medium when applicable"], ["CELL_CULTURE_MEDIUM"]),
+    taggedReagent("microbial-medium", ["微生物培养基（按需）", "Microbial culture medium when applicable"], ["MICROBIAL_CULTURE_MEDIUM"]),
+  ],
+  SPECTROSCOPY: [
+    manualReagent("reference", ["与测量模式匹配的参考/显色/荧光试剂", "Reference, chromogenic, or fluorescent reagent matched to the measurement mode"]),
+    taggedReagent("calibration", ["校准标准品", "Calibration standard"], ["CALIBRATION_STANDARD"]),
+    taggedReagent("internal-standard", ["内标或加标参考物（按需）", "Internal standard or spike-in reference when applicable"], ["INTERNAL_STANDARD"]),
+  ],
+  CHROMATOGRAPHY: [
+    manualReagent("mobile-phase", ["与分离模式匹配的流动相/缓冲液", "Mobile phase or buffer matched to the separation mode"]),
+    taggedReagent("calibration", ["校准标准品", "Calibration standard"], ["CALIBRATION_STANDARD"]),
+    taggedReagent("solvent", ["分析级溶剂", "Analytical-grade solvent"], ["SOLVENT_REAGENT"]),
+  ],
+  MASS_SPECTROMETRY: [
+    manualReagent("preparation", ["与离子化模式匹配的制样/基质试剂", "Sample-preparation or matrix reagent matched to the ionization mode"]),
+    taggedReagent("internal-standard", ["内标", "Internal standard"], ["INTERNAL_STANDARD"]),
+    taggedReagent("solvent", ["质谱级溶剂", "Mass-spectrometry-grade solvent"], ["SOLVENT_REAGENT"]),
+  ],
+  BIOPHYSICAL_MEASUREMENT: [
+    manualReagent("measurement", ["与测量平台匹配的缓冲液或结合试剂", "Buffer or binding reagent matched to the measurement platform"]),
+    taggedReagent("calibration", ["校准标准品", "Calibration standard"], ["CALIBRATION_STANDARD"]),
+    taggedReagent("internal-standard", ["内标或参考物（按需）", "Internal standard or reference material when applicable"], ["INTERNAL_STANDARD"]),
+  ],
+  SEQUENCING: [
+    taggedReagent("library", ["文库制备试剂", "Library-preparation reagent"], ["LIBRARY_PREPARATION_REAGENT"], "REQUIRED"),
+    taggedReagent("run", ["测序上机试剂", "Sequencing-run reagent"], ["SEQUENCING_RUN_REAGENT"], "REQUIRED"),
+    taggedReagent("index", ["索引引物或接头", "Indexing primer or adapter"], ["INDEXING_PRIMER"]),
+  ],
+  OMICS_SAMPLE_PREP: [
+    manualReagent("extraction", ["与组学分析物匹配的提取/制备试剂", "Extraction or preparation chemistry matched to the omics analyte"]),
+    taggedReagent("labeling", ["组学标记或衍生化试剂", "Omics-labeling or derivatization reagent"], ["OMICS_LABELING_REAGENT"]),
+    taggedReagent("internal-standard", ["内标或加标参考物", "Internal standard or spike-in reference"], ["INTERNAL_STANDARD"]),
+  ],
+  STRUCTURAL_ANALYSIS: [
+    manualReagent("stabilization", ["结构稳定缓冲液或制样试剂", "Structure-stabilizing buffer or specimen-preparation reagent"]),
+    taggedReagent("calibration", ["校准标准品", "Calibration standard"], ["CALIBRATION_STANDARD"]),
+    taggedReagent("solvent", ["高纯度溶剂/缓冲液组分", "High-purity solvent or buffer component"], ["SOLVENT_REAGENT"]),
+  ],
+  ANIMAL_PROCEDURE: [
+    manualReagent("intervention", ["与动物操作匹配的干预或给药试剂", "Intervention or administration reagent matched to the animal procedure"]),
+    taggedReagent("anesthesia", ["麻醉剂（按需）", "Anesthetic when applicable"], ["ANESTHETIC_REAGENT"]),
+    taggedReagent("analgesia", ["镇痛剂（按需）", "Analgesic when applicable"], ["ANALGESIC_REAGENT"]),
+  ],
+  FIELD_SAMPLING: [
+    manualReagent("preservation", ["现场样本保存或稳定化试剂", "Field-sample preservation or stabilization reagent"]),
+    taggedReagent("disinfection", ["现场消毒/去污染试剂", "Field disinfection or decontamination reagent"], ["DISINFECTION_REAGENT"]),
+    taggedReagent("calibration", ["现场校准标准品", "Field calibration standard"], ["CALIBRATION_STANDARD"]),
+  ],
+};
+
 const reportingRequirements: Record<string, string[]> = {
   MIQE_2_0: ["experimental_design", "sample", "assay", "controls", "analysis"],
   DMIQE_2020: ["partition", "threshold", "concentration", "controls", "uncertainty"],
@@ -485,7 +653,7 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
               ["嵌入染料型 qPCR 反应体系", "Intercalating-dye qPCR chemistry"],
               {
                 verificationMode: "AUTO_INVENTORY",
-                capabilityTags: ["intercalating-dye qPCR chemistry"],
+                capabilityTags: ["QPCR_MASTER_MIX"],
                 matcherValues: ["SYBR qPCR master mix", "intercalating dye qPCR"],
               },
             ),
@@ -516,7 +684,7 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
               ["靶标特异性荧光水解探针", "Target-specific fluorescent hydrolysis probe"],
               {
                 verificationMode: "AUTO_INVENTORY",
-                capabilityTags: ["qPCR hydrolysis probe"],
+                capabilityTags: ["QPCR_PROBE"],
                 matcherValues: ["TaqMan probe", "qPCR hydrolysis probe"],
               },
             ),
@@ -543,7 +711,7 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
               ["一步法 RT-qPCR 反应体系", "One-step RT-qPCR reaction chemistry"],
               {
                 verificationMode: "AUTO_INVENTORY",
-                capabilityTags: ["one-step RT-qPCR chemistry"],
+                capabilityTags: ["QPCR_MASTER_MIX"],
                 matcherValues: ["one-step RT-qPCR mix"],
               },
             ),
@@ -566,7 +734,7 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
               ["独立 cDNA 合成体系", "Standalone cDNA-synthesis chemistry"],
               {
                 verificationMode: "AUTO_INVENTORY",
-                capabilityTags: ["cDNA synthesis kit"],
+                capabilityTags: ["REVERSE_TRANSCRIPTION_REAGENT"],
                 matcherValues: ["reverse transcription kit", "cDNA synthesis kit"],
               },
             ),
@@ -793,10 +961,12 @@ export function buildTechnique(blueprint: TechniqueBlueprint): ExperimentTechniq
       ...inferredSafety.evidenceSourceIds,
     ]),
   );
-  const reagentRequirements: TechniqueRequirement[] =
+  const declaredReagentRequirements: TechniqueRequirement[] =
     blueprint.reagentCapabilities?.length
-      ? blueprint.reagentCapabilities.map((capability, index) => ({
-          ...requirement(
+      ? blueprint.reagentCapabilities.map((capability, index) => {
+          const resolved = resolveTechniqueReagentCapability(capability);
+          return {
+            ...requirement(
             blueprint.code,
             "REAGENT",
             [
@@ -804,14 +974,37 @@ export function buildTechnique(blueprint: TechniqueBlueprint): ExperimentTechniq
               `${definition.reagent[1]}: ${capability}`,
             ],
             {
-              verificationMode: "AUTO_INVENTORY",
-              capabilityTags: [capability],
-              matcherValues: [capability],
+              verificationMode: resolved.verificationMode,
+              capabilityTags: resolved.capabilityTags,
+              matcherValues: resolved.matcherValues,
             },
           ),
           id: `${blueprint.code}:requirement:reagent:${index + 1}`,
-        }))
-      : [requirement(blueprint.code, "REAGENT", definition.reagent)];
+          };
+        })
+      : [];
+  const declaredTags = new Set(
+    declaredReagentRequirements.flatMap((requirement) => requirement.capabilityTags),
+  );
+  const defaultReagentRequirements = presetReagentRequirements[blueprint.preset]
+    .filter(
+      (template) =>
+        !template.capabilityTags.length ||
+        !template.capabilityTags.some((tag) => declaredTags.has(tag)),
+    )
+    .map((template) => ({
+      ...requirement(blueprint.code, "REAGENT", template.label, {
+        level: template.level,
+        verificationMode:
+          template.capabilityTags.length > 0 ? "AUTO_INVENTORY" : "MANUAL_CONFIRMATION",
+        capabilityTags: template.capabilityTags,
+      }),
+      id: `${blueprint.code}:requirement:baseline-reagent:${template.key}`,
+    }));
+  const reagentRequirements = [
+    ...declaredReagentRequirements,
+    ...defaultReagentRequirements,
+  ];
 
   const contentWithoutHash = {
     id: `system:${blueprint.code}`,

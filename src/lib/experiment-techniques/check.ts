@@ -9,8 +9,7 @@ import type {
 export type InventoryCapability = {
   id: string;
   name: string;
-  capabilityTags: string[];
-  searchableValues?: string[];
+  experimentTags: string[];
   available?: boolean;
 };
 
@@ -35,35 +34,12 @@ function findInventoryMatch(
   inventory: InventoryCapability[],
 ) {
   const requiredCapabilities = new Set(requirement.capabilityTags.map(normalize));
-  const matcherValues = requirement.matcherValues.map(normalize).filter(Boolean);
+  if (!requiredCapabilities.size) return undefined;
 
   return inventory.find((item) => {
     if (item.available === false) return false;
-    const itemCapabilities = new Set(item.capabilityTags.map(normalize));
-    const searchable = [item.name, ...(item.searchableValues ?? [])]
-      .map(normalize)
-      .filter(Boolean);
-    if (
-      requiredCapabilities.size > 0 &&
-      [...requiredCapabilities].some((tag) => itemCapabilities.has(tag))
-    ) {
-      return true;
-    }
-    if (
-      requiredCapabilities.size > 0 &&
-      [...requiredCapabilities].some(
-        (tag) =>
-          tag.length >= 3 &&
-          searchable.some((value) => value === tag || value.includes(tag)),
-      )
-    ) {
-      return true;
-    }
-    if (requiredCapabilities.size > 0) return false;
-
-    return matcherValues.some((matcher) =>
-      searchable.some((value) => value === matcher || value.includes(matcher)),
-    );
+    const itemCapabilities = new Set(item.experimentTags.map(normalize));
+    return [...requiredCapabilities].some((tag) => itemCapabilities.has(tag));
   });
 }
 

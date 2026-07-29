@@ -41,7 +41,7 @@ export default function LoginPage() {
     <AuthShell
       eyebrow="登录"
       title="进入实验室工作区"
-      description="查看试剂信息，继续实验准备。"
+      description="查看试剂记录，继续准备实验。"
       footer={
         <>
           还没有账号？

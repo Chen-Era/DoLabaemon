@@ -94,22 +94,22 @@ const resultStyles: Record<CheckResult["status"], { title: string; className: st
   BLOCKED: {
     title: "BLOCKED · 缺少必需试剂",
     className: "border-rose-200 bg-rose-50 text-rose-900",
-    copy: "至少一项可由库存自动验证的必需试剂未匹配，当前不可开展。",
+    copy: "至少一项必需试剂未在库存中匹配，暂时不能开始实验。",
   },
   NEEDS_CONFIRMATION: {
     title: "NEEDS_CONFIRMATION · 等待人工确认",
     className: "border-amber-200 bg-amber-50 text-amber-900",
-    copy: "试剂检查未阻断，但仍有必需仪器、耗材、样本、对照或软件需要确认。",
+    copy: "试剂检查没有阻断，但必需的仪器、耗材、样本、对照或软件仍需确认。",
   },
   READY: {
     title: "READY · 资源已就绪",
     className: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    copy: "全部必需资源已由库存验证或人工确认。",
+    copy: "所有必需资源都已在库存中匹配，或由人工确认。",
   },
   UNSUPPORTED: {
     title: "UNSUPPORTED · 暂不支持",
     className: "border-slate-300 bg-slate-100 text-slate-800",
-    copy: "技术未发布、结构无效或资源要求不完整；零规则绝不会返回通过。",
+    copy: "技术尚未发布、内容无效或资源要求不完整。没有可用规则时，系统不会给出通过结论。",
   },
 };
 
@@ -602,7 +602,7 @@ export default function ExperimentCheckPage() {
             ) : null}
             {!result && !error ? (
               <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-                结果固定为 BLOCKED、NEEDS_CONFIRMATION、READY 或 UNSUPPORTED。
+                检查结果会显示为 BLOCKED、NEEDS_CONFIRMATION、READY 或 UNSUPPORTED。
               </div>
             ) : null}
             {result ? <ResultPanel result={result} /> : null}

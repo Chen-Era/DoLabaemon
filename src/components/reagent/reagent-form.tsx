@@ -82,9 +82,9 @@ function parseStageDescription(stage: ParseStage) {
     case "queued":
       return "已收到点击，正在提交名称、货号和备注。";
     case "processing":
-      return "后端可能正在执行模型解析、联网核验、网页抓取或结果草稿保存。";
+      return "系统正在解析信息，必要时会联网核对并保存草稿。";
     case "slow":
-      return "这表示请求还没返回，不代表前端真的卡在某个固定步骤。";
+      return "请求仍在处理中，界面不会显示固定的后端步骤。";
     case "done":
       return "可以查看结果并决定是否确认入库。";
     case "error":
@@ -111,7 +111,7 @@ function verificationReasonLabel(reason: VerificationReason | null | undefined) 
     case "verification_model_failed":
       return "联网证据已拿到，但纠错模型输出失败，已保留初稿";
     case "fallback_used":
-      return "模型与联网纠错都失败，已使用规则兜底";
+      return "模型和联网核对未完成，已按规则补全";
     case "native_tool_unavailable":
       return "当前模型提供方不支持原生联网搜索";
     default:
@@ -381,7 +381,7 @@ export function ReagentForm({ labId }: { labId: string }) {
       <section className="app-panel px-5 py-5">
         <div className="mb-4">
           <h3 className="text-base font-semibold text-slate-900">填写信息</h3>
-          <p className="section-copy mt-1 text-sm">系统会根据名称、货号和备注生成结构化建议，确认后再入库。</p>
+          <p className="section-copy mt-1 text-sm">填写后，系统会生成分类和标签建议。确认无误再入库。</p>
         </div>
         <form onSubmit={onParse} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -428,7 +428,7 @@ export function ReagentForm({ labId }: { labId: string }) {
           <button className="button-primary w-full" type="submit" disabled={isParsing}>
             {isParsing ? `正在识别（${elapsedSeconds} 秒）` : "识别试剂信息"}
           </button>
-          <p className="field-hint">开始后会显示处理进度；如果需要联网核对，等待时间会稍长。</p>
+          <p className="field-hint">识别时会显示进度。需要联网核对时，等待会更久。</p>
         </form>
       </section>
 
@@ -499,7 +499,7 @@ export function ReagentForm({ labId }: { labId: string }) {
             </div>
             {reasonLabel ? <p className="text-xs leading-5 text-slate-500">{reasonLabel}</p> : null}
             {parseSource === "llm" ? (
-              <p className="text-xs leading-5 text-slate-500">本次已完成模型解析；如果启用了联网核验，结果中已包含搜索/纠偏后的最终状态。</p>
+              <p className="text-xs leading-5 text-slate-500">本次识别已完成。启用联网核验时，结果已包含搜索和纠正后的信息。</p>
             ) : null}
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[var(--line)] bg-[var(--bg-muted)] px-4 py-3">
@@ -624,7 +624,7 @@ export function ReagentForm({ labId }: { labId: string }) {
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[var(--line-strong)]">
-            <p className="empty-state">提交原始信息后，这里会显示结构化分类、实验标签、抗体 / 引物摘要与确认入库入口。</p>
+            <p className="empty-state">识别后，这里会显示分类、实验标签和抗体或引物信息，供你确认入库。</p>
           </div>
         )}
 

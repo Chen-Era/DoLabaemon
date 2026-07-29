@@ -15,7 +15,7 @@ const workflow = [
 const spaces = [
   {
     label: "试剂库",
-    title: "需要时，快速找到试剂",
+    title: "需要时，找到试剂",
     copy: "按名称、货号和标签查看库存。",
     href: "/reagents",
     icon: ReagentsIcon,
@@ -31,8 +31,8 @@ const spaces = [
   },
   {
     label: "实验室",
-    title: "让团队共享同一份信息",
-    copy: "记录可共享，实验室边界保持清楚。",
+    title: "团队共用同一份记录",
+    copy: "实验室内共享记录，数据彼此分开。",
     href: "/labs",
     icon: LabsIcon,
     tone: "violet",
@@ -129,7 +129,7 @@ export default function Home() {
         <section id="workflow" className={`${styles.container} ${styles.section}`} aria-labelledby="workflow-title">
           <div className={styles.sectionHeading}>
             <p className={styles.eyebrow}>工作流程</p>
-            <h2 id="workflow-title">从记录到实验，步骤清楚。</h2>
+            <h2 id="workflow-title">按这四步准备实验。</h2>
           </div>
           <ol className={styles.workflow}>
             {workflow.map((item) => {
@@ -148,8 +148,8 @@ export default function Home() {
 
         <section id="workspace" className={`${styles.container} ${styles.section}`} aria-labelledby="workspace-title">
           <div className={styles.sectionHeading}>
-            <p className={styles.eyebrow}>三个工作区</p>
-            <h2 id="workspace-title">信息放对位置，准备更轻松。</h2>
+            <p className={styles.eyebrow}>常用功能</p>
+            <h2 id="workspace-title">试剂、实验检查和团队协作，都在这里。</h2>
           </div>
           <div className={styles.spaceList}>
             {spaces.map((space) => {
@@ -174,7 +174,7 @@ export default function Home() {
         <section className={`${styles.container} ${styles.closing}`} aria-labelledby="closing-title">
           <div>
             <p className={styles.eyebrow}>开始使用</p>
-            <h2 id="closing-title">从一条清楚的试剂记录开始。</h2>
+            <h2 id="closing-title">先录入第一条试剂记录。</h2>
           </div>
           <Link href={primaryHref} className={styles.primaryAction}>
             {primaryLabel}
@@ -186,7 +186,7 @@ export default function Home() {
       <footer className={styles.footer}>
         <div className={`${styles.container} ${styles.footerInner}`}>
           <span>Dorlabaemon · 试剂管理系统</span>
-          <span>为实验准备而设计</span>
+          <span>帮助实验前把信息查清</span>
         </div>
       </footer>
     </main>

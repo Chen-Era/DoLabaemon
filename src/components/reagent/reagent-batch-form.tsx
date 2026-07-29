@@ -214,7 +214,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
         })) ?? [];
       setRows(nextRows);
       const failedCount = nextRows.filter((row) => row.status === "failed").length;
-      setMsg(`已生成 ${nextRows.length} 条候选结果${failedCount ? `，其中 ${failedCount} 条需要手工检查` : ""}`);
+      setMsg(`已识别 ${nextRows.length} 条候选结果${failedCount ? `，其中 ${failedCount} 条需要手动检查` : ""}`);
     } catch (error) {
       setMsg(isRequestTimeoutError(error) ? "批量识别超时，请缩小批次或检查模型/搜索配置后重试" : "网络异常，请稍后重试");
     } finally {
@@ -341,7 +341,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
     <section className="app-panel px-5 py-5">
       <div className="mb-4">
         <h3 className="text-base font-semibold text-slate-900">批量识别</h3>
-        <p className="section-copy mt-1 text-sm">粘贴表格文本或上传图片，识别后统一核对。</p>
+        <p className="section-copy mt-1 text-sm">粘贴表格或上传图片。识别后逐条确认，再批量入库。</p>
       </div>
 
       <div className="space-y-4">
@@ -368,7 +368,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
             >
               <UploadIcon className="h-5 w-5 text-slate-400" />
               <span className="text-sm font-medium text-slate-700">{extractingImage ? "图片转文字中..." : "点击选择图片"}</span>
-              <span className="text-xs leading-5 text-slate-400">支持截图、照片；也可以直接在文本框中粘贴图片</span>
+              <span className="text-xs leading-5 text-slate-400">可以上传截图或照片，也可以直接把图片粘贴进文本框</span>
               <input
                 id="reagent-batch-image"
                 type="file"
@@ -394,7 +394,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
           <button type="button" onClick={onParseBatch} className="button-primary" disabled={parsing || extractingImage}>
             {parsing ? "批量识别中..." : "批量识别"}
           </button>
-          <p className="field-hint">识别完成后可在下方逐条核对，再统一确认入库。</p>
+          <p className="field-hint">识别后，在下方逐条核对，再确认入库。</p>
         </div>
 
         {rows.length ? (
@@ -564,7 +564,7 @@ export function ReagentBatchForm({ labId }: { labId: string }) {
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[var(--line-strong)]">
-            <p className="empty-state">粘贴文本或图片并完成批量识别后，这里会显示逐条候选结果与批量确认入口。</p>
+            <p className="empty-state">完成识别后，这里会列出候选结果，供你逐条核对并确认入库。</p>
           </div>
         )}
 

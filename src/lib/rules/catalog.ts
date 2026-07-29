@@ -1,4 +1,7 @@
-export const experimentTags = [
+// ReagentCategory describes a product's broad form (for example, ANTIBODY or
+// BUFFER). These tags describe the experimentally useful capability. Keep this
+// vocabulary shared by reagent intake, inventory and technique-readiness.
+export const reagentCapabilityTags = [
   "CELL_CULTURE_MEDIUM",
   "SERUM_SUPPLEMENT",
   "ANTIBIOTIC_SUPPLEMENT",
@@ -68,9 +71,45 @@ export const experimentTags = [
   "FLOW_STAIN_BUFFER",
   "FLOW_VIABILITY_DYE",
   "EXOSOME_ISOLATION_REAGENT",
+  "DENSITY_GRADIENT_MEDIUM",
+  "ERYTHROCYTE_LYSIS_BUFFER",
+  "TISSUE_DISSOCIATION_ENZYME",
+  "DNA_POLYMERASE",
+  "PCR_PRIMER_SET",
+  "DNTP_MIX",
+  "DNA_LIGASE",
+  "RESTRICTION_ENDONUCLEASE",
+  "DNA_BINDING_MAGNETIC_BEADS",
+  "QPCR_PROBE",
+  "ELISA_CAPTURE_ANTIBODY",
+  "ELISA_STANDARD",
+  "FLOW_ANTIBODY_PANEL",
+  "ANTICOAGULANT_REAGENT",
+  "SAMPLE_PRESERVATION_REAGENT",
+  "HISTOLOGY_STAIN_REAGENT",
+  "CELL_VIABILITY_ASSAY_REAGENT",
+  "MICROBIAL_CULTURE_MEDIUM",
+  "CALIBRATION_STANDARD",
+  "INTERNAL_STANDARD",
+  "LIBRARY_PREPARATION_REAGENT",
+  "SEQUENCING_RUN_REAGENT",
+  "INDEXING_PRIMER",
+  "OMICS_LABELING_REAGENT",
+  "ANALGESIC_REAGENT",
 ] as const;
 
-export type ExperimentTag = (typeof experimentTags)[number];
+// Kept as a compatibility export while callers move to the clearer capability
+// terminology. Existing stored tags keep their stable codes.
+export const experimentTags = reagentCapabilityTags;
+
+export type ReagentCapabilityTag = (typeof reagentCapabilityTags)[number];
+export type ExperimentTag = ReagentCapabilityTag;
+
+const reagentCapabilityTagSet = new Set<string>(reagentCapabilityTags);
+
+export function isReagentCapabilityTag(value: string): value is ReagentCapabilityTag {
+  return reagentCapabilityTagSet.has(value);
+}
 export type RuleLevelValue = "MIN_REQUIRED" | "RECOMMENDED";
 export type MatcherTypeValue =
   | "TAG_ANY"

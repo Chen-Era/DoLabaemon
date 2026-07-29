@@ -590,10 +590,10 @@ export default function LabsPage() {
             </span>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">实验室协作</h1>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">按实验室独立管理成员、试剂与实验准备。</p>
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">每个实验室单独管理成员、试剂和实验准备。</p>
             </div>
           </div>
-          <p className="text-sm text-cyan-100">{loading ? "正在同步…" : `已加入 ${items.length} 个实验室`}</p>
+          <p className="text-sm text-cyan-100">{loading ? "正在加载…" : `已加入 ${items.length} 个实验室`}</p>
         </div>
       </section>
 
@@ -611,11 +611,11 @@ export default function LabsPage() {
           <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-6 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-slate-950">我的实验室</h2>
-              <p className="section-copy mt-1.5 max-w-xl text-sm">不同实验室的数据和权限彼此独立。</p>
+              <p className="section-copy mt-1.5 max-w-xl text-sm">每个实验室的数据和权限都单独管理。</p>
             </div>
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {loading ? "正在同步" : "已同步"}
+              {loading ? "正在加载" : "已加载"}
             </span>
           </div>
 
@@ -649,7 +649,7 @@ export default function LabsPage() {
                           </span>
                           <div className="min-w-0">
                             <h3 className="truncate font-semibold text-slate-950">{item.lab.name}</h3>
-                            <p className="mt-1 text-sm text-slate-500">你在这里是{tone.label}。</p>
+                            <p className="mt-1 text-sm text-slate-500">你在这个实验室的角色是{tone.label}。</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2.5">
@@ -780,7 +780,7 @@ export default function LabsPage() {
                             <div className="mt-4 rounded-lg border border-red-200 bg-red-50/60 px-3 py-3">
                               <p className="text-sm font-semibold text-red-700">危险操作</p>
                               <p className="mt-1 text-xs leading-5 text-red-600">
-                                删除实验室会同时清除其中全部试剂、成员关系与邀请，且不可恢复。
+                                删除实验室后，其中的试剂、成员关系和邀请都会被清除，且无法恢复。
                               </p>
                               {deleteConfirm?.labId === item.lab.id ? (
                                 <div className="mt-3 space-y-2.5">
@@ -838,7 +838,7 @@ export default function LabsPage() {
                 </span>
                 <h3 className="mt-4 font-semibold text-slate-950">还没有实验室工作区</h3>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                  可以新建一个实验室，在下方按名称申请加入同事的实验室，或使用邀请码直接加入。
+                  你可以创建实验室、按名称申请加入同事的实验室，或使用邀请码直接加入。
                 </p>
               </div>
             )}
@@ -847,7 +847,7 @@ export default function LabsPage() {
 
         <section className="app-panel p-5 md:p-6">
           <h2 className="text-xl font-semibold tracking-tight text-slate-950">创建或加入实验室</h2>
-          <p className="section-copy mt-1.5 text-sm">新建团队空间、使用邀请码直接加入，或按名称申请加入。</p>
+          <p className="section-copy mt-1.5 text-sm">创建新实验室、用邀请码加入，或按名称提交加入申请。</p>
 
           <div className="mt-5 space-y-5">
             <form className="border-t border-slate-200 pt-5" onSubmit={createLab}>

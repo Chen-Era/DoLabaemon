@@ -11,7 +11,7 @@ type AuthShellProps = {
   footer: ReactNode;
 };
 
-const points = ["试剂记录随时可查", "实验条件逐项检查", "团队数据分开管理"];
+const points = ["随时查看试剂记录", "逐项核对实验条件", "实验室数据彼此分开"];
 
 function ArrowLeftIcon() {
   return (
@@ -52,7 +52,7 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
             实验前，把
             <span>信息查清。</span>
           </h1>
-          <p className={styles.storyDescription}>试剂记录、实验条件和团队协作，都在同一个实验室工作区里。</p>
+          <p className={styles.storyDescription}>在一个工作区里管理试剂、核对实验条件，并与团队协作。</p>
           <ul className={styles.points} aria-label="产品特点">
             {points.map((point) => (
               <li key={point}>

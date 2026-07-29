@@ -17,10 +17,10 @@ type LabSearchItem = {
 type SearchState = "idle" | "loading" | "done" | "error";
 
 const modeOptions: { value: JoinMode; title: string; description: string }[] = [
-  { value: "create", title: "创建新实验室", description: "成为负责人，搭建自己的工作区" },
-  { value: "invite", title: "用邀请码加入", description: "凭邀请码直接进入已有实验室" },
-  { value: "request", title: "申请加入实验室", description: "搜索已有实验室，提交申请待审批" },
-  { value: "none", title: "暂不加入", description: "先注册账号，稍后再创建或加入" },
+  { value: "create", title: "创建实验室", description: "创建后，你就是负责人" },
+  { value: "invite", title: "通过邀请码加入", description: "用邀请码加入已有实验室" },
+  { value: "request", title: "申请加入", description: "搜索实验室并提交申请" },
+  { value: "none", title: "暂不加入", description: "先注册，之后再决定" },
 ];
 
 const submitLabel: Record<JoinMode, string> = {
@@ -31,10 +31,10 @@ const submitLabel: Record<JoinMode, string> = {
 };
 
 const successMessage: Record<JoinMode, string> = {
-  create: "账号创建成功，现在可以登录。",
-  none: "账号创建成功，现在可以登录。",
-  invite: "注册成功，已加入实验室，现在可以登录。",
-  request: "注册成功，加入申请已提交，待实验室负责人审批；审批期间可正常登录。",
+  create: "账号已创建，现在可以登录。",
+  none: "账号已创建，现在可以登录。",
+  invite: "账号已创建，也已加入实验室。现在可以登录。",
+  request: "账号已创建，加入申请已提交。等待负责人审批期间，你仍可登录。",
 };
 
 function registerErrorMessage(code?: string, serverMessage?: string) {
@@ -170,7 +170,7 @@ export default function RegisterPage() {
     <AuthShell
       eyebrow="注册"
       title="创建账号"
-      description="注册后可以创建新实验室、凭邀请码直接加入、申请加入已有实验室，也可以先注册稍后再加入。"
+      description="选择创建实验室、通过邀请码加入、提交加入申请，或先注册账号。"
       footer={
         <>
           已有账号？
@@ -363,7 +363,7 @@ export default function RegisterPage() {
                 <textarea
                   id="register-request-message"
                   className={styles.textarea}
-                  placeholder="简单介绍自己，方便负责人审批"
+                  placeholder="简单介绍一下自己，方便负责人审批"
                   maxLength={500}
                   value={requestMessage}
                   onChange={(event) => setRequestMessage(event.target.value)}

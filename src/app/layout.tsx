@@ -3,8 +3,8 @@ import { SessionProviderWrapper } from "@/components/session-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Dorlabaemon | 智能实验试剂与实验准备平台",
-  description: "Dorlabaemon 是面向实验室团队的试剂管理与实验准备平台。",
+  title: "Dorlabaemon | 实验试剂管理与准备",
+  description: "Dorlabaemon 帮助实验室团队管理试剂，并在实验前核对准备情况。",
 };
 
 export default function RootLayout({
