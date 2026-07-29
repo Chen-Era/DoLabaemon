@@ -31,6 +31,95 @@ type DirectionOption = {
   ruleCount: number;
 };
 
+type DirectionGroup = {
+  code: string;
+  name: string;
+};
+
+const immuneDirectionCodes = new Set([
+  "INFLAMMASOME",
+  "T_CELL_ACTIVATION_EXHAUSTION",
+  "B_CELL_HUMORAL_IMMUNITY",
+  "NK_CELL_CYTOTOXICITY",
+  "MYELOID_INNATE_IMMUNITY",
+  "CHECKPOINT_IMMUNITY",
+  "IMMUNE_METABOLISM",
+  "ANTIGEN_PRESENTATION",
+  "COMPLEMENT_FC_EFFECTOR",
+  "IMMUNE_TRAFFICKING",
+]);
+
+const directionGroups: DirectionGroup[] = [
+  { code: "IMMUNE", name: "免疫研究" },
+  { code: "CELL_FATE", name: "细胞过程与命运" },
+  { code: "METABOLISM", name: "代谢、细胞器与胞外囊泡" },
+  { code: "MICROENVIRONMENT", name: "微环境、组织与细胞行为" },
+  { code: "SIGNALING", name: "信号转导" },
+  { code: "EPIGENETICS", name: "表观遗传与染色质" },
+  { code: "OTHER", name: "其他常见研究专题" },
+];
+
+function directionGroupCode(directionCode: string) {
+  if (immuneDirectionCodes.has(directionCode)) return "IMMUNE";
+  if (
+    [
+      "AUTOPHAGY",
+      "OXIDATIVE_STRESS",
+      "APOPTOSIS_CELL_DEATH",
+      "CELL_CYCLE_PROLIFERATION",
+      "CELLULAR_SENESCENCE",
+      "DNA_DAMAGE_RESPONSE",
+      "ER_STRESS_PROTEOSTASIS",
+      "FERROPTOSIS",
+      "NECROPTOSIS",
+      "LYSOSOMAL_FUNCTION",
+      "CALCIUM_SIGNALING",
+      "CIRCADIAN_RHYTHM",
+    ].includes(directionCode)
+  ) return "CELL_FATE";
+  if (
+    [
+      "EXOSOME",
+      "MITOCHONDRIAL_METABOLISM",
+      "GLUCOSE_METABOLISM",
+      "LIPID_METABOLISM",
+    ].includes(directionCode)
+  ) return "METABOLISM";
+  if (
+    [
+      "EMT_MIGRATION_INVASION",
+      "ECM_REMODELING",
+      "HYPOXIA_ANGIOGENESIS",
+      "EPITHELIAL_BARRIER",
+      "STEMNESS_DIFFERENTIATION",
+      "TUMOR_MICROENVIRONMENT",
+      "CELL_ADHESION_CYTOSKELETON",
+    ].includes(directionCode)
+  ) return "MICROENVIRONMENT";
+  if (
+    [
+      "TGF_BETA_SMAD_SIGNALING",
+      "WNT_BETA_CATENIN_SIGNALING",
+      "PI3K_AKT_MTOR_SIGNALING",
+      "MAPK_ERK_SIGNALING",
+      "NF_KAPPA_B_INFLAMMATION",
+      "PROTEIN_PHOSPHORYLATION_KINASE_SIGNALING",
+      "NOTCH_HEDGEHOG_SIGNALING",
+    ].includes(directionCode)
+  ) return "SIGNALING";
+  if (
+    [
+      "EPIGENETIC_REPROGRAMMING",
+      "DNA_METHYLATION_HYDROXYMETHYLATION",
+      "HISTONE_ACETYLATION",
+      "HISTONE_METHYLATION",
+      "HISTONE_LACTYLATION",
+      "CHROMATIN_ACCESSIBILITY_ARCHITECTURE",
+    ].includes(directionCode)
+  ) return "EPIGENETICS";
+  return "OTHER";
+}
+
 type TechniqueDetail = {
   code: string;
   slug: string;
@@ -142,6 +231,7 @@ export default function ExperimentCheckPage() {
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [selected, setSelected] = useState<TechniqueDetail | null>(null);
   const [profileCode, setProfileCode] = useState("");
+  const [directionGroup, setDirectionGroup] = useState("");
   const [directionCode, setDirectionCode] = useState("");
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<CheckResult | null>(null);
@@ -196,6 +286,7 @@ export default function ExperimentCheckPage() {
     }
     setSelected(data.technique);
     setProfileCode("");
+    setDirectionGroup("");
     setDirectionCode("");
     setConfirmedIds(new Set());
     setResult(null);
@@ -271,6 +362,22 @@ export default function ExperimentCheckPage() {
   );
   const activeDirection = selected?.directionOptions?.find(
     (domain) => domain.code === directionCode,
+  );
+  const groupedDirectionOptions = useMemo(() => {
+    const groups = new Map<string, DirectionOption[]>();
+    for (const option of selected?.directionOptions ?? []) {
+      const groupCode = directionGroupCode(option.code);
+      const options = groups.get(groupCode) ?? [];
+      options.push(option);
+      groups.set(groupCode, options);
+    }
+    return directionGroups
+      .map((group) => ({ ...group, options: groups.get(group.code) ?? [] }))
+      .filter((group) => group.options.length);
+  }, [selected?.directionOptions]);
+  const currentDirectionOptions = useMemo(
+    () => groupedDirectionOptions.find((group) => group.code === directionGroup)?.options ?? [],
+    [directionGroup, groupedDirectionOptions],
   );
   const requirements = useMemo(
     () => [
@@ -548,29 +655,60 @@ export default function ExperimentCheckPage() {
 
               {selected.directionOptions?.length ? (
                 <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
-                  <label className="field-label text-violet-950" htmlFor="direction">
-                    研究专题／通路（可选）
-                  </label>
+                  <p className="field-label text-violet-950">研究专题／通路（可选）</p>
                   <p className="mb-2 text-xs leading-5 text-violet-800">
-                    为本次检查附加与所选技术匹配的表型／通路要求；可与上方方法 Profile 同时使用。
+                    先选择一级研究领域，再选择与所选技术匹配的二级专题；可与上方方法 Profile 同时使用。
                   </p>
-                  <select
-                    id="direction"
-                    className="input-base border-violet-200 bg-white"
-                    value={directionCode}
-                    onChange={(event) => {
-                      setDirectionCode(event.target.value);
-                      setConfirmedIds(new Set());
-                      setResult(null);
-                    }}
-                  >
-                    <option value="">不附加专题要求</option>
-                    {selected.directionOptions.map((domain) => (
-                      <option key={domain.code} value={domain.code}>
-                        {domain.name.zh}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="field-label text-xs text-violet-900" htmlFor="direction-group">
+                        1. 一级研究领域
+                      </label>
+                      <select
+                        id="direction-group"
+                        className="input-base border-violet-200 bg-white"
+                        value={directionGroup}
+                        onChange={(event) => {
+                          setDirectionGroup(event.target.value);
+                          setDirectionCode("");
+                          setConfirmedIds(new Set());
+                          setResult(null);
+                        }}
+                      >
+                        <option value="">请选择研究领域</option>
+                        {groupedDirectionOptions.map((group) => (
+                          <option key={group.code} value={group.code}>
+                            {group.name}（{group.options.length}）
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="field-label text-xs text-violet-900" htmlFor="direction">
+                        2. 二级专题／通路
+                      </label>
+                      <select
+                        id="direction"
+                        className="input-base border-violet-200 bg-white disabled:cursor-not-allowed disabled:bg-slate-100"
+                        value={directionCode}
+                        disabled={!directionGroup}
+                        onChange={(event) => {
+                          setDirectionCode(event.target.value);
+                          setConfirmedIds(new Set());
+                          setResult(null);
+                        }}
+                      >
+                        <option value="">
+                          {directionGroup ? "请选择专题／通路" : "请先选择一级研究领域"}
+                        </option>
+                        {currentDirectionOptions.map((domain) => (
+                          <option key={domain.code} value={domain.code}>
+                            {domain.name.zh}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 

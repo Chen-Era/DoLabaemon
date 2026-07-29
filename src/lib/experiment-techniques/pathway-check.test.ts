@@ -17,6 +17,19 @@ const epigeneticPathwayChecks = [
   ["PHOSPHOPROTEOMICS", "PROTEIN_PHOSPHORYLATION_KINASE_SIGNALING"],
 ] as const;
 
+const flowImmunePathways = [
+  "INFLAMMASOME",
+  "T_CELL_ACTIVATION_EXHAUSTION",
+  "B_CELL_HUMORAL_IMMUNITY",
+  "NK_CELL_CYTOTOXICITY",
+  "MYELOID_INNATE_IMMUNITY",
+  "CHECKPOINT_IMMUNITY",
+  "IMMUNE_METABOLISM",
+  "ANTIGEN_PRESENTATION",
+  "COMPLEMENT_FC_EFFECTOR",
+  "IMMUNE_TRAFFICKING",
+] as const;
+
 describe("pathway-specific experiment checks", () => {
   it("exposes concrete rule-backed options for every added epigenetic/signaling topic", () => {
     for (const [techniqueCode, directionCode] of epigeneticPathwayChecks) {
@@ -75,5 +88,47 @@ describe("pathway-specific experiment checks", () => {
     );
     assert.equal(item?.state, "MATCHED");
     assert.equal(item?.matchedName, "H3K27ac ChIP-grade primary antibody");
+  });
+
+  it("exposes immunology topics for FLOW with an IMMUNE category and real rules", () => {
+    const options = listPathwayCheckContexts("FLOW");
+    for (const code of flowImmunePathways) {
+      const option = options.find((item) => item.code === code);
+      assert.ok(option, `FLOW must expose ${code}`);
+      assert.equal(option.category, "IMMUNE");
+      assert.ok(option.requiredRuleCount > 0, `${code} needs a required inventory rule`);
+    }
+  });
+
+  it("keeps inflammasome checks available for its WB and cytokine-ELISA readouts", () => {
+    for (const techniqueCode of ["WB", "SANDWICH_ELISA"] as const) {
+      const context = getPathwayCheckContext(techniqueCode, "INFLAMMASOME");
+      assert.ok(context, `${techniqueCode} must expose the INFLAMMASOME topic`);
+      assert.equal(context.category, "IMMUNE");
+      assert.ok(context.requiredRuleCount > 0);
+    }
+  });
+
+  it("matches the selected T-cell FLOW topic against its specialised inventory tag", () => {
+    const technique = repositoryTechniqueByCode.get("FLOW");
+    assert.ok(technique, "FLOW must exist in the repository catalog");
+    const result = evaluateTechniqueReadiness({
+      technique: structuredClone(technique),
+      directionCode: "T_CELL_ACTIVATION_EXHAUSTION",
+      inventory: [
+        {
+          id: "cd3-cd4-cd8-flow-panel",
+          name: "CD3/CD4/CD8 fluorescent antibody panel",
+          experimentTags: ["T_CELL_LINEAGE_MARKER_REAGENT"],
+        },
+      ],
+    });
+
+    assert.equal(result.direction?.category, "IMMUNE");
+    const tCellRule = result.items.find((item) =>
+      item.requirementId.startsWith("direction:T_CELL_ACTIVATION_EXHAUSTION:FLOW:"),
+    );
+    assert.equal(tCellRule?.state, "MATCHED");
+    assert.equal(tCellRule?.matchedName, "CD3/CD4/CD8 fluorescent antibody panel");
   });
 });

@@ -297,6 +297,7 @@ test("recognizes immune specialization reagents and keeps their stock-check capa
     "IMMUNE_METABOLISM",
     "ANTIGEN_PRESENTATION",
     "COMPLEMENT_FC_EFFECTOR",
+    "IMMUNE_TRAFFICKING",
   ];
   const catalogCodes = new Set<string>(researchDirectionCatalog.map((direction) => direction.code));
   for (const code of requiredDirectionCodes) {

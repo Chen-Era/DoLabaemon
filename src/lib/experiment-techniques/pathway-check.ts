@@ -4,7 +4,11 @@ import {
   ruleCatalog,
   type RuleDefinition,
 } from "@/lib/rules/catalog";
-import { getPhenotypePathwayDomain } from "@/lib/experiment-techniques/phenotype-domains";
+import {
+  getPhenotypePathwayDomain,
+  phenotypePathwayDomains,
+  type PhenotypePathwayCategory,
+} from "@/lib/experiment-techniques/phenotype-domains";
 
 import type { InventoryCapability } from "@/lib/experiment-techniques/check";
 
@@ -12,6 +16,7 @@ type LocalizedLabel = { zh: string; en: string };
 
 export type PathwayCheckContext = {
   code: string;
+  category: PhenotypePathwayCategory;
   name: LocalizedLabel;
   description: LocalizedLabel | null;
   specializedReagents: LocalizedLabel | null;
@@ -24,6 +29,65 @@ export type PathwayCheckContext = {
   ruleCount: number;
   requiredRuleCount: number;
 };
+
+// The legacy rule catalog predates the pathway ontology and used a few broader
+// immune direction codes. Keep stored rules stable while presenting the
+// research-facing topic names in the experiment-check UI and API.
+const pathwayToRuleDirectionCode: Record<string, string> = {
+  INFLAMMASOME: "INNATE_INFLAMMATION_INFLAMMASOME",
+  T_CELL_ACTIVATION_EXHAUSTION: "T_CELL_IMMUNITY",
+  CHECKPOINT_IMMUNITY: "IMMUNE_CHECKPOINT_SUPPRESSION",
+};
+
+const ruleDirectionToPathwayCode = new Map(
+  Object.entries(pathwayToRuleDirectionCode).map(([pathwayCode, ruleCode]) => [
+    ruleCode,
+    pathwayCode,
+  ]),
+);
+
+// A multicolour or intracellular flow panel is a specialised implementation of
+// a FLOW check. This compatibility set prevents immune topics from vanishing
+// merely because their ontology records a more specific flow modality.
+const compatibleTechniqueCodes: Record<string, readonly string[]> = {
+  FLOW: ["FLOW", "MULTICOLOR_IMMUNOPHENOTYPING", "INTRACELLULAR_CYTOKINE_FLOW", "PHOSPHO_FLOW"],
+  MULTICOLOR_IMMUNOPHENOTYPING: ["FLOW", "MULTICOLOR_IMMUNOPHENOTYPING"],
+  INTRACELLULAR_CYTOKINE_FLOW: ["FLOW", "INTRACELLULAR_CYTOKINE_FLOW"],
+  PHOSPHO_FLOW: ["FLOW", "PHOSPHO_FLOW"],
+};
+
+// A few topic-method links are intentionally broader than the headline method
+// list in the knowledge card: FLOW can quantify caspase-1/pyroptosis probes for
+// an inflammasome study, even when the card foregrounds WB/ELISA/IF readouts.
+const additionalPathwayTechniqueCodes: Record<string, readonly string[]> = {
+  INFLAMMASOME: ["FLOW"],
+};
+
+function canonicalPathwayCode(code: string) {
+  return ruleDirectionToPathwayCode.get(code) ?? code;
+}
+
+function ruleDirectionCode(code: string) {
+  return pathwayToRuleDirectionCode[code] ?? code;
+}
+
+function compatibleTechniqueCodeSet(techniqueCode: string) {
+  return new Set(compatibleTechniqueCodes[techniqueCode] ?? [techniqueCode]);
+}
+
+function pathwaySupportsTechnique(
+  pathwayCode: string,
+  techniqueCode: string,
+  pathwayTechniqueCodes: readonly string[],
+) {
+  const compatibleCodes = compatibleTechniqueCodeSet(techniqueCode);
+  return (
+    pathwayTechniqueCodes.some((code) => compatibleCodes.has(code)) ||
+    (additionalPathwayTechniqueCodes[pathwayCode] ?? []).some((code) =>
+      compatibleCodes.has(code),
+    )
+  );
+}
 
 export type PathwayRuleCheckItem = {
   level: "MIN_REQUIRED" | "RECOMMENDED";
@@ -39,9 +103,11 @@ export type PathwayRuleCheckResult = {
 };
 
 function rulesForPathway(techniqueCode: string, directionCode: string): RuleDefinition[] {
+  const compatibleCodes = compatibleTechniqueCodeSet(techniqueCode);
+  const ruleDirection = ruleDirectionCode(canonicalPathwayCode(directionCode));
   return ruleCatalog.filter(
     (rule) =>
-      rule.experimentCode === techniqueCode && rule.directionCode === directionCode,
+      compatibleCodes.has(rule.experimentCode) && rule.directionCode === ruleDirection,
   );
 }
 
@@ -55,16 +121,25 @@ export function getPathwayCheckContext(
   techniqueCode: string,
   directionCode: string,
 ): PathwayCheckContext | null {
-  const direction = researchDirectionCatalog.find((item) => item.code === directionCode);
-  const pathway = getPhenotypePathwayDomain(directionCode);
-  const rules = rulesForPathway(techniqueCode, directionCode);
-  if (!direction || !pathway || !pathway.techniqueCodes.includes(techniqueCode) || !rules.length) {
+  const pathwayCode = canonicalPathwayCode(directionCode);
+  const direction = researchDirectionCatalog.find(
+    (item) => item.code === ruleDirectionCode(pathwayCode),
+  );
+  const pathway = getPhenotypePathwayDomain(pathwayCode);
+  const rules = rulesForPathway(techniqueCode, pathwayCode);
+  if (
+    !direction ||
+    !pathway ||
+    !pathwaySupportsTechnique(pathway.code, techniqueCode, pathway.techniqueCodes) ||
+    !rules.length
+  ) {
     return null;
   }
 
   return {
-    code: direction.code,
-    name: { zh: direction.nameZh, en: direction.nameEn },
+    code: pathway.code,
+    category: pathway.category,
+    name: pathway.name,
     description: pathway.description,
     specializedReagents: pathway.specializedReagents,
     targetRequirements: pathway.targetRequirements,
@@ -75,8 +150,8 @@ export function getPathwayCheckContext(
 }
 
 export function listPathwayCheckContexts(techniqueCode: string): PathwayCheckContext[] {
-  return researchDirectionCatalog
-    .map((direction) => getPathwayCheckContext(techniqueCode, direction.code))
+  return phenotypePathwayDomains
+    .map((pathway) => getPathwayCheckContext(techniqueCode, pathway.code))
     .filter((context): context is PathwayCheckContext => Boolean(context));
 }
 

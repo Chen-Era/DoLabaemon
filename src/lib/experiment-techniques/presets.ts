@@ -842,6 +842,7 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const methylation = "HISTONE_METHYLATION_WB";
       const lactylation = "HISTONE_LACTYLATION_WB";
       const phosphorylation = "PHOSPHORYLATION_KINASE_WB";
+      const inflammasome = "INFLAMMASOME_PYROPTOSIS_WB";
       return [
         profile(
           autophagy,
@@ -913,6 +914,16 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
             requirementFor(phosphorylation, "kinetic-control", "CONTROL", ["未处理、载体、刺激时间梯度和激酶抑制/救援对照，并以总蛋白归一化", "Untreated, vehicle, stimulus time-course, and kinase-inhibition/rescue controls with total-protein normalization"]),
           ],
         ),
+        profile(
+          inflammasome,
+          ["炎性小体与焦亡 WB", "Inflammasome and pyroptosis western blot"],
+          ["将炎性小体启动、caspase-1 裂解、GSDMD 成孔和细胞因子成熟分开判读；只有细胞因子或 LDH 不能单独定义焦亡。", "Separates inflammasome priming, caspase-1 cleavage, GSDMD pore formation, and cytokine maturation; cytokine or LDH measurement alone cannot define pyroptosis."],
+          [
+            requirementFor(inflammasome, "marker-panel", "REAGENT", ["NLRP3、ASC/PYCARD、pro/cleaved caspase-1、GSDMD-N 与 pro/mature IL-1β 的抗体面板", "Antibody panel for NLRP3, ASC/PYCARD, pro/cleaved caspase-1, GSDMD-N, and pro/mature IL-1β"]),
+            requirementFor(inflammasome, "perturbation", "REAGENT", ["分步启动/激活试剂（如 LPS 与 nigericin/ATP）及 NLRP3 或 caspase-1 抑制剂", "Separate priming/activation reagents such as LPS with nigericin/ATP and an NLRP3 or caspase-1 inhibitor"]),
+            requirementFor(inflammasome, "controls", "CONTROL", ["未处理、仅启动、仅激活、抑制剂救援、LDH/活性和时间梯度控制", "Untreated, priming-only, activation-only, inhibitor-rescue, LDH/viability, and time-course controls"]),
+          ],
+        ),
       ];
     }
     case "QPCR": {
@@ -938,6 +949,7 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const autophagy = "AUTOPHAGY_PUNCTA_IF";
       const ecm = "ECM_DEPOSITION_IF";
       const mitochondrial = "MITOCHONDRIAL_MORPHOLOGY_IF";
+      const inflammasome = "INFLAMMASOME_ASC_SPECK_IF";
       return [
         profile(autophagy, ["自噬斑点 IF", "Autophagy-puncta immunofluorescence"], ["通过 LC3 与 p62/溶酶体共定位和每细胞定量评估自噬结构，必须结合通量阻断条件。", "Assesses autophagic structures using LC3 colocalization with p62/lysosomes and per-cell quantification, with a flux-block condition."], [
           requirementFor(autophagy, "marker-panel", "REAGENT", ["LC3B、SQSTM1/p62 与 LAMP1/LysoTracker 的兼容抗体/探针组合", "Compatible LC3B, SQSTM1/p62, and LAMP1/LysoTracker antibody/probe combination"]),
@@ -951,6 +963,11 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
           requirementFor(mitochondrial, "morphology-panel", "REAGENT", ["TOMM20 或 HSP60 抗体/经验证的 MitoTracker，以及 DRP1、MFN1/MFN2、OPA1 标记", "TOMM20 or HSP60 antibody/validated MitoTracker, with DRP1, MFN1/MFN2, and OPA1 markers"]),
           requirementFor(mitochondrial, "morphology-control", "CONTROL", ["膜电位依赖染料的染色活性控制、细胞周期/密度控制和预定义网络分割分析", "Staining-viability control for membrane-potential-dependent dyes, cell-cycle/density control, and prespecified network-segmentation analysis"]),
         ]),
+        profile(inflammasome, ["炎性小体 ASC 斑点 IF", "Inflammasome ASC-speck immunofluorescence"], ["以 ASC 斑点和 caspase-1/GSDMD 的空间证据补足炎性小体激活，但必须与启动、激活和细胞死亡读出共同解释。", "Uses spatial evidence from ASC specks and caspase-1/GSDMD to support inflammasome activation, interpreted together with priming, activation, and cell-death readouts."], [
+          requirementFor(inflammasome, "marker-panel", "REAGENT", ["ASC/PYCARD、NLRP3、活性 caspase-1 或 GSDMD-N 抗体，配合细胞核和膜完整性染料", "ASC/PYCARD, NLRP3, active caspase-1, or GSDMD-N antibodies with nuclear and membrane-integrity dyes"]),
+          requirementFor(inflammasome, "stimulation", "REAGENT", ["分步 LPS 启动与 nigericin/ATP 激活试剂，并配套 NLRP3 或 caspase-1 抑制剂", "Separate LPS priming and nigericin/ATP activation reagents with NLRP3 or caspase-1 inhibitor"]),
+          requirementFor(inflammasome, "controls", "CONTROL", ["未处理、仅启动、仅激活、无一抗、盲法斑点计数和细胞死亡/活性控制", "Untreated, priming-only, activation-only, no-primary, blinded speck counting, and cell-death/viability controls"]),
+        ]),
       ];
     }
     case "FLOW": {
@@ -962,6 +979,8 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const checkpoint = "IMMUNE_CHECKPOINT_FLOW";
       const metabolism = "IMMUNE_METABOLISM_FLOW";
       const antigen = "ANTIGEN_PRESENTATION_FLOW";
+      const complement = "COMPLEMENT_FC_EFFECTOR_FLOW";
+      const trafficking = "IMMUNE_TRAFFICKING_FLOW";
       return [
         profile(innate, ["先天炎症/炎性小体流式", "Innate-inflammation/inflammasome flow cytometry"], ["区分炎性小体预激、caspase-1 活化和焦亡执行，避免只以单一细胞因子推断炎性小体。", "Distinguishes inflammasome priming, caspase-1 activation, and pyroptotic execution rather than inferring inflammasome activity from one cytokine."], [
           requirementFor(innate, "panel", "REAGENT", ["髓系谱系标记、活/死染、活性 caspase-1/ASC 或 GSDMD 读出，并按模型加入 IL-1β/IL-18", "Myeloid-lineage markers, viability dye, active caspase-1/ASC or GSDMD readout, with IL-1β/IL-18 as model-appropriate"]),
@@ -995,11 +1014,23 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
           requirementFor(antigen, "panel", "REAGENT", ["HLA-DR/MHC-II、MHC-I、CD80、CD86、CD40、CD83 及对应 APC 谱系标记；需要时加入抗原/MHC 四聚体", "HLA-DR/MHC-II, MHC-I, CD80, CD86, CD40, CD83, and corresponding APC lineage markers; antigen/MHC multimers when needed"]),
           requirementFor(antigen, "controls", "CONTROL", ["无关抗原、加工/呈递阻断、FMO，以及 APC–T 细胞共培养功能对照", "Irrelevant-antigen, processing/presentation-blockade, FMO, and APC–T-cell coculture functional controls"]),
         ]),
+        profile(complement, ["补体与 Fc 效应流式", "Complement and Fc-effector flow cytometry"], ["在定义的靶细胞和效应细胞区室中区分 C3/MAC 沉积、Fc 受体结合与细胞死亡；单一结合信号不能替代补体或 Fc 效应功能。", "Distinguishes C3/MAC deposition, Fc-receptor engagement, and cell death in defined target and effector compartments; a single binding signal cannot substitute for complement or Fc effector function."], [
+          requirementFor(complement, "panel", "REAGENT", ["C3b/iC3b、C5b-9/MAC、CD16/CD32/CD64、靶细胞抗原和活/死标记的兼容流式面板", "Compatible flow panel for C3b/iC3b, C5b-9/MAC, CD16/CD32/CD64, target antigen, and viability markers"]),
+          requirementFor(complement, "effector-reagents", "REAGENT", ["标准化新鲜补体来源、测试抗体/同型抗体和适配的 Fc 受体阻断试剂", "Standardized fresh complement source, test/isotype antibody, and appropriate Fc-receptor blocking reagent"]),
+          requirementFor(complement, "controls", "CONTROL", ["热灭活补体、无抗体、同型抗体、EDTA/补体阻断及 Fc 受体阻断控制", "Heat-inactivated complement, no-antibody, isotype-antibody, EDTA/complement-blockade, and Fc-receptor-blockade controls"]),
+        ]),
+        profile(trafficking, ["免疫细胞趋化与归巢流式", "Immune-cell chemotaxis and homing flow cytometry"], ["结合趋化受体、黏附分子和迁移后细胞回收率评估归巢潜力；受体表达本身不能替代趋化或跨内皮迁移功能。", "Assesses homing potential through chemokine receptors, adhesion molecules, and post-migration cell recovery; receptor expression alone cannot substitute for chemotaxis or transendothelial migration function."], [
+          requirementFor(trafficking, "panel", "REAGENT", ["CXCR3、CXCR4、CCR7、CCR5、CD62L、ITGAL/LFA-1 或 VLA-4，配合谱系和活/死标记的流式抗体面板", "Flow antibody panel for CXCR3, CXCR4, CCR7, CCR5, CD62L, ITGAL/LFA-1, or VLA-4 with lineage and viability markers"]),
+          requirementFor(trafficking, "migration-reagents", "REAGENT", ["与受体轴匹配的趋化因子、细胞追踪染料及受体或整合素阻断抗体", "Chemokines matched to the receptor axis, cell-tracking dye, and receptor or integrin-blocking antibody"]),
+          requirementFor(trafficking, "controls", "CONTROL", ["无趋化因子、上下室等浓度、受体阻断、活死/回收率及迁移前后相同门控模板控制", "No-chemokine, equal-concentration upper/lower chamber, receptor blockade, viability/recovery, and matched pre/post-migration gating-template controls"]),
+        ]),
       ];
     }
     case "SANDWICH_ELISA": {
       const inflammasome = "INFLAMMASOME_CYTOKINE_ELISA";
       const complement = "COMPLEMENT_FC_EFFECTOR_ELISA";
+      const humoral = "B_CELL_HUMORAL_ELISA";
+      const myeloid = "MYELOID_CYTOKINE_ELISA";
       return [
         profile(inflammasome, ["炎性小体细胞因子 ELISA", "Inflammasome-cytokine ELISA"], ["以成熟 IL-1β/IL-18 分泌为一个读出，并用细胞死亡和 caspase-1 读出避免将裂解泄漏误判为分泌。", "Uses mature IL-1β/IL-18 secretion as one readout and pairs it with cell-death and caspase-1 measurements to avoid confusing lysis leakage with secretion."], [
           requirementFor(inflammasome, "target-kit", "REAGENT", ["成熟 IL-1β 和/或 IL-18 的特异夹心 ELISA 抗体对/试剂盒", "Specific sandwich-ELISA antibody pair/kit for mature IL-1β and/or IL-18"]),
@@ -1009,7 +1040,88 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
           requirementFor(complement, "target-kit", "REAGENT", ["C3a、C5a、sC5b-9 或 Fc 结合/效应目标的经验证 ELISA 试剂", "Validated ELISA reagents for C3a, C5a, sC5b-9, or the Fc binding/effector target"]),
           requirementFor(complement, "serum-controls", "CONTROL", ["新鲜与热灭活血清、无抗体/同种型对照、EDTA 阻断和标准曲线控制", "Fresh and heat-inactivated serum, no-antibody/isotype controls, EDTA blockade, and standard-curve controls"]),
         ]),
+        profile(humoral, ["B 细胞体液免疫 ELISA", "B-cell humoral-immunity ELISA"], ["定量 IgG、IgA、IgM 或抗原特异性抗体分泌时，必须与活细胞数、B 细胞/浆细胞组成和抗原特异性一起解释。", "When quantifying IgG, IgA, IgM, or antigen-specific antibody secretion, interpret it together with viable-cell number, B/plasma-cell composition, and antigen specificity."], [
+          requirementFor(humoral, "target-kit", "REAGENT", ["IgG、IgA、IgM 或抗原特异抗体的同种型特异 ELISA 抗体对/试剂盒及参考标准品", "Isotype-specific ELISA antibody pair/kit for IgG, IgA, IgM, or antigen-specific antibody with reference standards"]),
+          requirementFor(humoral, "sample-context", "SAMPLE", ["配对的总活细胞数、B 细胞/浆细胞频率和刺激/培养时间记录", "Paired record of total viable-cell number, B/plasma-cell frequency, and stimulation/culture duration"]),
+          requirementFor(humoral, "controls", "CONTROL", ["空白培养基、未刺激细胞、标准曲线、抗原无关/竞争对照和按细胞数归一化控制", "Blank medium, unstimulated cells, standard curve, irrelevant-antigen/competition controls, and cell-number normalization"]),
+        ]),
+        profile(myeloid, ["髓系炎症细胞因子 ELISA", "Myeloid inflammatory-cytokine ELISA"], ["以预定义髓系细胞群和刺激背景量化 TNF、IL-6、IL-10 等分泌，避免将细胞裂解或细胞数差异误判为极化变化。", "Quantifies TNF, IL-6, IL-10, and related secretion in predefined myeloid populations and stimulation backgrounds, avoiding misinterpretation of lysis or cell-number differences as polarization."], [
+          requirementFor(myeloid, "target-kit", "REAGENT", ["TNF、IL-6、IL-10、CXCL8 或假设匹配细胞因子的经验证夹心 ELISA 试剂及标准品", "Validated sandwich-ELISA reagents and standards for TNF, IL-6, IL-10, CXCL8, or hypothesis-matched cytokines"]),
+          requirementFor(myeloid, "stimulation", "REAGENT", ["TLR 激动剂或其他预定义髓系刺激物，以及对应阻断剂/载体", "TLR agonist or other prespecified myeloid stimulus with corresponding blocker/vehicle"]),
+          requirementFor(myeloid, "controls", "CONTROL", ["未刺激、载体、细胞活性/LDH、标准曲线、细胞数归一化和培养基空白控制", "Unstimulated, vehicle, viability/LDH, standard curve, cell-number normalization, and medium-blank controls"]),
+        ]),
       ];
+    }
+    case "MULTICOLOR_IMMUNOPHENOTYPING": {
+      const tCell = "T_CELL_ACTIVATION_EXHAUSTION_PANEL";
+      const bCell = "B_CELL_HUMORAL_PANEL";
+      const myeloid = "MYELOID_INNATE_PANEL";
+      const checkpoint = "CHECKPOINT_IMMUNITY_PANEL";
+      const antigen = "ANTIGEN_PRESENTATION_PANEL";
+      return [
+        profile(tCell, ["T 细胞活化、分化与耗竭面板", "T-cell activation, differentiation, and exhaustion panel"], ["在 CD4/CD8 及初始/记忆亚群内解释活化、功能和耗竭；单一 PD-1 阳性不能定义耗竭。", "Interprets activation, function, and exhaustion within CD4/CD8 and naïve/memory subsets; PD-1 positivity alone cannot define exhaustion."], [
+          requirementFor(tCell, "panel", "REAGENT", ["CD3、CD4、CD8、CD45RA/RO、CCR7、CD69/CD25、PD-1、TIM-3、TIGIT、Ki-67 和活/死染的模块化面板", "Modular panel for CD3, CD4, CD8, CD45RA/RO, CCR7, CD69/CD25, PD-1, TIM-3, TIGIT, Ki-67, and viability dye"]),
+          requirementFor(tCell, "controls", "CONTROL", ["Fc 封闭、单染补偿、FMO、未刺激/TCR 刺激和预定义层级门控控制", "Fc block, single-stain compensation, FMO, unstimulated/TCR-stimulated, and prespecified hierarchical-gating controls"]),
+        ]),
+        profile(bCell, ["B 细胞、浆细胞与体液免疫面板", "B-cell, plasma-cell, and humoral-immunity panel"], ["区分初始、记忆、浆母细胞和浆细胞，并把免疫球蛋白分泌或抗原结合与细胞组成配对。", "Distinguishes naïve, memory, plasmablast, and plasma-cell states, pairing immunoglobulin secretion or antigen binding with cellular composition."], [
+          requirementFor(bCell, "panel", "REAGENT", ["CD19/CD20、CD27、IgD、IgM、CD38、CD138、CD24/CD21、免疫球蛋白和需要时的抗原特异探针", "CD19/CD20, CD27, IgD, IgM, CD38, CD138, CD24/CD21, immunoglobulin, and antigen-specific probes when needed"]),
+          requirementFor(bCell, "controls", "CONTROL", ["Fc 封闭、FMO、死细胞/双联体排除、抗原探针竞争或去骨架控制和预注册浆细胞门控", "Fc block, FMO, dead-cell/doublet exclusion, antigen-probe competition or decoy control, and preregistered plasma-cell gating"]),
+        ]),
+        profile(myeloid, ["髓系细胞与先天免疫面板", "Myeloid-cell and innate-immunity panel"], ["先定义单核、巨噬、树突和粒细胞的谱系，再用多标记与功能读出解释状态，避免把单一 CD206 或 CD86 当作极化结论。", "Defines monocyte, macrophage, dendritic, and granulocyte lineages before using multimarker and functional readouts to interpret state; one CD206 or CD86 marker is not a polarization conclusion."], [
+          requirementFor(myeloid, "panel", "REAGENT", ["CD45、CD11b、CD14、CD16、HLA-DR、CD11c、CD64、CD163、CD206、CD66b、CD80/CD86 和活/死染面板", "Panel for CD45, CD11b, CD14, CD16, HLA-DR, CD11c, CD64, CD163, CD206, CD66b, CD80/CD86, and viability dye"]),
+          requirementFor(myeloid, "controls", "CONTROL", ["组织消化前后标记稳定性、Fc 封闭、FMO、绝对计数珠和谱系排除门控控制", "Pre/post-dissociation marker stability, Fc block, FMO, counting beads, and lineage-exclusion gating controls"]),
+        ]),
+        profile(checkpoint, ["免疫检查点与抑制面板", "Immune-checkpoint and suppression panel"], ["在同一细胞区室内联合检查点受体/配体和功能状态，并以阻断后的功能恢复而非单个表面表达支持结论。", "Measures checkpoint receptor/ligand and functional state in the same compartment, supporting conclusions with functional recovery after blockade rather than one surface signal."], [
+          requirementFor(checkpoint, "panel", "REAGENT", ["PD-1、PD-L1、CTLA-4、LAG-3、TIGIT、TIM-3、CD39/CD73 与相应谱系/功能抗体面板", "Panel for PD-1, PD-L1, CTLA-4, LAG-3, TIGIT, TIM-3, CD39/CD73, and corresponding lineage/function antibodies"]),
+          requirementFor(checkpoint, "controls", "CONTROL", ["Fc 封闭、FMO、受体占位/克隆竞争评估、诱导阳性/未诱导对照及阻断功能验证", "Fc block, FMO, receptor-occupancy/clone-competition assessment, induced-positive/uninduced controls, and functional validation of blockade"]),
+        ]),
+        profile(antigen, ["抗原加工与呈递面板", "Antigen-processing and presentation panel"], ["将 APC 谱系、MHC/共刺激和抗原摄取连接到抗原特异性 T 细胞反应，而非只报告 HLA-DR 强度。", "Links APC lineage, MHC/costimulation, and antigen uptake to antigen-specific T-cell response rather than reporting HLA-DR intensity alone."], [
+          requirementFor(antigen, "panel", "REAGENT", ["MHC-I、HLA-DR/MHC-II、CD80、CD86、CD40、CD83、APC 谱系标记和抗原摄取探针", "MHC-I, HLA-DR/MHC-II, CD80, CD86, CD40, CD83, APC-lineage markers, and antigen-uptake probe"]),
+          requirementFor(antigen, "controls", "CONTROL", ["无抗原、无关肽、MHC/加工阻断、FMO 和 APC–T 细胞共培养功能控制", "No-antigen, irrelevant-peptide, MHC/processing blockade, FMO, and APC–T-cell coculture functional controls"]),
+        ]),
+      ];
+    }
+    case "INTRACELLULAR_CYTOKINE_FLOW": {
+      const tCell = "T_CELL_POLYFUNCTIONAL_ICS";
+      const nk = "NK_FUNCTIONAL_ICS";
+      return [
+        profile(tCell, ["T 细胞多功能胞内因子流式", "T-cell polyfunctional intracellular-cytokine flow"], ["在明确的 T 细胞谱系和分化状态内共同报告 IFN-γ、TNF、IL-2 等功能组合，而不是只统计单一细胞因子阳性。", "Reports functional combinations such as IFN-γ, TNF, and IL-2 within defined T-cell lineages and differentiation states rather than a single cytokine-positive frequency."], [
+          requirementFor(tCell, "panel", "REAGENT", ["CD3/CD4/CD8、IFN-γ、TNF、IL-2、GZMB、CD107a、活/死染和细胞内细胞因子染色抗体", "CD3/CD4/CD8, IFN-γ, TNF, IL-2, GZMB, CD107a, viability dye, and intracellular-cytokine staining antibodies"]),
+          requirementFor(tCell, "stimulation", "REAGENT", ["CD3/CD28、肽池/抗原或其他预定义刺激物，以及 brefeldin A/monensin 分泌阻断体系", "CD3/CD28, peptide pool/antigen or other prespecified stimulus, and brefeldin A/monensin secretion-blocking chemistry"]),
+          requirementFor(tCell, "controls", "CONTROL", ["未刺激、阳性刺激、单染补偿、FMO、刺激时长和固定/透化相容性控制", "Unstimulated, positive stimulation, single-stain compensation, FMO, stimulation-duration, and fixation/permeabilization compatibility controls"]),
+        ]),
+        profile(nk, ["NK 细胞功能胞内因子流式", "NK-cell functional intracellular-cytokine flow"], ["把 NK 谱系、脱颗粒、细胞毒分子和细胞因子与靶细胞敏感性/效靶比共同解释。", "Interprets NK lineage, degranulation, cytotoxic molecules, and cytokines together with target susceptibility and effector-to-target ratio."], [
+          requirementFor(nk, "panel", "REAGENT", ["CD3、CD56、CD16、NKG2D/NKp46、CD107a、IFN-γ、TNF、GZMB/PRF1 和活/死染面板", "Panel for CD3, CD56, CD16, NKG2D/NKp46, CD107a, IFN-γ, TNF, GZMB/PRF1, and viability dye"]),
+          requirementFor(nk, "stimulation", "REAGENT", ["敏感/耐受靶细胞或预定义刺激物，以及分泌阻断体系", "Sensitive/resistant target cells or prespecified stimulus with secretion-blocking chemistry"]),
+          requirementFor(nk, "controls", "CONTROL", ["无靶、效靶比梯度、未刺激、单染/FMO、双联体和死细胞排除控制", "No-target, effector-to-target-ratio gradient, unstimulated, single-stain/FMO, doublet, and dead-cell exclusion controls"]),
+        ]),
+      ];
+    }
+    case "TRANSWELL_MIGRATION":
+    case "CHEMOTAXIS_ASSAY": {
+      const trafficking = "IMMUNE_TRAFFICKING_MIGRATION";
+      const method = blueprint.code === "TRANSWELL_MIGRATION" ? "Transwell" : "趋化梯度";
+      return [profile(trafficking, ["免疫细胞趋化与迁移 " + method, "Immune-cell chemotaxis and migration by " + method], ["定量趋化因子驱动的定向迁移，并把迁移结果与受体表达、活性和回收率关联；随机运动或细胞死亡不可被误判为趋化。", "Quantifies chemokine-driven directed migration and relates it to receptor expression, viability, and recovery; random movement or cell death must not be misread as chemotaxis."], [
+        requirementFor(trafficking, "chemokine-and-tracking", "REAGENT", ["与 CXCR3/CXCR4/CCR7/CCR5 轴匹配的趋化因子、细胞追踪染料和趋化受体阻断抗体", "Chemokines matched to the CXCR3/CXCR4/CCR7/CCR5 axis, cell-tracking dye, and chemokine-receptor blocking antibody"]),
+        requirementFor(trafficking, "migration-system", "CONSUMABLE", ["与细胞大小匹配的多孔膜小室或经校准的趋化梯度装置", "Pore-matched migration inserts or a calibrated chemotaxis-gradient device"]),
+        requirementFor(trafficking, "controls", "CONTROL", ["无趋化因子、等浓度上下室、受体阻断、时间梯度、活死/回收率和迁移前后表型控制", "No-chemokine, equal-concentration chambers, receptor blockade, time course, viability/recovery, and pre/post-migration phenotype controls"]),
+      ])];
+    }
+    case "ADCC_ASSAY": {
+      const adcc = "NK_ADCC_FC_EFFECTOR";
+      return [profile(adcc, ["NK 细胞 ADCC/Fc 效应", "NK-cell ADCC/Fc effector function"], ["以靶抗原依赖、抗体剂量、效靶比和 Fc 受体依赖性共同定义 ADCC，不能把总细胞死亡直接归因于 Fc 效应。", "Defines ADCC through target-antigen dependence, antibody dose, effector-to-target ratio, and Fc-receptor dependence; total cell death cannot be directly attributed to Fc effect."], [
+        requirementFor(adcc, "effectors-and-antibody", "REAGENT", ["CD16 阳性 NK/效应细胞、靶抗原阳性和阴性靶细胞、测试抗体及同型 Fc 对照", "CD16-positive NK/effector cells, target-antigen-positive and -negative target cells, test antibody, and isotype Fc control"]),
+        requirementFor(adcc, "readout", "REAGENT", ["靶细胞追踪/死亡检测试剂及需要时 CD107a 或细胞因子流式读出", "Target-cell tracking/death reagent with CD107a or cytokine-flow readout when needed"]),
+        requirementFor(adcc, "controls", "CONTROL", ["无抗体、同型抗体、Fc 受体阻断、抗原阴性靶细胞、效靶比与抗体剂量梯度控制", "No-antibody, isotype-antibody, Fc-receptor blockade, antigen-negative target, effector-to-target-ratio, and antibody-dose gradient controls"]),
+      ])];
+    }
+    case "PHAGOCYTOSIS_ASSAY": {
+      const opsonization = "COMPLEMENT_FC_OPSONOPHAGOCYTOSIS";
+      return [profile(opsonization, ["补体/Fc 调理吞噬", "Complement/Fc opsonophagocytosis"], ["区分颗粒或靶细胞的表面结合与真实内吞，并使用补体和 Fc 受体阻断确定调理依赖性。", "Distinguishes surface binding of particles or targets from true internalization and uses complement/Fc-receptor blockade to establish opsonization dependence."], [
+        requirementFor(opsonization, "opsonized-targets", "REAGENT", ["荧光颗粒/标记靶细胞、标准化新鲜补体、测试抗体/同型抗体及 Fc 受体阻断试剂", "Fluorescent particles/labeled targets, standardized fresh complement, test/isotype antibody, and Fc-receptor blocking reagent"]),
+        requirementFor(opsonization, "internalization-readout", "REAGENT", ["外部荧光淬灭试剂或成像验证体系，以区分内吞与表面结合", "External-fluorescence quencher or imaging-validation system to distinguish internalization from surface binding"]),
+        requirementFor(opsonization, "controls", "CONTROL", ["热灭活补体、无抗体、同型抗体、Fc 受体阻断、低温结合和吞噬抑制控制", "Heat-inactivated complement, no-antibody, isotype-antibody, Fc-receptor blockade, cold-binding, and phagocytosis-inhibition controls"]),
+      ])];
     }
     case "SEAHORSE_OCR_ECAR": {
       const mitochondrial = "MITOCHONDRIAL_STRESS_TEST";
