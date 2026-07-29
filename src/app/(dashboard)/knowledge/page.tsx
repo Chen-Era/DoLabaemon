@@ -18,6 +18,26 @@ type Lab = {
 
 type Category = { code: string; zh: string; en: string };
 
+type PhenotypeDomain = {
+  code: string;
+  name: { zh: string; en: string };
+  description: { zh: string; en: string };
+  specializedReagents: { zh: string; en: string };
+  targetRequirements: { zh: string; en: string };
+  category: "CELLULAR_PROCESS" | "TISSUE_MICROENVIRONMENT" | "IMMUNE";
+  targetPanel: {
+    mechanistic: readonly string[];
+    readout: readonly string[];
+    controls: readonly string[];
+  };
+  reagentRequirements: readonly {
+    role: { zh: string; en: string };
+    level: "REQUIRED" | "RECOMMENDED";
+    items: readonly { zh: string; en: string }[];
+  }[];
+  techniqueCount: number;
+};
+
 type TechniqueSummary = {
   code: string;
   slug: string;
@@ -36,6 +56,7 @@ type TechniqueSummary = {
   riskLevel: string;
   evidenceTiers: string[];
   profileCodes: string[];
+  phenotypeCodes: string[];
 };
 
 type TechniquePage = {
@@ -45,6 +66,7 @@ type TechniquePage = {
   total: number;
   pageCount: number;
   categories: Category[];
+  phenotypeDomains: PhenotypeDomain[];
 };
 
 type TechniqueDraft = {
@@ -82,6 +104,12 @@ const statusLabels: Record<string, string> = {
   DEPRECATED: "已停用",
   APPROVED: "已批准",
   REJECTED: "已拒绝",
+};
+
+const phenotypeCategoryLabels: Record<PhenotypeDomain["category"], string> = {
+  CELLULAR_PROCESS: "细胞过程",
+  TISSUE_MICROENVIRONMENT: "组织微环境",
+  IMMUNE: "免疫专题",
 };
 
 function formatDate(value: string) {
@@ -149,7 +177,7 @@ export default function KnowledgePage() {
                 实验技术知识库
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                收录 335 项湿实验和仪器技术，包含资源要求、操作流程、质量控制、安全信息、证据和修订记录。
+                围绕整合生物学常见表型与通路专题组织实验技术，覆盖外泌体、自噬、细胞外基质、线粒体代谢、干扰素与细化免疫研究，并提供专题试剂、靶点、对照和质量控制要求。
               </p>
             </div>
           </div>
@@ -266,6 +294,7 @@ function TechniqueAtlas({
   const [result, setResult] = useState<TechniquePage | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const [phenotype, setPhenotype] = useState("");
   const [sample, setSample] = useState("");
   const [readout, setReadout] = useState("");
   const [risk, setRisk] = useState("");
@@ -283,6 +312,7 @@ function TechniqueAtlas({
     });
     if (query.trim()) params.set("q", query.trim());
     if (category) params.set("category", category);
+    if (phenotype) params.set("phenotype", phenotype);
     if (sample.trim()) params.set("sample", sample.trim());
     if (readout.trim()) params.set("readout", readout.trim());
     if (risk) params.set("risk", risk);
@@ -300,7 +330,7 @@ function TechniqueAtlas({
     } finally {
       setLoading(false);
     }
-  }, [category, evidence, onNotice, page, query, readout, risk, sample, status]);
+  }, [category, evidence, onNotice, page, phenotype, query, readout, risk, sample, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 180);
@@ -331,6 +361,15 @@ function TechniqueAtlas({
   }
 
   const categories = result?.categories ?? [];
+  const phenotypeDomains = result?.phenotypeDomains ?? [];
+  const selectedPhenotype = phenotypeDomains.find((item) => item.code === phenotype);
+  const phenotypeGroups = (Object.keys(phenotypeCategoryLabels) as PhenotypeDomain["category"][])
+    .map((categoryCode) => ({
+      categoryCode,
+      label: phenotypeCategoryLabels[categoryCode],
+      items: phenotypeDomains.filter((item) => item.category === categoryCode),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <section className="app-panel overflow-hidden">
@@ -361,6 +400,7 @@ function TechniqueAtlas({
               }`}
               onClick={() => {
                 setCategory("");
+                setPhenotype("");
                 setPage(1);
               }}
             >
@@ -377,6 +417,7 @@ function TechniqueAtlas({
                 }`}
                 onClick={() => {
                   setCategory(item.code);
+                  setPhenotype("");
                   setPage(1);
                 }}
               >
@@ -384,6 +425,82 @@ function TechniqueAtlas({
                 <span className="block text-xs text-slate-400">{item.en}</span>
               </button>
             ))}
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 pt-5">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              研究表型与通路专题
+            </p>
+            <div className="grid gap-3">
+              {phenotypeGroups.map((group) => (
+                <div key={group.categoryCode} className="grid gap-1">
+                  <p className="px-3 text-[11px] font-semibold tracking-wide text-slate-400">
+                    {group.label}
+                  </p>
+                  {group.items.map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      className={`rounded-lg px-3 py-2 text-left text-sm ${
+                        phenotype === item.code
+                          ? "bg-violet-50 font-semibold text-violet-800"
+                          : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                      onClick={() => {
+                        setPhenotype(item.code);
+                        setCategory("");
+                        setPage(1);
+                      }}
+                    >
+                      <span className="block">{item.name.zh}</span>
+                      <span className="block text-xs text-slate-400">
+                        {item.techniqueCount} 项技术 · {item.name.en}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {selectedPhenotype ? (
+              <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50/60 p-3 text-xs leading-5 text-violet-950">
+                <p>{selectedPhenotype.description.zh}</p>
+                <div className="mt-3 border-t border-violet-200 pt-3">
+                  <p className="font-semibold text-violet-950">专题试剂</p>
+                  <div className="mt-1.5 grid gap-2">
+                    {selectedPhenotype.reagentRequirements.map((requirement) => (
+                      <div key={requirement.role.zh}>
+                        <p className="font-medium text-violet-900">
+                          {requirement.role.zh}
+                          <span className="ml-1 text-violet-700">
+                            {requirement.level === "REQUIRED" ? "必需" : "建议"}
+                          </span>
+                        </p>
+                        <p className="text-violet-800">
+                          {requirement.items.map((item) => item.zh).join("、")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 border-t border-violet-200 pt-3">
+                  <p className="font-semibold text-violet-950">靶点与对照面板</p>
+                  {([
+                    ["机制靶点", selectedPhenotype.targetPanel.mechanistic],
+                    ["读出靶点", selectedPhenotype.targetPanel.readout],
+                    ["排除/对照", selectedPhenotype.targetPanel.controls],
+                  ] as const).map(([label, targets]) => (
+                    <p key={label} className="mt-1 text-violet-800">
+                      <span className="font-medium">{label}：</span>
+                      {targets.join("、")}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-3 border-t border-violet-200 pt-3 text-violet-800">
+                  <span className="font-semibold">设计要求：</span>
+                  {selectedPhenotype.targetRequirements.zh}
+                </p>
+              </div>
+            ) : null}
           </div>
         </aside>
 
@@ -505,6 +622,11 @@ function TechniqueAtlas({
                     <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">
                       风险 {technique.riskLevel}
                     </span>
+                    {technique.phenotypeCodes.slice(0, 2).map((code) => (
+                      <span key={code} className="rounded-full bg-violet-50 px-2 py-1 text-violet-700">
+                        {phenotypeDomains.find((domainItem) => domainItem.code === code)?.name.zh ?? code}
+                      </span>
+                    ))}
                     {technique.evidenceTiers.slice(0, 3).map((tier) => (
                       <span key={tier} className="rounded-full bg-violet-50 px-2 py-1 text-violet-700">
                         {tier}

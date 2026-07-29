@@ -1,5 +1,6 @@
 import { normalizeTargetName, type ExperimentTag } from "@/lib/rules/catalog";
 import { retrieveReagentKnowledge } from "@/lib/reagent-knowledge/retrieval";
+import { supplementReagentCapabilityTags } from "@/lib/reagent-capability-bundles";
 
 export type ReagentCategory = "ANTIBODY" | "BUFFER" | "KIT" | "PRIMER" | "BIOLOGICAL" | "CHEMICAL" | "CONSUMABLE" | "OTHER";
 
@@ -197,6 +198,21 @@ const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
   { tag: "DNA_LIGASE", pattern: /\b(?:t4\s+)?dna ligase\b|dna连接酶/i },
   { tag: "RESTRICTION_ENDONUCLEASE", pattern: /\b(?:restriction endonuclease|restriction enzyme|type\s*iis)\b|限制性(?:内)?切酶/i },
   { tag: "DNA_BINDING_MAGNETIC_BEADS", pattern: /\b(?:ampure|spr[ie]\s+beads?|dna[-\s]?binding magnetic beads?)\b|dna磁珠/i },
+  { tag: "CHIP_GRADE_ANTIBODY", pattern: /\bchip(?:[-\s]?grade)?\s+antibody\b|(?:chip|染色质免疫沉淀)(?:级|专用)?抗体/i },
+  { tag: "PROTEIN_A_G_MAGNETIC_BEADS", pattern: /\bprotein\s*(?:a\/?g|a\s*(?:and|&)\s*g)\s*(?:magnetic\s*)?beads?\b|蛋白[AG](?:磁)?珠/i },
+  { tag: "TRANSPOSASE_REAGENT", pattern: /\b(?:tn5|tagmentation|transposase)\b|转座酶/i },
+  { tag: "NUCLEI_ISOLATION_REAGENT", pattern: /\b(?:nuclei|nuclear)\s+(?:isolation|extraction)(?:\s+(?:buffer|kit|reagent))?\b|细胞核(?:分离|提取)(?:液|试剂|试剂盒)?/i },
+  { tag: "SINGLE_CELL_BARCODING_REAGENT", pattern: /\b(?:single[-\s]?cell|single[-\s]?nucleus)\s+(?:barcoding|barcode|partitioning)(?:\s+(?:kit|reagent))?\b|单(?:细胞|核)(?:条形码|建库|分隔)(?:试剂|试剂盒)?/i },
+  { tag: "OLIGO_BARCODED_ANTIBODY_PANEL", pattern: /\b(?:oligo(?:nucleotide)?[-\s]?barcoded|adt|feature[-\s]?barcoding)\s+antibody(?:\s+panel)?\b|(?:寡核苷酸|条形码)(?:标记)?抗体(?:面板)?/i },
+  { tag: "SPATIAL_PROBE_PANEL", pattern: /\b(?:spatial|in[-\s]?situ)\s+(?:rna\s+)?probe(?:\s+panel)?\b|(?:空间|原位)(?:转录组)?探针(?:面板)?/i },
+  { tag: "CRISPR_GUIDE_LIBRARY", pattern: /\b(?:crispr|sgrna|grna|pegrna)\s+(?:guide\s+)?library\b|(?:CRISPR|sgRNA|gRNA|pegRNA)(?:文库|向导文库)/i },
+  { tag: "TARGET_ENRICHMENT_PROBE", pattern: /\b(?:target|hybrid|capture)\s+(?:enrichment\s+)?probe(?:\s+panel)?\b|(?:靶向|杂交|捕获)(?:富集)?探针(?:面板)?/i },
+  { tag: "BISULFITE_CONVERSION_REAGENT", pattern: /\bbisulfite\s+conversion(?:\s+(?:kit|reagent))?\b|亚硫酸氢盐(?:转化|转换)(?:试剂|试剂盒)?/i },
+  { tag: "METABOLITE_EXTRACTION_REAGENT", pattern: /\b(?:metabolite|metabolomic|lipid)\s+extraction(?:\s+(?:solvent|kit|reagent))?\b|(?:代谢物|代谢组|脂质)(?:提取|萃取)(?:液|试剂|试剂盒)?/i },
+  { tag: "HOST_DNA_DEPLETION_REAGENT", pattern: /\bhost\s+(?:dna\s+)?depletion(?:\s+(?:kit|reagent))?\b|宿主DNA(?:去除|耗竭)(?:试剂|试剂盒)?/i },
+  { tag: "RRNA_DEPLETION_REAGENT", pattern: /\b(?:rRNA|ribosomal RNA)\s*(?:depletion|removal)\b|去除?核糖体RNA(?:试剂|试剂盒)?/i },
+  { tag: "PHOSPHOPEPTIDE_ENRICHMENT_REAGENT", pattern: /\b(?:phosphopeptide enrichment|tio2 phosphopeptide|imac phosphopeptide|fe[-\s]?nTA phosphopeptide)\b|磷酸肽富集(?:试剂|材料)?/i },
+  { tag: "STABLE_ISOTOPE_TRACER", pattern: /\b(?:stable isotope tracer|(?:u-)?(?:13c|15n|2h|d[2-9])[-\s]?(?:glucose|glutamine|palmitate|acetate|lactate))\b|稳定同位素(?:示踪|标记)(?:剂|底物)?/i },
   { tag: "PCR_MASTER_MIX", pattern: /\b(pcr master mix|taq mix|hot start taq|polymerase mix)\b/ },
   { tag: "REVERSE_TRANSCRIPTION_REAGENT", pattern: /\b(reverse transcription|cdna synthesis|rt kit|reverse transcriptase)\b/ },
   { tag: "QPCR_MASTER_MIX", pattern: /\b(sybr|taqman|qpcr master mix|real-time pcr mix)\b/ },
@@ -223,6 +239,144 @@ const baseTagMatchers: Array<{ tag: ExperimentTag; pattern: RegExp }> = [
   { tag: "FLOW_STAIN_BUFFER", pattern: /\b(facs buffer|flow staining buffer|stain buffer)\b/ },
   { tag: "FLOW_VIABILITY_DYE", pattern: /\b(7-aad|pi stain|propidium iodide|annexin v|viability dye)\b/ },
   { tag: "EXOSOME_ISOLATION_REAGENT", pattern: /\b(exosome isolation|ev isolation|extracellular vesicle isolation|exoquick)\b/ },
+  {
+    tag: "EXOSOME_DEPLETED_SERUM",
+    pattern:
+      /\b(?:(?:exosome|ev|extracellular vesicle)[-\s]?(?:depleted|free)\s+(?:fbs|fetal bovine serum|serum)|(?:exosome|ev)[-\s]?depleted\s+(?:fbs|serum))\b|(?:去|无)(?:外泌体|细胞外囊泡)(?:血清|FBS)/i,
+  },
+  {
+    tag: "EXOSOME_CAPTURE_REAGENT",
+    pattern:
+      /\b(?:exosome|ev|extracellular vesicle)[\s\S]{0,50}\b(?:capture|immunocapture|affinity)\b|\banti[-\s]?(?:cd9|cd63|cd81)\b[\s\S]{0,50}\b(?:magnetic\s*)?beads?\b|(?:外泌体|细胞外囊泡)(?:免疫)?捕获/i,
+  },
+  {
+    tag: "AUTOPHAGY_INDUCER",
+    pattern: /\b(?:rapamycin|torin(?:[-\s]?1)?|pp242|ebss|starvation medium|autophagy inducer)\b|自噬(?:诱导剂|激活剂)|雷帕霉素/i,
+  },
+  {
+    tag: "AUTOPHAGY_FLUX_INHIBITOR",
+    pattern:
+      /\b(?:bafilomycin(?:\s*a1)?|chloroquine|hydroxychloroquine|lysosomal inhibitor|autophagy flux inhibitor)\b|(?:巴弗|巴佛|巴伐)洛霉素|羟?氯喹|自噬(?:通量)?(?:抑制剂|阻断剂)/i,
+  },
+  {
+    tag: "ECM_DEGRADATION_ASSAY_REAGENT",
+    pattern:
+      /\b(?:dq[-\s]?(?:collagen|gelatin)|mmp activity assay|(?:collagen|gelatin)[\s\S]{0,35}\b(?:degradation|cleavage|zymography)\b)\b|(?:基质|胶原|明胶)(?:降解|酶谱)|MMP活性(?:检测试剂|试剂盒)?/i,
+  },
+  {
+    tag: "ECM_REMODELING_MODULATOR",
+    pattern:
+      /\b(?:gm6001|ilomastat|marimastat|batimastat|beta[-\s]?aminopropionitrile|bapn|lysyl oxidase inhibitor|mmp inhibitor)\b|(?:基质|ECM)(?:重塑)?(?:抑制剂|调节剂)|(?:MMP|赖氨酰氧化酶)(?:抑制剂|调节剂)/i,
+  },
+  { tag: "MITOCHONDRIAL_STAIN", pattern: /\bmitotracker\b|线粒体(?:特异)?染料/i },
+  {
+    tag: "MITOCHONDRIAL_MEMBRANE_POTENTIAL_DYE",
+    pattern:
+      /\b(?:jc[-\s]?1|tmrm|tmre|rhodamine\s*123|mitochondrial membrane potential (?:dye|assay|kit))\b|线粒体膜电位(?:染料|检测试剂|试剂盒)?/i,
+  },
+  { tag: "MITOCHONDRIAL_SUPEROXIDE_DYE", pattern: /\bmitosox\b|线粒体超氧(?:化物)?(?:染料|探针|检测试剂)?/i },
+  {
+    tag: "MITOCHONDRIAL_RESPIRATION_ASSAY_REAGENT",
+    pattern:
+      /\b(?:seahorse[\s\S]{0,45}(?:mito|respiration|stress)|(?:mitochondrial respiration|oxygen consumption)[\s\S]{0,45}(?:assay|kit|reagent))\b|线粒体(?:呼吸|氧耗)(?:检测试剂|试剂盒|体系)?/i,
+  },
+  {
+    tag: "MITOCHONDRIAL_STRESSOR",
+    pattern: /\b(?:oligomycin|fccp|carbonyl cyanide|rotenone|antimycin(?:\s*a)?)\b|线粒体(?:应激|压力)试剂/i,
+  },
+  {
+    tag: "TYPE_I_INTERFERON_REAGENT",
+    pattern: /\b(?:ifn|interferon)[-\s]?(?:alpha|a|beta|b|α|β)(?:\b|(?=[^a-z0-9]|$))|(?:I型|1型)?干扰素[-\s]?(?:α|a|β|b)/i,
+  },
+  {
+    tag: "TYPE_II_INTERFERON_REAGENT",
+    pattern: /\b(?:ifn|interferon)[-\s]?(?:gamma|g|γ)(?:\b|(?=[^a-z0-9]|$))|(?:II型|2型)?干扰素[-\s]?(?:γ|g)/i,
+  },
+  {
+    tag: "INTERFERON_PATHWAY_MODULATOR",
+    pattern:
+      /\b(?:ruxolitinib|tofacitinib|baricitinib|fedratinib|jak(?:1|2|3)?(?:\s*\/\s*jak\d+)? inhibitor|stat1 inhibitor|interferon pathway (?:inhibitor|modulator))\b|(?:JAK|STAT|干扰素)(?:通路)?(?:抑制剂|调节剂)/i,
+  },
+  {
+    tag: "INNATE_IMMUNE_STIMULANT",
+    pattern:
+      /\b(?:lps|lipopolysaccharide|poly\s*i:c|polyinosinic|imiquimod|resiquimod|cpg(?:[-\s]?(?:odn|dna))?|pam3csk4|flagellin)\b|脂多糖|聚肌胞|咪喹莫特|瑞喹莫德|鞭毛蛋白/i,
+  },
+  {
+    tag: "INFLAMMASOME_ACTIVATOR",
+    pattern:
+      /\b(?:nigericin|msu(?:\s+crystals?)?|alum|inflammasome activator|pyroptosis inducer)\b|(?:炎症小体|焦亡)(?:激活剂|诱导剂)|尼日利亚菌素|尿酸单钠(?:结晶)?/i,
+  },
+  {
+    tag: "T_CELL_ACTIVATION_REAGENT",
+    pattern:
+      /\b(?:anti[-\s]?cd3(?:\s*\/\s*(?:anti[-\s]?)?cd28)?|cd3\s*\/\s*cd28|t[-\s]?cell activation|t[-\s]?cell expander|dynabeads[\s\S]{0,40}cd3[\s\S]{0,40}cd28)\b|T细胞(?:激活|扩增)/i,
+  },
+  {
+    tag: "T_CELL_LINEAGE_MARKER_REAGENT",
+    pattern:
+      /\banti[-\s]?(?:cd3|cd4|cd8a?|tcr(?:alpha|beta)?|trac|cd25|cd69)\b|\b(?:cd3|cd4|cd8a?|tcr(?:alpha|beta)?|trac|cd25|cd69)\b(?=[\s\S]{0,70}\b(?:antibody|fitc|pe|apc|percp|bv\d+|panel|beads?)\b)|T细胞(?:标志物)?抗体/i,
+  },
+  {
+    tag: "B_CELL_ACTIVATION_REAGENT",
+    pattern:
+      /\b(?:anti[-\s]?(?:igm|igd)|b[-\s]?cell activation|cd40l|cd40 ligand)\b|B细胞(?:激活剂|活化剂)|抗(?:IgM|IgD)/i,
+  },
+  {
+    tag: "B_CELL_LINEAGE_MARKER_REAGENT",
+    pattern:
+      /\banti[-\s]?(?:cd19|cd20|cd79a|cd27|cd38|cd138)\b|\b(?:cd19|cd20|cd79a|cd27|cd38|cd138)\b(?=[\s\S]{0,70}\b(?:antibody|fitc|pe|apc|percp|bv\d+|panel|beads?)\b)|B细胞(?:标志物)?抗体/i,
+  },
+  {
+    tag: "NK_CELL_ACTIVATION_REAGENT",
+    pattern:
+      /\b(?:il[-\s]?15|nk[-\s]?cell activation|natural killer[\s\S]{0,40}(?:activation|expansion)|(?:il[-\s]?(?:2|12|15|18))[\s\S]{0,40}(?:nk|natural killer))\b|NK细胞(?:激活|扩增)/i,
+  },
+  {
+    tag: "NK_CELL_MARKER_REAGENT",
+    pattern:
+      /\banti[-\s]?(?:cd56|cd16|cd94|nkg2d|nkp(?:30|44|46)|ncr1)\b|\b(?:cd56|cd16|cd94|nkg2d|nkp(?:30|44|46)|ncr1)\b(?=[\s\S]{0,70}\b(?:antibody|fitc|pe|apc|percp|bv\d+|panel|beads?)\b)|NK细胞(?:标志物)?抗体/i,
+  },
+  {
+    tag: "MYELOID_POLARIZATION_REAGENT",
+    pattern:
+      /\b(?:m[-\s]?csf|csf1|gm[-\s]?csf|macrophage polarization|monocyte differentiation|dendritic cell maturation)\b|(?:巨噬|单核|树突)(?:细胞)?(?:极化|分化|成熟)/i,
+  },
+  {
+    tag: "MYELOID_LINEAGE_MARKER_REAGENT",
+    pattern:
+      /\banti[-\s]?(?:cd14|cd11b|cd68|cd163|cd206|hla[-\s]?dr)\b|\b(?:cd14|cd11b|cd68|cd163|cd206|hla[-\s]?dr)\b(?=[\s\S]{0,70}\b(?:antibody|fitc|pe|apc|percp|bv\d+|panel|beads?)\b)|(?:髓系|巨噬|单核)(?:细胞)?(?:标志物)?抗体/i,
+  },
+  {
+    tag: "IMMUNE_CHECKPOINT_REAGENT",
+    pattern:
+      /\b(?:pd[-\s]?1|pdcd1|pd[-\s]?l1|cd274|ctla[-\s]?4|lag[-\s]?3|tigit|tim[-\s]?3|havcr2)\b|(?:PD[-\s]?1|PD[-\s]?L1|CTLA[-\s]?4|LAG[-\s]?3|TIGIT|TIM[-\s]?3)(?:抗体|抑制剂|激动剂)?/i,
+  },
+  {
+    tag: "IMMUNE_METABOLISM_MODULATOR",
+    pattern:
+      /\b(?:2[-\s]?deoxy(?:-d)?[-\s]?glucose|2[-\s]?dg|etomoxir|metformin)\b|(?:免疫|T细胞|B细胞|NK|巨噬)(?:代谢)?[\s\S]{0,40}(?:2[-\s]?DG|依托莫昔|二甲双胍)/i,
+  },
+  {
+    tag: "ANTIGEN_PRESENTATION_REAGENT",
+    pattern:
+      /\b(?:ovalbumin|\bova\b|siinfe?kl|antigen presentation|mhc\s*(?:i|ii)\s*peptide|hla[-\s]?(?:i|ii)\s*peptide|hla[-\s]?dr|cd(?:74|80|86)|dendritic cell maturation)\b|(?:抗原呈递|抗原肽|OVA肽|树突细胞成熟)/i,
+  },
+  {
+    tag: "COMPLEMENT_FC_EFFECTOR_REAGENT",
+    pattern:
+      /\b(?:complement\s+(?:serum|component|reagent|protein|inhibitor)|c3a|c5a|cobra venom factor|eculizumab|fc effector)\b|(?:补体|Fc效应)(?:血清|成分|试剂|蛋白|抑制剂)?/i,
+  },
+  { tag: "IMMUNE_CHEMOTAXIS_REAGENT", pattern: /\b(?:chemokine|cxcl\d+|ccl\d+|sdf[-\s]?1)\b|趋化因子/i },
+  {
+    tag: "FC_RECEPTOR_BLOCKING_REAGENT",
+    pattern: /\b(?:fc(?:gamma)?\s*(?:receptor)?\s*block(?:ing)?|cd16\s*\/\s*32\s*(?:block(?:ing)?|antibody))\b|Fc(?:受体)?封闭(?:剂|液)?/i,
+  },
+  {
+    tag: "IMMUNE_CELL_ENRICHMENT_REAGENT",
+    pattern:
+      /\b(?:magnetic[-\s]?activated cell sorting|macs|immune[-\s]?cell isolation|(?:cd3|cd4|cd8|cd19|cd20|cd14|cd56)[\s-]*(?:microbeads|isolation kit))\b|(?:免疫细胞|T细胞|B细胞|NK细胞)(?:磁珠)?分选/i,
+  },
   { tag: "HISTOLOGY_STAIN_REAGENT", pattern: /\b(?:hematoxylin|eosin|masson|periodic acid schiff|alcian blue|sirius red|giemsa|nissl|oil red o|crystal violet)\b|(?:苏木精|伊红|masson|过碘酸|阿利新蓝|天狼星红|吉姆萨|尼氏|油红o|结晶紫)(?:染色)?/i },
   { tag: "MICROBIAL_CULTURE_MEDIUM", pattern: /\b(?:lb(?:\s+(?:broth|agar))?|nutrient (?:broth|agar)|tryptic soy(?:\s+(?:broth|agar))?|bhi(?:\s+(?:broth|agar))?|mueller[-\s]?hinton|sabouraud|microbial culture medium)\b|(?:营养|菌)?(?:肉汤|琼脂)|微生物培养基/i },
   { tag: "CALIBRATION_STANDARD", pattern: /\b(?:calibration standard|reference standard|certified reference material|assay calibrator|platform calibrator)\b|(?:校准|参考)标准(?:品|物)|校准物/i },
@@ -343,10 +497,6 @@ export function detectExperimentTags(name: string, antibodyMeta: ParsedAntibodyM
     }
   }
 
-  if (/capture antibody|detection antibody|sandwich elisa|捕获抗体|检测抗体/.test(lowered)) {
-    tags.push("ELISA_DETECTION_ANTIBODY");
-  }
-
   if (/primary antibody/.test(lowered) && /flow|facs/.test(lowered)) {
     tags.push("FLOW_PRIMARY_ANTIBODY");
   }
@@ -355,7 +505,7 @@ export function detectExperimentTags(name: string, antibodyMeta: ParsedAntibodyM
     tags.push("FLOW_FLUORESCENT_ANTIBODY");
   }
 
-  return uniq(tags);
+  return supplementReagentCapabilityTags(name, uniq(tags));
 }
 
 export function detectCategory(name: string): ReagentCategory {
@@ -388,7 +538,14 @@ export function detectCategory(name: string): ReagentCategory {
   ) {
     return "BIOLOGICAL";
   }
-  if (/trizol|dnase|rnase|triton|dapi|paraformaldehyde|methanol|acetone|ethanol|tribromoethanol|avertin|puromycin|blasticidin|g418|dmso|乙醇|酒精|三溴乙醇|阿(?:佛|弗)丁/.test(lowered) || isGeneDelivery) return "CHEMICAL";
+  if (
+    /trizol|dnase|rnase|triton|dapi|paraformaldehyde|methanol|acetone|ethanol|tribromoethanol|avertin|puromycin|blasticidin|g418|dmso|mitotracker|mitosox|tmrm|tmre|jc[-\s]?1|bafilomycin|chloroquine|hydroxychloroquine|rapamycin|torin|oligomycin|fccp|rotenone|antimycin|nigericin|ruxolitinib|tofacitinib|baricitinib|fedratinib|etomoxir|2[-\s]?deoxy(?:-d)?[-\s]?glucose|2[-\s]?dg|乙醇|酒精|三溴乙醇|阿(?:佛|弗)丁|雷帕霉素|羟?氯喹|尼日利亚菌素/.test(
+      lowered,
+    ) ||
+    isGeneDelivery
+  ) {
+    return "CHEMICAL";
+  }
   if (/membrane|plate|slide|filter|dish|flask|syringe|pipette tip|tube|培养皿|培养板|培养瓶|注射器/.test(lowered)) return "CONSUMABLE";
   return "OTHER";
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ExperimentIcon, LabsIcon, SearchIcon } from "@/components/common/app-icons";
+import { toPlainLanguageTechniqueScope } from "@/lib/experiment-techniques/presentation";
 import { requestJson } from "@/lib/http";
 
 type Lab = { role: string; lab: { id: string; name: string } };
@@ -493,13 +494,7 @@ export default function ExperimentCheckPage() {
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">{selected.name.zh}</h3>
                 <p className="text-sm text-slate-300">{selected.name.en}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-400">{selected.scope.zh}</p>
-                <Link
-                  href={`/knowledge/techniques/${encodeURIComponent(selected.code)}`}
-                  className="mt-3 inline-block text-xs font-semibold text-teal-200 hover:text-white"
-                >
-                  查看完整知识条目 →
-                </Link>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{toPlainLanguageTechniqueScope(selected.scope.zh)}</p>
               </div>
 
               {selected.profiles.length ? (

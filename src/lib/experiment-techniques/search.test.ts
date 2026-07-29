@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   repositoryCatalogValidation,
   repositoryTechniqueCatalog,
+  repositoryTechniqueByCode,
 } from "@/lib/experiment-techniques/catalog";
 import {
   createTechniqueSearchIndex,
@@ -27,6 +28,126 @@ describe("repository catalog acceptance gate", () => {
         `first warnings: ${repositoryCatalogValidation.warnings.slice(0, 5).join(" || ")}`,
       ].join("\n"),
     );
+  });
+});
+
+describe("mainstream integrative-biology coverage", () => {
+  const coverageBaseline = {
+    targetedChromatin: [
+      "CHIP_PCR",
+      "CHIP_QPCR",
+      "ATAC_QPCR",
+      "CHIP_SEQUENCING",
+      "CUT_AND_RUN",
+      "CUT_AND_TAG",
+      "ATAC_SEQUENCING",
+      "DNASE_SEQUENCING",
+    ],
+    threeDimensionalGenomics: [
+      "HI_C_CHROMOSOME_CONFORMATION_CAPTURE",
+      "CAPTURE_HI_C",
+      "FOUR_C_SEQUENCING",
+    ],
+    transcriptomeAndRnaBinding: [
+      "BULK_POLY_A_RNA_SEQUENCING",
+      "TOTAL_RNA_SEQUENCING",
+      "LONG_READ_RNA_SEQUENCING",
+      "RIBOSOME_PROFILING",
+      "ECLIP_SEQUENCING",
+      "RIP_SEQUENCING",
+    ],
+    singleCellAndPerturbation: [
+      "DROPLET_SINGLE_CELL_RNA_SEQUENCING",
+      "SINGLE_CELL_ATAC_SEQUENCING",
+      "SINGLE_CELL_MULTIOME_RNA_ATAC_SEQUENCING",
+      "CITE_SEQUENCING",
+      "SINGLE_CELL_VDJ_SEQUENCING",
+      "SINGLE_CELL_DNA_SEQUENCING",
+      "POOLED_CRISPR_CAS9_SCREEN",
+      "CRISPR_INTERFERENCE_SCREEN",
+      "PERTURB_SEQUENCING",
+    ],
+    spatialBiology: [
+      "CAPTURE_BASED_SPATIAL_TRANSCRIPTOMICS",
+      "IMAGING_BASED_SPATIAL_TRANSCRIPTOMICS",
+      "SPATIAL_PROTEOMICS",
+    ],
+    proteomeAndMetabolism: [
+      "DDA_LC_MS_PROTEOMICS",
+      "DIA_LC_MS_PROTEOMICS",
+      "TMT_MULTIPLEXED_PROTEOMICS",
+      "PHOSPHOPROTEOMICS",
+      "UNTARGETED_LC_MS_METABOLOMICS",
+      "TARGETED_LC_MS_METABOLOMICS",
+      "STABLE_ISOTOPE_TRACING_METABOLOMICS",
+      "METAPROTEOMICS",
+    ],
+  } as const;
+
+  it("contains the methods needed for mainstream integrative-biology study designs", () => {
+    for (const [domain, codes] of Object.entries(coverageBaseline)) {
+      for (const code of codes) {
+        assert.ok(
+          repositoryTechniqueByCode.has(code),
+          `${domain} must include ${code}`,
+        );
+      }
+    }
+  });
+
+  it("models ChIP-qPCR with its chromatin-enrichment and qPCR reagents", () => {
+    const technique = repositoryTechniqueByCode.get("CHIP_QPCR");
+    assert.ok(technique, "CHIP_QPCR must be present in the catalog");
+    const tags = new Set<string>(
+      technique.requirements
+        .filter((requirement) => requirement.kind === "REAGENT")
+        .flatMap((requirement) => requirement.capabilityTags),
+    );
+    for (const tag of [
+      "CHIP_GRADE_ANTIBODY",
+      "PROTEIN_A_G_MAGNETIC_BEADS",
+      "PCR_PRIMER_SET",
+      "QPCR_MASTER_MIX",
+    ] as const) {
+      assert.ok(tags.has(tag), `CHIP_QPCR must require ${tag}`);
+    }
+  });
+
+  it("uses non-sequencing reagent baselines for imaging and array modalities", () => {
+    for (const code of [
+      "IMAGING_BASED_SPATIAL_TRANSCRIPTOMICS",
+      "SPATIAL_PROTEOMICS",
+      "DNA_METHYLATION_ARRAY",
+    ]) {
+      const technique = repositoryTechniqueByCode.get(code);
+      assert.ok(technique, `${code} must be present in the catalog`);
+      const tags = new Set(
+        technique.requirements
+          .filter((requirement) => requirement.kind === "REAGENT")
+          .flatMap((requirement) => requirement.capabilityTags),
+      );
+      assert.ok(
+        !tags.has("SEQUENCING_RUN_REAGENT"),
+        `${code} must not require a sequencing run by default`,
+      );
+      assert.ok(
+        !tags.has("LIBRARY_PREPARATION_REAGENT"),
+        `${code} must not require sequencing-library preparation by default`,
+      );
+    }
+  });
+
+  it("resolves hyphenated ChIP readout names directly to their catalog entries", () => {
+    for (const [query, expectedCode] of [
+      ["ChIP-PCR", "CHIP_PCR"],
+      ["ChIP-qPCR", "CHIP_QPCR"],
+    ]) {
+      const { autoSelectedCode } = resolveTechniqueCandidates(
+        repositoryTechniqueCatalog,
+        query,
+      );
+      assert.equal(autoSelectedCode, expectedCode, `${query} must resolve directly`);
+    }
   });
 });
 

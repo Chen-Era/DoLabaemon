@@ -1604,6 +1604,7 @@ const proteinImmunoassayBlueprints: TechniqueBlueprint[] = [
     sampleTypes: ["serum", "plasma", "conditioned medium", "cell lysate"],
     readoutModes: ["absorbance", "analyte concentration", "standard-curve fit"],
     reagentCapabilities: ["capture antibody", "detection antibody", "ELISA standard", "ELISA substrate"],
+    omitBaselineReagentKeys: ["binding"],
     throughput: "HIGH",
   }),
   proteinTechnique({

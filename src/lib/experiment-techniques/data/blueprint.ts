@@ -65,6 +65,7 @@ export type TechniqueBlueprint = {
   evidenceSourceIds: string[];
   reportingStandardIds?: string[];
   reagentCapabilities?: string[];
+  omitBaselineReagentKeys?: string[];
   hazards?: string[];
   biosafetyLevel?: "BSL1" | "BSL2" | "BSL3" | "BSL4" | "ABSL1" | "ABSL2" | "ABSL3" | "ABSL4" | "NA";
   destructive?: boolean;

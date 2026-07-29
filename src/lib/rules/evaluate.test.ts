@@ -247,3 +247,18 @@ test("ELISA can be evaluated with the new experiment type catalog", () => {
 
   assert.equal(result.status, "PASS");
 });
+
+test("one explicitly complete ELISA kit satisfies the legacy ELISA rule bundle", () => {
+  const result = evaluateRules({
+    rules: rulesFor("ELISA"),
+    reagents: [{ name: "ELISA Kit for Annexin A2 (ANXA2)", experimentTags: [] }],
+    lang: "zh",
+  });
+
+  assert.equal(result.status, "PASS");
+  assert.ok(
+    result.items
+      .filter((item) => !item.isMissing)
+      .every((item) => item.matchedName === "ELISA Kit for Annexin A2 (ANXA2)"),
+  );
+});

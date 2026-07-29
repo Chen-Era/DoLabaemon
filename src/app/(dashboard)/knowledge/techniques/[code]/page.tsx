@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { techniqueCategoryLabels } from "@/lib/experiment-techniques/catalog";
+import { toPlainLanguageTechniqueScope } from "@/lib/experiment-techniques/presentation";
 import { validateTechniqueForPublication } from "@/lib/experiment-techniques/publication";
 import {
   getPublishedTechnique,
@@ -102,16 +103,16 @@ export default async function TechniqueDetailPage({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="space-y-6">
           <section className="app-panel p-5">
-            <h2 className="text-lg font-semibold text-slate-950">原理与适用范围</h2>
+            <h2 className="text-lg font-semibold text-slate-950">这项实验怎么做、能做什么</h2>
             <div className="mt-4 grid gap-5 md:grid-cols-2">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">原理</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">实验怎么做</p>
                 <p className="mt-2 text-sm leading-7 text-slate-700">{technique.principle.zh}</p>
                 <p className="mt-2 text-xs leading-6 text-slate-500">{technique.principle.en}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">适用范围</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{technique.scope.zh}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">适合解决什么问题</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{toPlainLanguageTechniqueScope(technique.scope.zh)}</p>
                 <p className="mt-2 text-xs leading-6 text-slate-500">{technique.scope.en}</p>
               </div>
             </div>

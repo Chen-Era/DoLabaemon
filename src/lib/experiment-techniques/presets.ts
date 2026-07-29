@@ -607,7 +607,419 @@ function controlRequirements(blueprint: TechniqueBlueprint, definition: PresetDe
   }));
 }
 
+function manualProfileRequirement(
+  techniqueCode: string,
+  profileCode: string,
+  suffix: string,
+  kind: TechniqueRequirement["kind"],
+  label: [string, string],
+): TechniqueRequirement {
+  return {
+    ...requirement(techniqueCode, kind, label),
+    id: `${techniqueCode}:profile:${profileCode}:${suffix}`,
+  };
+}
+
+// These profiles turn broad integrative-biology labels into study-specific
+// checklists. Target identity is intentionally confirmed manually: an
+// inventory record can prove that a reagent class exists, but cannot prove it
+// addresses the investigator's biological question.
+function integrativeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
+  const requirementFor = (
+    profileCode: string,
+    suffix: string,
+    kind: TechniqueRequirement["kind"],
+    label: [string, string],
+  ) => manualProfileRequirement(blueprint.code, profileCode, suffix, kind, label);
+
+  switch (blueprint.code) {
+    case "CHIP_QPCR": {
+      const profileCode = "REGULATORY_LOCUS_VALIDATION";
+      return [{
+        code: profileCode,
+        name: { zh: "调控位点验证", en: "Regulatory-locus validation" },
+        description: {
+          zh: "用于验证特定转录因子或组蛋白修饰在预设调控区域的富集；目标、阴性位点与输入归一化必须在实验前定义。",
+          en: "Validates enrichment of a specified transcription factor or histone mark at predefined regulatory regions; targets, negative loci, and input normalization must be set before the run.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "target-antibody", "REAGENT", ["与目标转录因子或组蛋白修饰匹配的 ChIP 验证抗体", "ChIP-validated antibody matched to the target transcription factor or histone mark"]),
+          requirementFor(profileCode, "locus-primers", "REAGENT", ["目标位点与阴性位点的成对 qPCR 引物", "Paired qPCR primers for target and negative-control loci"]),
+          requirementFor(profileCode, "controls", "CONTROL", ["Input、IgG 与阴性位点富集对照", "Input, IgG, and negative-locus enrichment controls"]),
+        ],
+      }];
+    }
+    case "WHOLE_GENOME_BISULFITE_SEQUENCING": {
+      const profileCode = "METHYLATION_REPROGRAMMING";
+      return [{
+        code: profileCode,
+        name: { zh: "甲基化重编程研究", en: "Methylation-reprogramming study" },
+        description: {
+          zh: "用于比较预定义细胞状态或处理之间的甲基化重编程；转换效率和目标CpG区域应与生物学假设一起登记。",
+          en: "Compares methylation reprogramming across predefined cell states or conditions; conversion efficiency and target CpG regions must be registered with the biological hypothesis.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "conversion-control", "CONTROL", ["未甲基化与甲基化转换效率参考物", "Unmethylated and methylated conversion-efficiency references"]),
+          requirementFor(profileCode, "target-regions", "SAMPLE", ["已登记的目标CpG区域、差异甲基化阈值与细胞组成校正计划", "Registered target CpG regions, differential-methylation threshold, and cell-composition correction plan"]),
+        ],
+      }];
+    }
+    case "SINGLE_CELL_MULTIOME_RNA_ATAC_SEQUENCING": {
+      const profileCode = "CELL_ATLAS_REGULATORY_NETWORK";
+      return [{
+        code: profileCode,
+        name: { zh: "细胞图谱与调控网络", en: "Cell atlas and regulatory network" },
+        description: {
+          zh: "将同一细胞的RNA和可及性用于构建细胞类型特异调控网络；需在上机前确定目标细胞数、批次平衡和QC阈值。",
+          en: "Uses paired RNA and accessibility from the same cells to build cell-type-specific regulatory networks; target cell count, batch balancing, and QC thresholds must be fixed before sequencing.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "cell-state-markers", "REAGENT", ["用于确认目标细胞类型/状态的验证性标记物面板", "Validation marker panel for the target cell types or states"]),
+          requirementFor(profileCode, "multiplet-controls", "CONTROL", ["双细胞、环境RNA与跨批次混样控制", "Doublet, ambient-RNA, and cross-batch multiplexing controls"]),
+          requirementFor(profileCode, "analysis-plan", "SOFTWARE", ["预定义的细胞注释、峰-基因关联和批次校正分析方案", "Prespecified cell annotation, peak-to-gene linking, and batch-correction analysis plan"]),
+        ],
+      }];
+    }
+    case "CITE_SEQUENCING": {
+      const profileCode = "IMMUNE_PHENOTYPE_RNA_PROTEIN";
+      return [{
+        code: profileCode,
+        name: { zh: "免疫表型RNA-蛋白联测", en: "Immune phenotype RNA–protein integration" },
+        description: {
+          zh: "将转录组与表面蛋白联合用于免疫分型；面板必须围绕预定义的谱系、活化和耗竭状态设计。",
+          en: "Combines transcriptome and surface proteins for immune phenotyping; the panel must be designed around predefined lineage, activation, and exhaustion states.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "target-panel", "REAGENT", ["面向预定义免疫谱系与状态标志物的寡核苷酸条形码抗体面板", "Oligonucleotide-barcoded antibody panel for predefined immune lineage and state markers"]),
+          requirementFor(profileCode, "background-controls", "CONTROL", ["同型、无细胞背景和抗体滴定控制", "Isotype, cell-free background, and antibody-titration controls"]),
+        ],
+      }];
+    }
+    case "IMAGING_BASED_SPATIAL_TRANSCRIPTOMICS": {
+      const profileCode = "SPATIAL_TARGETED_PANEL";
+      return [{
+        code: profileCode,
+        name: { zh: "靶向空间转录图谱", en: "Targeted spatial transcriptome" },
+        description: {
+          zh: "以原位靶向面板验证组织区域和细胞邻域假设；需同时设置区域阳性和无探针对照。",
+          en: "Uses an in-situ target panel to test tissue-region and cellular-neighborhood hypotheses; region-positive and no-probe controls are both required.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "target-probes", "REAGENT", ["覆盖目标基因、细胞类型与阴性探针的空间探针面板", "Spatial probe panel covering target genes, cell types, and negative probes"]),
+          requirementFor(profileCode, "tissue-controls", "CONTROL", ["已知阳性组织区、无探针和组织自发荧光控制", "Known-positive tissue region, no-probe, and tissue-autofluorescence controls"]),
+        ],
+      }];
+    }
+    case "SPATIAL_PROTEOMICS": {
+      const profileCode = "TISSUE_MICROENVIRONMENT";
+      return [{
+        code: profileCode,
+        name: { zh: "组织微环境多重蛋白表型", en: "Multiplex tissue-microenvironment phenotyping" },
+        description: {
+          zh: "用于解析组织微环境与细胞邻域；每个抗体靶点须与组织定位、批次和分割策略一并验证。",
+          en: "Resolves tissue microenvironments and cellular neighborhoods; each antibody target must be validated with tissue localization, batch, and segmentation strategy.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "antibody-panel", "REAGENT", ["覆盖谱系、功能、检查点和结构标志物的多重抗体面板", "Multiplex antibody panel covering lineage, functional, checkpoint, and structural markers"]),
+          requirementFor(profileCode, "segmentation-controls", "CONTROL", ["组织阳性/阴性区、同型与细胞分割复核控制", "Tissue positive/negative regions, isotype controls, and cell-segmentation review controls"]),
+        ],
+      }];
+    }
+    case "PHOSPHOPROTEOMICS": {
+      const profileCode = "SIGNALING_NETWORK";
+      return [{
+        code: profileCode,
+        name: { zh: "信号通路与磷酸化网络", en: "Signaling and phosphosite network" },
+        description: {
+          zh: "用于药物或刺激响应中的激酶-底物网络；采样时间、去磷酸化抑制和位点级正交验证是关键。",
+          en: "Profiles kinase–substrate networks after drugs or stimuli; sampling time, phosphatase inhibition, and site-level orthogonal validation are critical.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "time-course", "SAMPLE", ["按预定义信号动力学采集并立即抑制去磷酸化的样本", "Samples collected at prespecified signaling time points with immediate phosphatase inhibition"]),
+          requirementFor(profileCode, "site-validation", "REAGENT", ["针对关键磷酸化位点的正交验证抗体或标准肽", "Orthogonal validation antibodies or standard peptides for key phosphosites"]),
+          requirementFor(profileCode, "stimulus-controls", "CONTROL", ["未处理、载体和已知通路响应控制", "Untreated, vehicle, and known pathway-response controls"]),
+        ],
+      }];
+    }
+    case "STABLE_ISOTOPE_TRACING_METABOLOMICS": {
+      const profileCode = "METABOLIC_FLUX";
+      return [{
+        code: profileCode,
+        name: { zh: "稳定同位素代谢通量", en: "Stable-isotope metabolic flux" },
+        description: {
+          zh: "通过示踪底物追踪碳/氮流向；示踪纯度、暴露时间和代谢淬灭条件必须与通量假设绑定。",
+          en: "Tracks carbon or nitrogen flow with labelled substrates; tracer purity, exposure time, and metabolic quenching must be tied to the flux hypothesis.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "tracer-target", "REAGENT", ["与预设碳/氮流向假设匹配的稳定同位素示踪底物", "Stable-isotope tracer substrate matched to the prespecified carbon/nitrogen-flow hypothesis"]),
+          requirementFor(profileCode, "quench-control", "CONTROL", ["未标记培养基、提取空白和淬灭回收控制", "Unlabelled medium, extraction blank, and quench-recovery controls"]),
+        ],
+      }];
+    }
+    case "POOLED_CRISPR_CAS9_SCREEN": {
+      const profileCode = "CAUSAL_GENE_SCREEN";
+      return [{
+        code: profileCode,
+        name: { zh: "因果基因筛选", en: "Causal gene screen" },
+        description: {
+          zh: "用于池化扰动发现因果基因；需把目标基因集、每基因向导数、覆盖度、MOI与对照向导预先锁定。",
+          en: "Discovers causal genes through pooled perturbation; target genes, guides per gene, representation, MOI, and control guides must be locked in advance.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "guide-library", "REAGENT", ["与目标基因集和阳性/阴性对照匹配、经测序验证的sgRNA文库", "Sequence-verified sgRNA library matched to the target gene set and positive/negative controls"]),
+          requirementFor(profileCode, "representation-control", "CONTROL", ["起始与终点文库覆盖度、MOI和编辑效率控制", "Baseline and endpoint library representation, MOI, and editing-efficiency controls"]),
+        ],
+      }];
+    }
+    case "SHOTGUN_METAGENOMIC_SEQUENCING": {
+      const profileCode = "HOST_MICROBIOME_FUNCTION";
+      return [{
+        code: profileCode,
+        name: { zh: "宿主-微生物组功能分析", en: "Host–microbiome functional analysis" },
+        description: {
+          zh: "用于将微生物分类和功能通路与宿主表型关联；低生物量污染与宿主DNA比例必须在设计中控制。",
+          en: "Links microbial taxonomy and functional pathways to host phenotypes; low-biomass contamination and host-DNA fraction must be controlled in the design.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "depletion-strategy", "REAGENT", ["适用于样本基质的宿主DNA去除或微生物DNA富集体系", "Host-DNA depletion or microbial-DNA enrichment chemistry appropriate to the sample matrix"]),
+          requirementFor(profileCode, "community-controls", "CONTROL", ["采样空白、提取空白和模拟微生物群落控制", "Sampling blanks, extraction blanks, and mock microbial-community controls"]),
+          requirementFor(profileCode, "functional-targets", "SOFTWARE", ["预定义分类群、功能通路或耐药基因的注释数据库与阈值", "Prespecified annotation database and thresholds for taxonomic, pathway, or resistance-gene targets"]),
+        ],
+      }];
+    }
+    case "ORGANOID_CULTURE": {
+      const profileCode = "DEVELOPMENTAL_DISEASE_MODEL";
+      return [{
+        code: profileCode,
+        name: { zh: "发育与疾病类器官模型", en: "Developmental and disease organoid model" },
+        description: {
+          zh: "用于将发育、疾病或药物响应表型与组学研究连接；模型身份、成熟度和批次放行须可追溯。",
+          en: "Connects developmental, disease, or drug-response phenotypes to omics studies; model identity, maturity, and batch release must be traceable.",
+        },
+        additionalRequirements: [
+          requirementFor(profileCode, "lineage-factors", "REAGENT", ["与目标组织谱系和成熟阶段匹配的基质与分化因子组合", "Matrix and differentiation-factor combination matched to the target tissue lineage and maturation stage"]),
+          requirementFor(profileCode, "identity-controls", "CONTROL", ["谱系身份、成熟度、支原体和批次内形态放行控制", "Lineage-identity, maturity, mycoplasma, and within-batch morphology release controls"]),
+        ],
+      }];
+    }
+    default:
+      return [];
+  }
+}
+
+// Phenotype/pathway profiles are deliberately separate from platform profiles
+// above.  They make the biological question actionable: every selected
+// pathway names the target panel and the perturbation or interpretation
+// control that must be registered.  Target identity remains a manual
+// confirmation because a stock record alone cannot establish biological
+// suitability for a particular model or species.
+function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
+  const requirementFor = (
+    profileCode: string,
+    suffix: string,
+    kind: TechniqueRequirement["kind"],
+    label: [string, string],
+  ) => manualProfileRequirement(blueprint.code, profileCode, suffix, kind, label);
+
+  const profile = (
+    code: string,
+    name: [string, string],
+    description: [string, string],
+    additionalRequirements: TechniqueRequirement[],
+  ): TechniqueProfile => ({
+    code,
+    name: { zh: name[0], en: name[1] },
+    description: { zh: description[0], en: description[1] },
+    additionalRequirements,
+  });
+
+  switch (blueprint.code) {
+    case "WB": {
+      const autophagy = "AUTOPHAGY_FLUX_WB";
+      const ecm = "ECM_REMODELING_WB";
+      const mitochondrial = "MITOCHONDRIAL_BIOENERGETICS_WB";
+      const ifn = "INTERFERON_SIGNALING_WB";
+      return [
+        profile(
+          autophagy,
+          ["自噬通量 WB", "Autophagic-flux western blot"],
+          ["以 LC3 脂化与 p62 周转共同判定自噬通量，必须配合阻断溶酶体降解的对照，不能只报告单一静态蛋白量。", "Interprets autophagic flux from LC3 lipidation and p62 turnover together; a lysosomal-degradation block is required, rather than a single static protein measurement."],
+          [
+            requirementFor(autophagy, "marker-antibodies", "REAGENT", ["LC3B（LC3-I/II）与 SQSTM1/p62 抗体，并按模型需要加入 ATG5、ATG7 或 Beclin-1", "Antibodies to LC3B (LC3-I/II) and SQSTM1/p62, with ATG5, ATG7, or Beclin-1 as model-appropriate additions"]),
+            requirementFor(autophagy, "flux-block", "REAGENT", ["用于通量判读的溶酶体抑制剂（如 bafilomycin A1 或 chloroquine）及载体", "Lysosomal inhibitor for flux interpretation (such as bafilomycin A1 or chloroquine) with matched vehicle"]),
+            requirementFor(autophagy, "time-course", "CONTROL", ["未处理、诱导和溶酶体阻断条件下的预定义采样时间序列", "Prespecified sampling time course across untreated, inducing, and lysosomal-block conditions"]),
+          ],
+        ),
+        profile(
+          ecm,
+          ["细胞外基质重塑 WB", "Extracellular-matrix remodeling western blot"],
+          ["将基质沉积、降解与黏附信号放在同一判读框架中，靶点须与样本来源和组织区室相匹配。", "Places matrix deposition, degradation, and adhesion signaling in one interpretation framework; targets must match the sample source and tissue compartment."],
+          [
+            requirementFor(ecm, "matrix-panel", "REAGENT", ["COL1A1/COL3A1、FN1、Laminin 或对应基质蛋白的验证抗体面板", "Validated antibody panel for COL1A1/COL3A1, FN1, laminin, or the relevant matrix proteins"]),
+            requirementFor(ecm, "turnover-panel", "REAGENT", ["MMP2/MMP9、TIMP1/TIMP2 及需要时 ITGB1、FAK/p-FAK 的重塑/黏附抗体", "Remodeling/adhesion antibodies for MMP2/MMP9, TIMP1/TIMP2, and, when indicated, ITGB1 and FAK/p-FAK"]),
+            requirementFor(ecm, "matrix-control", "CONTROL", ["基线与重塑诱导（如 TGF-β）或抑制条件，以及适配的上清/细胞层分离策略", "Baseline and remodeling-inducing (such as TGF-β) or inhibiting conditions, with an appropriate supernatant/cell-layer fractionation strategy"]),
+          ],
+        ),
+        profile(
+          mitochondrial,
+          ["线粒体生物能学 WB", "Mitochondrial-bioenergetics western blot"],
+          ["同时评估线粒体含量、呼吸链复合体和应激响应；全细胞上样量不能替代线粒体含量归一化。", "Evaluates mitochondrial content, respiratory-chain complexes, and stress response together; whole-cell loading alone cannot substitute for mitochondrial-content normalization."],
+          [
+            requirementFor(mitochondrial, "oxphos-panel", "REAGENT", ["OXPHOS 复合体 I–V 抗体鸡尾酒，或 NDUFS1、SDHB、UQCRC2、MTCO1、ATP5F1A 的目标抗体", "OXPHOS complex I–V antibody cocktail, or target antibodies to NDUFS1, SDHB, UQCRC2, MTCO1, and ATP5F1A"]),
+            requirementFor(mitochondrial, "content-normalizer", "REAGENT", ["线粒体含量归一化标记（VDAC1、TOMM20 或 citrate synthase）及总蛋白归一化方案", "Mitochondrial-content normalizer (VDAC1, TOMM20, or citrate synthase) and a total-protein normalization plan"]),
+            requirementFor(mitochondrial, "functional-control", "CONTROL", ["呼吸抑制/解偶联或营养应激的阳性响应控制，并预定义细胞数和活性门槛", "Positive response control using respiratory inhibition/uncoupling or nutrient stress, with prespecified cell-number and viability thresholds"]),
+          ],
+        ),
+        profile(
+          ifn,
+          ["干扰素信号 WB", "Interferon-signaling western blot"],
+          ["将 IFN 刺激、JAK–STAT 磷酸化和 ISG 蛋白响应分层验证，并注明所研究的是 I 型、II 型或 III 型 IFN。", "Validates IFN stimulation, JAK–STAT phosphorylation, and ISG protein response in layers, while specifying type I, II, or III IFN."],
+          [
+            requirementFor(ifn, "ligand-and-block", "REAGENT", ["与假设匹配的重组 IFN-α/β、IFN-γ 或 IFN-λ，以及中和抗体或 JAK 抑制剂", "Hypothesis-matched recombinant IFN-α/β, IFN-γ, or IFN-λ, with a neutralizing antibody or JAK inhibitor"]),
+            requirementFor(ifn, "signal-panel", "REAGENT", ["p-STAT1/STAT1、p-STAT2/STAT2、IRF9 和 ISG15/MX1 等目标抗体面板", "Target antibody panel for p-STAT1/STAT1, p-STAT2/STAT2, IRF9, and ISG15/MX1"]),
+            requirementFor(ifn, "kinetic-control", "CONTROL", ["未刺激、IFN 刺激、阻断和时间梯度控制；磷酸化样本需立即加入磷酸酶抑制剂", "Unstimulated, IFN-stimulated, blocked, and time-gradient controls; phosphoprotein samples require immediate phosphatase inhibition"]),
+          ],
+        ),
+      ];
+    }
+    case "QPCR": {
+      const autophagy = "AUTOPHAGY_TRANSCRIPTIONAL_QPCR";
+      const ecm = "ECM_REMODELING_QPCR";
+      const mitochondrial = "MITOCHONDRIAL_BIOGENESIS_QPCR";
+      const ifn = "INTERFERON_STIMULATED_GENE_QPCR";
+      return [
+        profile(autophagy, ["自噬转录响应 qPCR", "Autophagy transcriptional-response qPCR"], ["用核心自噬与溶酶体基因的组合描述通路响应，同时用通量实验避免把 mRNA 变化误作通量。", "Describes pathway response with a core autophagy/lysosome gene set and pairs it with a flux assay to avoid equating mRNA changes with flux."], [
+          requirementFor(autophagy, "primer-panel", "REAGENT", ["MAP1LC3B、SQSTM1、ATG5/ATG7、BECN1 和模型相关溶酶体基因的经验证引物", "Validated primers for MAP1LC3B, SQSTM1, ATG5/ATG7, BECN1, and model-relevant lysosomal genes"]),
+          requirementFor(autophagy, "flux-orthogonal-control", "CONTROL", ["与转录采样配对的自噬通量正交读出及未处理/诱导对照", "Orthogonal autophagic-flux readout paired with transcriptional sampling, plus untreated/induced controls"]),
+        ]),
+        profile(ecm, ["细胞外基质重塑 qPCR", "Extracellular-matrix remodeling qPCR"], ["区分基质合成、降解和交联表达模块，并预定义细胞组成或组织区室校正。", "Separates matrix synthesis, degradation, and cross-linking expression modules, with prespecified cell-composition or tissue-compartment correction."], [
+          requirementFor(ecm, "primer-panel", "REAGENT", ["COL1A1、COL3A1、FN1、MMP2/MMP9、TIMP1/TIMP2 与 LOX 的目标引物面板", "Target primer panel for COL1A1, COL3A1, FN1, MMP2/MMP9, TIMP1/TIMP2, and LOX"]),
+          requirementFor(ecm, "remodeling-control", "CONTROL", ["基线与诱导/抑制重塑条件，并登记培养基血清、细胞密度和归一化基因稳定性", "Baseline and remodeling-inducing/inhibiting conditions, with recorded medium serum, cell density, and reference-gene stability"]),
+        ]),
+        profile(mitochondrial, ["线粒体生物发生与代谢 qPCR", "Mitochondrial-biogenesis and metabolism qPCR"], ["以核编码生物发生基因、线粒体转录本和 mtDNA 拷贝数共同判定，避免只用单一线粒体基因。", "Uses nuclear-encoded biogenesis genes, mitochondrial transcripts, and mtDNA copy number together, avoiding reliance on one mitochondrial gene."], [
+          requirementFor(mitochondrial, "primer-panel", "REAGENT", ["PPARGC1A、TFAM、NRF1、NDUFS1/COX5B 及 mtDNA/核 DNA 拷贝数配对引物", "Paired primers for PPARGC1A, TFAM, NRF1, NDUFS1/COX5B, and mtDNA/nuclear-DNA copy number"]),
+          requirementFor(mitochondrial, "normalization-control", "CONTROL", ["细胞数、细胞周期和活性校正，以及氧张力/底物条件的预定义记录", "Cell-number, cell-cycle, and viability correction, with prespecified recording of oxygen and substrate conditions"]),
+        ]),
+        profile(ifn, ["干扰素刺激基因 qPCR", "Interferon-stimulated-gene qPCR"], ["用早期信号与晚期 ISG 模块区分 IFN 通路，并避免把一般炎症转录本当作 IFN 特异响应。", "Separates early signaling from late ISG modules and avoids treating general inflammatory transcripts as IFN-specific response."], [
+          requirementFor(ifn, "isg-primer-panel", "REAGENT", ["ISG15、MX1、OAS1、IFIT1、IFITM3 和与 IFN 类型匹配的 IFNB1/IFNG/IFNL 目标引物", "Target primers for ISG15, MX1, OAS1, IFIT1, IFITM3, and IFNB1/IFNG/IFNL matched to the IFN type"]),
+          requirementFor(ifn, "specificity-control", "CONTROL", ["未刺激、重组 IFN 阳性、JAK 阻断和炎症非 IFN 刺激对照，以及经验证的参考基因", "Unstimulated, recombinant-IFN positive, JAK-blocked, and inflammatory non-IFN controls, plus validated reference genes"]),
+        ]),
+      ];
+    }
+    case "IF": {
+      const autophagy = "AUTOPHAGY_PUNCTA_IF";
+      const ecm = "ECM_DEPOSITION_IF";
+      const mitochondrial = "MITOCHONDRIAL_MORPHOLOGY_IF";
+      const ifn = "INTERFERON_NUCLEAR_SIGNALING_IF";
+      return [
+        profile(autophagy, ["自噬斑点 IF", "Autophagy-puncta immunofluorescence"], ["通过 LC3 与 p62/溶酶体共定位和每细胞定量评估自噬结构，必须结合通量阻断条件。", "Assesses autophagic structures using LC3 colocalization with p62/lysosomes and per-cell quantification, with a flux-block condition."], [
+          requirementFor(autophagy, "marker-panel", "REAGENT", ["LC3B、SQSTM1/p62 与 LAMP1/LysoTracker 的兼容抗体/探针组合", "Compatible LC3B, SQSTM1/p62, and LAMP1/LysoTracker antibody/probe combination"]),
+          requirementFor(autophagy, "imaging-control", "CONTROL", ["未处理、诱导和溶酶体阻断对照；预定义盲法视野选择、阈值与每细胞斑点计数规则", "Untreated, induced, and lysosomal-block controls; prespecified blinded field selection, thresholding, and per-cell puncta-counting rules"]),
+        ]),
+        profile(ecm, ["细胞外基质沉积 IF", "Extracellular-matrix deposition immunofluorescence"], ["同时显示 ECM 蛋白的空间沉积和细胞黏附/收缩状态，适用于单层、3D 基质或组织切片。", "Visualizes spatial ECM deposition together with cellular adhesion/contractility, for monolayers, 3D matrices, or tissue sections."], [
+          requirementFor(ecm, "matrix-panel", "REAGENT", ["COL I、FN1、Laminin 或组织相关 ECM 抗体，及需要时 α-SMA、ITGB1 或 p-FAK 标记", "Antibodies to collagen I, FN1, laminin, or tissue-relevant ECM, with α-SMA, ITGB1, or p-FAK when indicated"]),
+          requirementFor(ecm, "deposition-control", "CONTROL", ["无一抗、已知 ECM 阳性区和基质重塑诱导/抑制条件；区分细胞内信号与胞外沉积", "No-primary, known ECM-positive region, and remodeling-inducing/inhibiting controls; distinguish intracellular signal from extracellular deposition"]),
+        ]),
+        profile(mitochondrial, ["线粒体形态 IF", "Mitochondrial-morphology immunofluorescence"], ["以线粒体网络形态联合分裂/融合标志物评估应激，不把单纯染料强度视作线粒体质量。", "Assesses stress through mitochondrial-network morphology and fission/fusion markers, rather than treating dye intensity alone as mitochondrial mass."], [
+          requirementFor(mitochondrial, "morphology-panel", "REAGENT", ["TOMM20 或 HSP60 抗体/经验证的 MitoTracker，以及 DRP1、MFN1/MFN2、OPA1 标记", "TOMM20 or HSP60 antibody/validated MitoTracker, with DRP1, MFN1/MFN2, and OPA1 markers"]),
+          requirementFor(mitochondrial, "morphology-control", "CONTROL", ["膜电位依赖染料的染色活性控制、细胞周期/密度控制和预定义网络分割分析", "Staining-viability control for membrane-potential-dependent dyes, cell-cycle/density control, and prespecified network-segmentation analysis"]),
+        ]),
+        profile(ifn, ["干扰素核信号 IF", "Interferon nuclear-signaling immunofluorescence"], ["以 p-STAT1/STAT2 或 IRF3 的核转位及 ISG 蛋白表达分层读出 IFN 激活。", "Uses nuclear translocation of p-STAT1/STAT2 or IRF3 and ISG protein expression as layered readouts of IFN activation."], [
+          requirementFor(ifn, "signal-panel", "REAGENT", ["p-STAT1/STAT1、p-STAT2/STAT2 或 IRF3，配合核染和 ISG15/MX1 标记", "p-STAT1/STAT1, p-STAT2/STAT2, or IRF3 with nuclear stain and ISG15/MX1 marker"]),
+          requirementFor(ifn, "translocation-control", "CONTROL", ["未刺激、IFN 或模式识别受体刺激、JAK/通路阻断以及核/胞质分割定量规则", "Unstimulated, IFN or pattern-recognition-receptor stimulated, JAK/pathway blocked controls, with nuclear/cytoplasmic segmentation rules"]),
+        ]),
+      ];
+    }
+    case "FLOW": {
+      const ifn = "INTERFERON_RESPONSE_FLOW";
+      const innate = "INNATE_INFLAMMATION_FLOW";
+      const tCell = "T_CELL_IMMUNITY_FLOW";
+      const bCell = "B_CELL_HUMORAL_FLOW";
+      const nk = "NK_CELL_CYTOTOXICITY_FLOW";
+      const myeloid = "MYELOID_INNATE_FLOW";
+      const checkpoint = "IMMUNE_CHECKPOINT_FLOW";
+      const metabolism = "IMMUNE_METABOLISM_FLOW";
+      const antigen = "ANTIGEN_PRESENTATION_FLOW";
+      return [
+        profile(ifn, ["干扰素响应流式", "Interferon-response flow cytometry"], ["在明确细胞群内读出 p-STAT、ISG 或 MHC 上调，并将受体/细胞活性与刺激时间一并控制。", "Reads p-STAT, ISG, or MHC induction within defined cell populations while controlling receptor context, viability, and stimulation time."], [
+          requirementFor(ifn, "panel", "REAGENT", ["活/死染、谱系标记、p-STAT1/p-STAT2 或 ISG15/MX1，以及 HLA-DR/MHC-I 的抗体面板", "Antibody panel for viability, lineage, p-STAT1/p-STAT2 or ISG15/MX1, and HLA-DR/MHC-I"]),
+          requirementFor(ifn, "controls", "CONTROL", ["未刺激、匹配 IFN 刺激、JAK 阻断、FMO 与磷酸化固定/透化时间控制", "Unstimulated, matched IFN-stimulated, JAK-blocked, FMO, and phospho-fix/perm timing controls"]),
+        ]),
+        profile(innate, ["先天炎症/炎性小体流式", "Innate-inflammation/inflammasome flow cytometry"], ["区分炎性小体预激、caspase-1 活化和焦亡执行，避免只以单一细胞因子推断炎性小体。", "Distinguishes inflammasome priming, caspase-1 activation, and pyroptotic execution rather than inferring inflammasome activity from one cytokine."], [
+          requirementFor(innate, "panel", "REAGENT", ["髓系谱系标记、活/死染、活性 caspase-1/ASC 或 GSDMD 读出，并按模型加入 IL-1β/IL-18", "Myeloid-lineage markers, viability dye, active caspase-1/ASC or GSDMD readout, with IL-1β/IL-18 as model-appropriate"]),
+          requirementFor(innate, "controls", "CONTROL", ["priming 与 activation 分步条件、caspase-1 或 NLRP3 阻断、FMO 和双ts/碎片排除门控", "Separate priming and activation conditions, caspase-1 or NLRP3 blockade, FMO, and doublet/debris-exclusion gating"]),
+        ]),
+        profile(tCell, ["T 细胞免疫分型流式", "T-cell immunity flow cytometry"], ["将谱系、分化、活化、功能与耗竭分开建模，面板不应只由检查点分子构成。", "Models lineage, differentiation, activation, function, and exhaustion separately; the panel should not consist solely of checkpoint markers."], [
+          requirementFor(tCell, "panel", "REAGENT", ["CD3、CD4、CD8、CD45RA/RO、CCR7、CD25/CD127、Ki-67，以及功能/耗竭标志（如 IFN-γ、TNF、GZMB、PD-1、TIGIT）", "CD3, CD4, CD8, CD45RA/RO, CCR7, CD25/CD127, Ki-67, and functional/exhaustion markers such as IFN-γ, TNF, GZMB, PD-1, and TIGIT"]),
+          requirementFor(tCell, "controls", "CONTROL", ["单染补偿、FMO、刺激/未刺激、细胞内因子阻断和活细胞/双ts门控控制", "Single-stain compensation, FMO, stimulated/unstimulated, intracellular-cytokine-blockade, and live-cell/doublet-gating controls"]),
+        ]),
+        profile(bCell, ["B 细胞与体液免疫流式", "B-cell and humoral-immunity flow cytometry"], ["以 B 细胞成熟、浆母细胞分化和抗原经验为主线，必要时与抗体分泌读出配对。", "Tracks B-cell maturation, plasmablast differentiation, and antigen experience, paired with an antibody-secretion readout when needed."], [
+          requirementFor(bCell, "panel", "REAGENT", ["CD19 或 CD20、CD27、IgD、IgM、CD38、CD138、CD24/CD21 和必要的抗原特异探针", "CD19 or CD20, CD27, IgD, IgM, CD38, CD138, CD24/CD21, and antigen-specific probes when needed"]),
+          requirementFor(bCell, "controls", "CONTROL", ["FMO、双联体/死细胞排除、荧光抗原探针去骨架或竞争控制，以及血浆细胞门控预注册", "FMO, doublet/dead-cell exclusion, fluorescent-antigen probe decoy or competition controls, and preregistered plasma-cell gating"]),
+        ]),
+        profile(nk, ["NK 细胞细胞毒性流式", "NK-cell cytotoxicity flow cytometry"], ["同时测定 NK 谱系、抑制/激活受体、脱颗粒和靶细胞杀伤，不以单个表面标志替代功能。", "Measures NK lineage, inhibitory/activating receptors, degranulation, and target-cell killing together; a single surface marker cannot substitute for function."], [
+          requirementFor(nk, "panel", "REAGENT", ["CD45、CD3、CD56、CD16、NKG2D、NKp46、KIR、CD107a、GZMB/PRF1 及靶细胞示踪染料", "CD45, CD3, CD56, CD16, NKG2D, NKp46, KIR, CD107a, GZMB/PRF1, and target-cell tracking dye"]),
+          requirementFor(nk, "controls", "CONTROL", ["无靶、敏感/耐受靶细胞、效靶比梯度、去颗粒阻断与活性/死亡门控控制", "No-target, sensitive/resistant target, effector-to-target ratio gradient, degranulation-blockade, and viability/death-gating controls"]),
+        ]),
+        profile(myeloid, ["髓系先天免疫流式", "Myeloid innate-immunity flow cytometry"], ["区分单核细胞、中性粒细胞、巨噬细胞和树突细胞的身份与状态，并针对组织消化偏倚设定控制。", "Distinguishes identity and state of monocytes, neutrophils, macrophages, and dendritic cells, with controls for tissue-dissociation bias."], [
+          requirementFor(myeloid, "panel", "REAGENT", ["CD45、CD11b、CD14、CD16、HLA-DR、CD11c、CD64、CD163、CD206、CD66b 和 CD80/CD86 的模块化面板", "Modular panel for CD45, CD11b, CD14, CD16, HLA-DR, CD11c, CD64, CD163, CD206, CD66b, and CD80/CD86"]),
+          requirementFor(myeloid, "controls", "CONTROL", ["组织消化前后标志稳定性、FMO、绝对计数珠和预定义的谱系排除门控", "Marker-stability checks before/after tissue dissociation, FMO, counting beads, and prespecified lineage-exclusion gates"]),
+        ]),
+        profile(checkpoint, ["免疫检查点/抑制流式", "Immune-checkpoint/suppression flow cytometry"], ["在明确的 T、NK、髓系或肿瘤细胞区室中解释抑制轴，并配套活化/功能读出。", "Interprets suppressive axes within defined T, NK, myeloid, or tumor compartments and pairs them with activation/function readouts."], [
+          requirementFor(checkpoint, "panel", "REAGENT", ["PD-1、PD-L1、CTLA-4、LAG-3、TIGIT、TIM-3、VISTA 或 CD39/CD73，并包含相关谱系和功能标志", "PD-1, PD-L1, CTLA-4, LAG-3, TIGIT, TIM-3, VISTA, or CD39/CD73, with relevant lineage and functional markers"]),
+          requirementFor(checkpoint, "controls", "CONTROL", ["FMO、受体占位/克隆竞争评估、诱导阳性细胞与同批未诱导细胞，以及批次一致的门控模板", "FMO, receptor-occupancy/clone-competition assessment, induced positive and matched uninduced cells, and a batch-consistent gating template"]),
+        ]),
+        profile(metabolism, ["免疫代谢流式", "Immunometabolism flow cytometry"], ["在免疫细胞亚群内同时解释营养摄取、线粒体状态和效应功能，需避免染料受细胞大小/活性影响造成的假差异。", "Interprets nutrient uptake, mitochondrial state, and effector function within immune subsets, controlling for dye artifacts from cell size and viability."], [
+          requirementFor(metabolism, "panel", "REAGENT", ["谱系/活性标记、2-NBDG 或葡萄糖摄取探针、MitoTracker/TMRE、脂质摄取探针及功能细胞因子面板", "Lineage/viability markers, 2-NBDG or glucose-uptake probe, MitoTracker/TMRE, lipid-uptake probe, and functional cytokine panel"]),
+          requirementFor(metabolism, "controls", "CONTROL", ["无探针、竞争抑制、呼吸抑制/解偶联、细胞大小校正和基于活细胞的门控控制", "No-probe, competitive-inhibition, respiratory inhibition/uncoupling, cell-size correction, and live-cell-based gating controls"]),
+        ]),
+        profile(antigen, ["抗原呈递流式", "Antigen-presentation flow cytometry"], ["评估抗原加工和 MHC 呈递能力时，需同时读出 APC 身份、共刺激和 T 细胞功能后果。", "Assessment of antigen processing and MHC presentation must include APC identity, costimulation, and a T-cell functional consequence."], [
+          requirementFor(antigen, "panel", "REAGENT", ["HLA-DR/MHC-II、MHC-I、CD80、CD86、CD40、CD83 及对应 APC 谱系标记；需要时加入抗原/MHC 四聚体", "HLA-DR/MHC-II, MHC-I, CD80, CD86, CD40, CD83, and corresponding APC lineage markers; antigen/MHC multimers when needed"]),
+          requirementFor(antigen, "controls", "CONTROL", ["无关抗原、加工/呈递阻断、FMO，以及 APC–T 细胞共培养功能对照", "Irrelevant-antigen, processing/presentation-blockade, FMO, and APC–T-cell coculture functional controls"]),
+        ]),
+      ];
+    }
+    case "SANDWICH_ELISA": {
+      const ifn = "INTERFERON_CYTOKINE_ELISA";
+      const inflammasome = "INFLAMMASOME_CYTOKINE_ELISA";
+      const complement = "COMPLEMENT_FC_EFFECTOR_ELISA";
+      return [
+        profile(ifn, ["干扰素定量 ELISA", "Interferon-quantification ELISA"], ["定量 IFN 分泌时必须控制样本基质和标准曲线范围，并明确 IFN 亚型与生物活性验证。", "Quantification of secreted IFN requires control of sample matrix and standard-curve range, with declared IFN subtype and bioactivity validation."], [
+          requirementFor(ifn, "target-kit", "REAGENT", ["与 IFN-α、IFN-β、IFN-γ 或 IFN-λ 亚型匹配且经样本基质验证的夹心 ELISA 抗体对/试剂盒", "Sandwich-ELISA antibody pair/kit matched to IFN-α, IFN-β, IFN-γ, or IFN-λ and validated in the sample matrix"]),
+          requirementFor(ifn, "matrix-controls", "CONTROL", ["重组 IFN 标准、基质加标回收、稀释线性、空白和细胞数/体积归一化控制", "Recombinant IFN standard, matrix spike recovery, dilution linearity, blank, and cell-number/volume normalization controls"]),
+        ]),
+        profile(inflammasome, ["炎性小体细胞因子 ELISA", "Inflammasome-cytokine ELISA"], ["以成熟 IL-1β/IL-18 分泌为一个读出，并用细胞死亡和 caspase-1 读出避免将裂解泄漏误判为分泌。", "Uses mature IL-1β/IL-18 secretion as one readout and pairs it with cell-death and caspase-1 measurements to avoid confusing lysis leakage with secretion."], [
+          requirementFor(inflammasome, "target-kit", "REAGENT", ["成熟 IL-1β 和/或 IL-18 的特异夹心 ELISA 抗体对/试剂盒", "Specific sandwich-ELISA antibody pair/kit for mature IL-1β and/or IL-18"]),
+          requirementFor(inflammasome, "release-controls", "CONTROL", ["priming/activation 分步、caspase-1 或 NLRP3 阻断、LDH/活性控制和重组细胞因子标准", "Separate priming/activation, caspase-1 or NLRP3 blockade, LDH/viability control, and recombinant cytokine standards"]),
+        ]),
+        profile(complement, ["补体/Fc 效应 ELISA", "Complement/Fc-effector ELISA"], ["在补体或 Fc 相关读出中控制血清来源、热灭活和抗体同种型，不能将单一结合信号等同于效应功能。", "Complement or Fc-related readouts must control serum source, heat inactivation, and antibody isotype; one binding signal is not equivalent to effector function."], [
+          requirementFor(complement, "target-kit", "REAGENT", ["C3a、C5a、sC5b-9 或 Fc 结合/效应目标的经验证 ELISA 试剂", "Validated ELISA reagents for C3a, C5a, sC5b-9, or the Fc binding/effector target"]),
+          requirementFor(complement, "serum-controls", "CONTROL", ["新鲜与热灭活血清、无抗体/同种型对照、EDTA 阻断和标准曲线控制", "Fresh and heat-inactivated serum, no-antibody/isotype controls, EDTA blockade, and standard-curve controls"]),
+        ]),
+      ];
+    }
+    case "SEAHORSE_OCR_ECAR": {
+      const mitochondrial = "MITOCHONDRIAL_STRESS_TEST";
+      return [profile(mitochondrial, ["线粒体压力测试", "Mitochondrial stress test"], ["以基线呼吸、ATP 偶联、最大呼吸和非线粒体耗氧共同解释生物能学，并以细胞数和活性归一化。", "Interprets bioenergetics from basal respiration, ATP coupling, maximal respiration, and non-mitochondrial oxygen consumption, normalized to cell number and viability."], [
+        requirementFor(mitochondrial, "inhibitor-series", "REAGENT", ["寡霉素、FCCP 和 rotenone/antimycin A 的滴定优化抑制剂组合", "Titration-optimized inhibitor series of oligomycin, FCCP, and rotenone/antimycin A"]),
+        requirementFor(mitochondrial, "normalization", "CONTROL", ["细胞数/蛋白/DNA 归一化、铺板均一性、培养基底物条件和边缘孔控制", "Cell-number/protein/DNA normalization, seeding uniformity, medium substrate conditions, and edge-well controls"]),
+      ])];
+    }
+    case "MITOCHONDRIAL_MEMBRANE_POTENTIAL": {
+      const mitochondrial = "MITOCHONDRIAL_POTENTIAL_CONTROL";
+      return [profile(mitochondrial, ["线粒体膜电位表型", "Mitochondrial membrane-potential phenotype"], ["膜电位是线粒体状态的一个维度，必须与线粒体质量、细胞活性和去极化阳性控制一起解释。", "Membrane potential is one dimension of mitochondrial state and must be interpreted with mitochondrial mass, viability, and a depolarization positive control."], [
+        requirementFor(mitochondrial, "dye-pair", "REAGENT", ["TMRE/TMRM 或 JC-1 膜电位探针，配合线粒体质量标记（如 MitoTracker Green）", "TMRE/TMRM or JC-1 membrane-potential probe paired with a mitochondrial-mass marker such as MitoTracker Green"]),
+        requirementFor(mitochondrial, "depolarization-control", "CONTROL", ["CCCP/FCCP 去极化阳性控制、活/死染、探针滴定及按细胞大小/质量的归一化", "CCCP/FCCP depolarization positive control, viability dye, probe titration, and normalization by cell size/mass"]),
+      ])];
+    }
+    default:
+      return [];
+  }
+}
+
 function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
+  const integrativeProfiles = integrativeProfilesFor(blueprint);
+  const phenotypeProfiles = phenotypeProfilesFor(blueprint);
   if (blueprint.code === "WB") {
     return [{
       code: "EXOSOME_CHARACTERIZATION",
@@ -621,7 +1033,7 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
           ...requirement(
             blueprint.code,
             "REAGENT",
-            ["经样本类型验证的外泌体阳性和阴性标志物抗体组合", "Sample-type-validated exosome positive- and negative-marker antibody panel"],
+            ["CD9/CD63/CD81 与 TSG101/ALIX 的阳性标志物抗体，以及 Calnexin/GM130（细胞器污染）和 ApoA1/ApoB（血浆脂蛋白）等样本匹配的阴性标志物", "Positive-marker antibodies to CD9/CD63/CD81 and TSG101/ALIX, plus sample-matched negative markers such as Calnexin/GM130 (organelle contamination) and ApoA1/ApoB (plasma lipoproteins)"],
           ),
           id: `${blueprint.code}:profile:EXOSOME_CHARACTERIZATION:marker-panel`,
         },
@@ -629,12 +1041,12 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
           ...requirement(
             blueprint.code,
             "CONTROL",
-            ["来源细胞裂解物或适配的参考制备物", "Source-cell lysate or compatible reference preparation"],
+            ["来源细胞裂解物或适配的参考制备物，并登记上样归一化方式（颗粒数、蛋白量或来源细胞数）", "Source-cell lysate or compatible reference preparation, with a recorded loading normalization strategy (particle count, protein mass, or source-cell number)"],
           ),
           id: `${blueprint.code}:profile:EXOSOME_CHARACTERIZATION:reference`,
         },
       ],
-    }];
+    }, ...integrativeProfiles, ...phenotypeProfiles];
   }
   if (blueprint.code === "QPCR") {
     return [
@@ -692,6 +1104,8 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
           },
         ],
       },
+      ...integrativeProfiles,
+      ...phenotypeProfiles,
     ];
   }
   if (blueprint.code === "RT_QPCR") {
@@ -750,9 +1164,11 @@ function profilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[] {
           },
         ],
       },
+      ...integrativeProfiles,
+      ...phenotypeProfiles,
     ];
   }
-  return [];
+  return [...integrativeProfiles, ...phenotypeProfiles];
 }
 
 type HazardClass = ExperimentTechnique["safety"]["hazardClasses"][number];
@@ -989,8 +1405,9 @@ export function buildTechnique(blueprint: TechniqueBlueprint): ExperimentTechniq
   const defaultReagentRequirements = presetReagentRequirements[blueprint.preset]
     .filter(
       (template) =>
-        !template.capabilityTags.length ||
-        !template.capabilityTags.some((tag) => declaredTags.has(tag)),
+        !blueprint.omitBaselineReagentKeys?.includes(template.key) &&
+        (!template.capabilityTags.length ||
+          !template.capabilityTags.some((tag) => declaredTags.has(tag))),
     )
     .map((template) => ({
       ...requirement(blueprint.code, "REAGENT", template.label, {

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { techniqueCategoryLabels } from "@/lib/experiment-techniques/catalog";
+import {
+  getPhenotypePathwayDomain,
+  summarizePhenotypePathwayDomains,
+  techniquePhenotypePathwayCodes,
+} from "@/lib/experiment-techniques/phenotype-domains";
 import { createTechniqueSearchIndex } from "@/lib/experiment-techniques/search";
 import { evidenceSourceById } from "@/lib/experiment-techniques/sources";
 import { listPublishedTechniques } from "@/lib/experiment-techniques/runtime";
@@ -18,6 +23,10 @@ const querySchema = z.object({
   readout: z.string().trim().optional(),
   risk: z.enum(["LOW", "MODERATE", "HIGH", "RESTRICTED"]).optional(),
   evidenceTier: z.enum(["A1", "A2", "B1", "B2", "C1", "C2", "D"]).optional(),
+  phenotype: z.string().trim().min(1).optional(),
+  // Kept as a query-parameter alias while users transition from the former
+  // integrative-domain filter. New callers should use `phenotype`.
+  domain: z.string().trim().min(1).optional(),
   status: z.enum(["DRAFT", "IN_REVIEW", "PUBLISHED", "DEPRECATED"]).optional(),
 });
 
@@ -34,6 +43,24 @@ export async function GET(request: Request) {
     }
 
     const techniques = await listPublishedTechniques();
+    if (
+      parsed.data.phenotype &&
+      parsed.data.domain &&
+      parsed.data.phenotype !== parsed.data.domain
+    ) {
+      return NextResponse.json(
+        { error: "Use one phenotype filter", code: "AMBIGUOUS_PHENOTYPE_FILTER" },
+        { status: 400 },
+      );
+    }
+    const phenotypeCode = parsed.data.phenotype ?? parsed.data.domain;
+    const phenotype = getPhenotypePathwayDomain(phenotypeCode);
+    if (phenotypeCode && !phenotype) {
+      return NextResponse.json(
+        { error: "Unknown phenotype or pathway topic", code: "INVALID_PHENOTYPE" },
+        { status: 400 },
+      );
+    }
     const tiersByTechnique = new Map(
       techniques.map((technique) => [
         technique.code,
@@ -59,6 +86,10 @@ export async function GET(request: Request) {
       .filter(
         (match) =>
           !parsed.data.status || match.technique.status === parsed.data.status,
+      )
+      .filter(
+        (match) =>
+          !phenotype || phenotype.techniqueCodes.includes(match.technique.code),
       );
     const start = (parsed.data.page - 1) * parsed.data.pageSize;
     const items = matches
@@ -82,6 +113,7 @@ export async function GET(request: Request) {
         riskLevel: technique.safety.riskLevel,
         evidenceTiers: [...(tiersByTechnique.get(technique.code) ?? [])],
         profileCodes: technique.profiles.map((profile) => profile.code),
+        phenotypeCodes: techniquePhenotypePathwayCodes(technique.code),
         score,
         exact,
       }));
@@ -96,6 +128,9 @@ export async function GET(request: Request) {
         code,
         ...label,
       })),
+      phenotypeDomains: summarizePhenotypePathwayDomains(
+        techniques.map((technique) => technique.code),
+      ),
     });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {

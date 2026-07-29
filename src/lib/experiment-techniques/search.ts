@@ -15,9 +15,18 @@ type IndexedTechnique = {
   technique: ExperimentTechnique;
   code: string;
   slug: string;
+  identifierCode: string;
+  identifierSlug: string;
   names: string[];
   aliases: string[];
   searchable: string;
+};
+
+type SearchQuery = {
+  normalized: string;
+  compact: string;
+  identifier: string;
+  tokens: string[];
 };
 
 function normalize(value: string) {
@@ -34,18 +43,36 @@ function compact(value: string) {
   return normalize(value).replace(/[^\p{L}\p{N}-]+/gu, "");
 }
 
+// Codes conventionally use underscores, while users commonly write the same
+// method with hyphens. This normalization is deliberately restricted to code
+// and slug matching: aliases must retain hyphens so, for example, Hi-C does
+// not collide with the HIC chromatography abbreviation.
+function compactIdentifier(value: string) {
+  return normalize(value).replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
 function tokens(value: string) {
   return normalize(value).split(/\s+/).filter(Boolean);
 }
 
-function calculateScore(query: string, item: IndexedTechnique): TechniqueSearchMatch | null {
-  const normalizedQuery = normalize(query);
-  const compactQuery = compact(query);
-  if (!normalizedQuery) {
+function normalizeSearchQuery(query: string): SearchQuery {
+  return {
+    normalized: normalize(query),
+    compact: compact(query),
+    identifier: compactIdentifier(query),
+    tokens: tokens(query),
+  };
+}
+
+function calculateScore(query: SearchQuery, item: IndexedTechnique): TechniqueSearchMatch | null {
+  if (!query.normalized) {
     return { technique: item.technique, score: 0, exact: false, evidence: [] };
   }
 
-  if (compactQuery === item.code || compactQuery === item.slug) {
+  if (
+    query.identifier === item.identifierCode ||
+    query.identifier === item.identifierSlug
+  ) {
     return {
       technique: item.technique,
       score: 1000,
@@ -54,7 +81,7 @@ function calculateScore(query: string, item: IndexedTechnique): TechniqueSearchM
     };
   }
 
-  if (item.names.includes(compactQuery)) {
+  if (item.names.includes(query.compact)) {
     return {
       technique: item.technique,
       score: 980,
@@ -63,7 +90,7 @@ function calculateScore(query: string, item: IndexedTechnique): TechniqueSearchM
     };
   }
 
-  if (item.aliases.includes(compactQuery)) {
+  if (item.aliases.includes(query.compact)) {
     return {
       technique: item.technique,
       score: 960,
@@ -72,19 +99,18 @@ function calculateScore(query: string, item: IndexedTechnique): TechniqueSearchM
     };
   }
 
-  const queryTokens = tokens(query);
-  const allTokensPresent = queryTokens.every((token) => item.searchable.includes(token));
+  const allTokensPresent = query.tokens.every((token) => item.searchable.includes(token));
   if (!allTokensPresent) return null;
 
-  const namePrefix = item.names.some((name) => name.startsWith(compactQuery));
-  const aliasPrefix = item.aliases.some((alias) => alias.startsWith(compactQuery));
+  const namePrefix = item.names.some((name) => name.startsWith(query.compact));
+  const aliasPrefix = item.aliases.some((alias) => alias.startsWith(query.compact));
   const compactSearch = item.searchable.replace(/\s+/g, "");
-  const containment = compactSearch.includes(compactQuery);
+  const containment = compactSearch.includes(query.compact);
   const score = Math.min(
     (namePrefix ? 720 : 0) +
       (aliasPrefix ? 680 : 0) +
       (containment ? 300 : 0) +
-      queryTokens.length * 25 -
+      query.tokens.length * 25 -
       Math.min(item.searchable.length, 300) / 100,
     899,
   );
@@ -110,6 +136,8 @@ export function createTechniqueSearchIndex(techniques: ExperimentTechnique[]) {
       technique,
       code: compact(technique.code),
       slug: compact(technique.slug),
+      identifierCode: compactIdentifier(technique.code),
+      identifierSlug: compactIdentifier(technique.slug),
       names,
       aliases,
       searchable: normalize(
@@ -132,6 +160,7 @@ export function createTechniqueSearchIndex(techniques: ExperimentTechnique[]) {
       filters: TechniqueSearchFilters = {},
       evidenceTiersByTechnique: Map<string, Set<string>> = new Map(),
     ) {
+      const normalizedQuery = normalizeSearchQuery(query);
       return index
         .filter(({ technique }) => {
           if (filters.category && technique.categoryCode !== filters.category) return false;
@@ -160,7 +189,7 @@ export function createTechniqueSearchIndex(techniques: ExperimentTechnique[]) {
           }
           return true;
         })
-        .map((item) => calculateScore(query, item))
+        .map((item) => calculateScore(normalizedQuery, item))
         .filter((match): match is TechniqueSearchMatch => Boolean(match))
         .sort(
           (left, right) =>

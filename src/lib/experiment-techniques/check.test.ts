@@ -144,7 +144,7 @@ describe("evaluateTechniqueReadiness status matrix", () => {
 
 describe("canonical reagent capability tags", () => {
   it("uses only the shared reagent tag vocabulary for automatic inventory checks", () => {
-    const knownTags = new Set(experimentTags);
+    const knownTags = new Set<string>(experimentTags);
     for (const technique of repositoryTechniqueByCode.values()) {
       for (const requirement of [
         ...technique.requirements,
@@ -187,6 +187,46 @@ describe("canonical reagent capability tags", () => {
     assert.equal(result.status, "BLOCKED");
   });
 
+  it("lets one explicitly complete ELISA kit satisfy the sandwich-ELISA reagent bundle", () => {
+    const technique = leafFixture("SANDWICH_ELISA");
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: [
+        {
+          id: "anxa2-elisa-kit",
+          name: "ELISA Kit for Annexin A2 (ANXA2)",
+          experimentTags: [],
+        },
+      ],
+      confirmedRequirementIds: manualConfirmationIds(technique.requirements),
+    });
+
+    assert.equal(result.status, "READY");
+    for (const item of result.items.filter(
+      (item) => item.kind === "REAGENT" && item.verificationMode === "AUTO_INVENTORY",
+    )) {
+      assert.equal(item.state, "MATCHED", `${item.label} must be covered by the kit`);
+      assert.equal(item.matchedName, "ELISA Kit for Annexin A2 (ANXA2)");
+    }
+  });
+
+  it("does not treat a component-only ELISA kit as a complete assay", () => {
+    const technique = leafFixture("SANDWICH_ELISA");
+    const result = evaluateTechniqueReadiness({
+      technique,
+      inventory: [
+        {
+          id: "capture-antibody-kit",
+          name: "ELISA capture antibody kit",
+          experimentTags: ["ELISA_CAPTURE_ANTIBODY"],
+        },
+      ],
+      confirmedRequirementIds: manualConfirmationIds(technique.requirements),
+    });
+
+    assert.equal(result.status, "BLOCKED");
+  });
+
   it("gives every leaf technique a multi-item reagent checklist with an automatic inventory check", () => {
     for (const technique of repositoryTechniqueByCode.values()) {
       if (technique.isAbstract) continue;
@@ -211,7 +251,7 @@ describe("canonical reagent capability tags", () => {
   it("keeps representative qPCR, flow, and immunofluorescence requirements specific", () => {
     const reagentTags = (code: string) => {
       const technique = leafFixture(code);
-      return new Set(
+      return new Set<string>(
         technique.requirements
           .filter((requirement) => requirement.kind === "REAGENT")
           .flatMap((requirement) => requirement.capabilityTags),
@@ -219,18 +259,83 @@ describe("canonical reagent capability tags", () => {
     };
 
     const qpcrTags = reagentTags("QPCR");
-    for (const tag of ["QPCR_MASTER_MIX", "PCR_PRIMER_SET", "NUCLEASE_FREE_WATER"]) {
+    for (const tag of ["QPCR_MASTER_MIX", "PCR_PRIMER_SET", "NUCLEASE_FREE_WATER"] as const) {
       assert.ok(qpcrTags.has(tag), `QPCR must require ${tag}`);
     }
 
     const flowTags = reagentTags("FLOW");
-    for (const tag of ["FLOW_ANTIBODY_PANEL", "FLOW_STAIN_BUFFER", "FLOW_VIABILITY_DYE"]) {
+    for (const tag of ["FLOW_ANTIBODY_PANEL", "FLOW_STAIN_BUFFER", "FLOW_VIABILITY_DYE"] as const) {
       assert.ok(flowTags.has(tag), `FLOW must require ${tag}`);
     }
 
     const ifTags = reagentTags("IF");
     assert.ok(ifTags.has("FIXATIVE"), "IF must include a fixative check");
     assert.ok(ifTags.has("MOUNTING_MEDIUM"), "IF must include a mounting-medium check");
+  });
+
+  it("exposes study-specific profiles for representative integrative-biology domains", () => {
+    for (const [code, profileCode, targetPhrase] of [
+      ["CHIP_QPCR", "REGULATORY_LOCUS_VALIDATION", "目标位点"],
+      ["SINGLE_CELL_MULTIOME_RNA_ATAC_SEQUENCING", "CELL_ATLAS_REGULATORY_NETWORK", "目标细胞类型"],
+      ["CITE_SEQUENCING", "IMMUNE_PHENOTYPE_RNA_PROTEIN", "免疫谱系"],
+      ["IMAGING_BASED_SPATIAL_TRANSCRIPTOMICS", "SPATIAL_TARGETED_PANEL", "目标基因"],
+      ["PHOSPHOPROTEOMICS", "SIGNALING_NETWORK", "磷酸化位点"],
+      ["STABLE_ISOTOPE_TRACING_METABOLOMICS", "METABOLIC_FLUX", "示踪底物"],
+      ["POOLED_CRISPR_CAS9_SCREEN", "CAUSAL_GENE_SCREEN", "目标基因集"],
+      ["SHOTGUN_METAGENOMIC_SEQUENCING", "HOST_MICROBIOME_FUNCTION", "功能通路"],
+      ["ORGANOID_CULTURE", "DEVELOPMENTAL_DISEASE_MODEL", "目标组织谱系"],
+    ] as const) {
+      const technique = leafFixture(code);
+      const profile = technique.profiles.find((item) => item.code === profileCode);
+      assert.ok(profile, `${code} must expose ${profileCode}`);
+      assert.ok(
+        profile.additionalRequirements.some((item) => item.label.zh.includes(targetPhrase)),
+        `${code}/${profileCode} must retain target-specific guidance`,
+      );
+      assert.equal(
+        evaluateTechniqueReadiness(makeReadyInput(technique, profileCode)).status,
+        "READY",
+        `${code}/${profileCode} must be checkable when all requirements are fulfilled`,
+      );
+    }
+  });
+
+  it("exposes phenotype/pathway profiles with target panels and biological controls", () => {
+    for (const [code, profileCode, targetPhrase] of [
+      ["WB", "AUTOPHAGY_FLUX_WB", "LC3B"],
+      ["WB", "ECM_REMODELING_WB", "COL1A1"],
+      ["WB", "MITOCHONDRIAL_BIOENERGETICS_WB", "OXPHOS"],
+      ["WB", "INTERFERON_SIGNALING_WB", "p-STAT1"],
+      ["QPCR", "INTERFERON_STIMULATED_GENE_QPCR", "ISG15"],
+      ["IF", "MITOCHONDRIAL_MORPHOLOGY_IF", "TOMM20"],
+      ["FLOW", "INNATE_INFLAMMATION_FLOW", "caspase-1"],
+      ["FLOW", "T_CELL_IMMUNITY_FLOW", "CD3"],
+      ["FLOW", "B_CELL_HUMORAL_FLOW", "CD19"],
+      ["FLOW", "NK_CELL_CYTOTOXICITY_FLOW", "CD56"],
+      ["FLOW", "MYELOID_INNATE_FLOW", "CD11b"],
+      ["FLOW", "IMMUNE_CHECKPOINT_FLOW", "PD-1"],
+      ["FLOW", "IMMUNE_METABOLISM_FLOW", "2-NBDG"],
+      ["FLOW", "ANTIGEN_PRESENTATION_FLOW", "HLA-DR"],
+      ["SANDWICH_ELISA", "INTERFERON_CYTOKINE_ELISA", "IFN-α"],
+      ["SEAHORSE_OCR_ECAR", "MITOCHONDRIAL_STRESS_TEST", "FCCP"],
+    ] as const) {
+      const technique = leafFixture(code);
+      const profile = technique.profiles.find((item) => item.code === profileCode);
+      assert.ok(profile, `${code} must expose ${profileCode}`);
+      assert.ok(
+        profile.additionalRequirements.some((item) => item.label.zh.includes(targetPhrase)),
+        `${code}/${profileCode} must name a specialized target panel`,
+      );
+      assert.ok(
+        profile.additionalRequirements.some((item) => item.kind === "CONTROL"),
+        `${code}/${profileCode} must specify an interpretable biological control`,
+      );
+      assert.equal(
+        evaluateTechniqueReadiness(makeReadyInput(technique, profileCode)).status,
+        "READY",
+        `${code}/${profileCode} must be checkable when all requirements are fulfilled`,
+      );
+    }
   });
 });
 

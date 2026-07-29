@@ -802,6 +802,7 @@ test("parseReagentInput keeps web verification when knowledge skip is disabled",
         {
           client: client as never,
           llmConfig: {
+            source: "user",
             model: "MiniMax-M1-80k",
             visionModel: "MiniMax-VL-01",
             searchEnabled: true,

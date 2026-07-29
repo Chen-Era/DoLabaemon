@@ -15,14 +15,14 @@ import {
 
 export const expectedLeafCounts: Record<TechniqueCategoryCode, number> = {
   SAMPLE_MODELS: 25,
-  NUCLEIC_ACID_GENETIC_ENGINEERING: 45,
+  NUCLEIC_ACID_GENETIC_ENGINEERING: 47,
   PROTEIN_IMMUNOASSAYS: 40,
   IMAGING_HISTOLOGY: 35,
   CYTOMETRY_SORTING: 15,
   CELL_FUNCTION: 35,
   MICROBIOLOGY_INFECTION: 25,
   ANALYTICAL_BIOPHYSICS: 30,
-  SEQUENCING_OMICS: 30,
+  SEQUENCING_OMICS: 53,
   STRUCTURAL_BIOLOGY: 15,
   ANIMAL_IN_VIVO: 25,
   ECOLOGY_FIELD: 15,
@@ -80,8 +80,8 @@ export function validateTechniqueCatalog(
     }
   }
 
-  if (leafTechniques.length !== 335) {
-    errors.push(`Expected exactly 335 leaf techniques, received ${leafTechniques.length}.`);
+  if (leafTechniques.length !== 360) {
+    errors.push(`Expected exactly 360 leaf techniques, received ${leafTechniques.length}.`);
   }
 
   for (const technique of techniques) {

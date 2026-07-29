@@ -1,4 +1,5 @@
 import { RuleLevel } from "@prisma/client";
+import { supplementReagentCapabilityTags } from "@/lib/reagent-capability-bundles";
 import { normalizeTargetName, type AntibodyRoleValue, type MatcherTypeValue, type RuleLevelValue } from "@/lib/rules/catalog";
 
 type MaybeNull<T> = T | null | undefined;
@@ -59,8 +60,9 @@ function matchByName(rule: EvaluatableRule, reagent: EvaluatableReagent) {
 }
 
 function matchByTag(rule: EvaluatableRule, reagent: EvaluatableReagent) {
-  if (!reagent.experimentTags?.length || !rule.matcherValues.length) return false;
-  return rule.matcherValues.some((value) => reagent.experimentTags?.includes(value));
+  if (!rule.matcherValues.length) return false;
+  const capabilities = supplementReagentCapabilityTags(reagent.name, reagent.experimentTags ?? []);
+  return rule.matcherValues.some((value) => capabilities.includes(value));
 }
 
 function matchAntibodyRole(requiredRole: EvaluatableRule["matcherAntibodyRole"], reagent: EvaluatableReagent) {

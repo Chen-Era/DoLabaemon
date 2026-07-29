@@ -1,4 +1,5 @@
 import { experimentTechniqueSchema } from "@/lib/experiment-techniques/types";
+import { supplementReagentCapabilityTags } from "@/lib/reagent-capability-bundles";
 import type {
   ExperimentTechnique,
   TechniqueCheckItem,
@@ -38,7 +39,9 @@ function findInventoryMatch(
 
   return inventory.find((item) => {
     if (item.available === false) return false;
-    const itemCapabilities = new Set(item.experimentTags.map(normalize));
+    const itemCapabilities = new Set(
+      supplementReagentCapabilityTags(item.name, item.experimentTags).map(normalize),
+    );
     return [...requiredCapabilities].some((tag) => itemCapabilities.has(tag));
   });
 }
