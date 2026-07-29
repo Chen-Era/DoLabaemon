@@ -21,7 +21,7 @@ export function LanguageSwitcher() {
         onClick={() => void setLocale("en")}
         aria-pressed={locale === "en"}
       >
-        {t("language.english")}
+        English
       </button>
     </div>
   );
