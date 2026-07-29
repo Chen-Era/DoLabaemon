@@ -838,6 +838,10 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const autophagy = "AUTOPHAGY_FLUX_WB";
       const ecm = "ECM_REMODELING_WB";
       const mitochondrial = "MITOCHONDRIAL_BIOENERGETICS_WB";
+      const acetylation = "HISTONE_ACETYLATION_WB";
+      const methylation = "HISTONE_METHYLATION_WB";
+      const lactylation = "HISTONE_LACTYLATION_WB";
+      const phosphorylation = "PHOSPHORYLATION_KINASE_WB";
       return [
         profile(
           autophagy,
@@ -867,6 +871,46 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
             requirementFor(mitochondrial, "oxphos-panel", "REAGENT", ["OXPHOS 复合体 I–V 抗体鸡尾酒，或 NDUFS1、SDHB、UQCRC2、MTCO1、ATP5F1A 的目标抗体", "OXPHOS complex I–V antibody cocktail, or target antibodies to NDUFS1, SDHB, UQCRC2, MTCO1, and ATP5F1A"]),
             requirementFor(mitochondrial, "content-normalizer", "REAGENT", ["线粒体含量归一化标记（VDAC1、TOMM20 或 citrate synthase）及总蛋白归一化方案", "Mitochondrial-content normalizer (VDAC1, TOMM20, or citrate synthase) and a total-protein normalization plan"]),
             requirementFor(mitochondrial, "functional-control", "CONTROL", ["呼吸抑制/解偶联或营养应激的阳性响应控制，并预定义细胞数和活性门槛", "Positive response control using respiratory inhibition/uncoupling or nutrient stress, with prespecified cell-number and viability thresholds"]),
+          ],
+        ),
+        profile(
+          acetylation,
+          ["组蛋白乙酰化 WB", "Histone-acetylation western blot"],
+          ["用于量化全局组蛋白乙酰化状态；全局印迹不能代替候选启动子或增强子的位点级结论。", "Quantifies global histone-acetylation state; a global blot cannot substitute for locus-level conclusions at candidate promoters or enhancers."],
+          [
+            requirementFor(acetylation, "mark-panel", "REAGENT", ["经验证的 H3K27ac、H3K9ac 或假设匹配的乙酰化标记抗体，并配对总 H3 抗体", "Validated H3K27ac, H3K9ac, or hypothesis-matched acetyl-mark antibodies paired with total-H3 antibody"]),
+            requirementFor(acetylation, "perturbation", "REAGENT", ["HDAC 抑制剂或 HAT 调节剂及匹配的载体对照", "HDAC inhibitor or HAT modulator with matched vehicle control"]),
+            requirementFor(acetylation, "interpretation-control", "CONTROL", ["总 H3/总蛋白归一化、细胞活性控制和需要时的 ChIP/CUT 位点级正交验证", "Total-H3/total-protein normalization, viability control, and locus-level ChIP/CUT orthogonal validation when needed"]),
+          ],
+        ),
+        profile(
+          methylation,
+          ["组蛋白甲基化 WB", "Histone-methylation western blot"],
+          ["用于比较激活性和抑制性组蛋白甲基化标记的全局变化；必须把标记改变与相关甲基转移酶/去甲基化酶及位点读出区分开。", "Compares global activating and repressive histone methylation marks; mark changes must be distinguished from the relevant methyltransferase/demethylase and locus-level readouts."],
+          [
+            requirementFor(methylation, "mark-panel", "REAGENT", ["经验证的 H3K4me3、H3K27me3、H3K9me3 或假设匹配的甲基化标记抗体，并配对总 H3", "Validated H3K4me3, H3K27me3, H3K9me3, or hypothesis-matched methyl-mark antibodies paired with total H3"]),
+            requirementFor(methylation, "enzyme-perturbation", "REAGENT", ["EZH2、KDM 或其他相关甲基化酶调节剂/遗传扰动材料", "EZH2, KDM, or other relevant methylation-enzyme modulator/genetic-perturbation material"]),
+            requirementFor(methylation, "specificity-control", "CONTROL", ["抗体特异性/阳性参考、总 H3 归一化和必要时的 ChIP/CUT 阴性位点验证", "Antibody-specificity/positive reference, total-H3 normalization, and ChIP/CUT negative-locus validation when needed"]),
+          ],
+        ),
+        profile(
+          lactylation,
+          ["组蛋白乳酸化 WB", "Histone-lactylation western blot"],
+          ["把乳酸负荷、赖氨酸乳酸化标记和细胞状态改变共同解释；培养基酸化或渗透压变化不可被误判为乳酸化效应。", "Interprets lactate load, lysine-lactylation marks, and cell-state change together; medium acidification or osmolality changes must not be misread as lactylation effects."],
+          [
+            requirementFor(lactylation, "mark-panel", "REAGENT", ["经验证的 Pan-Kla 或 H3K18la 抗体、总 H3 抗体及乳酸定量试剂", "Validated Pan-Kla or H3K18la antibody, total-H3 antibody, and lactate-quantitation reagent"]),
+            requirementFor(lactylation, "metabolic-perturbation", "REAGENT", ["乳酸盐、糖酵解抑制剂或 MCT 转运抑制剂，以及匹配载体", "Lactate salt, glycolysis inhibitor, or MCT-transport inhibitor with matched vehicle"]),
+            requirementFor(lactylation, "matched-media-control", "CONTROL", ["pH/渗透压匹配对照、细胞活性控制和抗原肽竞争或独立抗体验证", "pH/osmolality-matched control, viability control, and competing-peptide or independent-antibody validation"]),
+          ],
+        ),
+        profile(
+          phosphorylation,
+          ["磷酸化与激酶信号 WB", "Phosphorylation and kinase-signaling western blot"],
+          ["用磷酸化/总蛋白配对、刺激动力学和药理或遗传阻断判断激酶轴；采样后去磷酸化会直接损害可解释性。", "Uses phospho/total-protein pairs, stimulus kinetics, and pharmacologic or genetic blockade to assess kinase axes; post-sampling dephosphorylation directly compromises interpretation."],
+          [
+            requirementFor(phosphorylation, "paired-antibodies", "REAGENT", ["与假设匹配、经位点验证的磷酸化/总蛋白抗体对（如 p-ERK/ERK、p-AKT/AKT 或 p-S6/S6）", "Hypothesis-matched, phosphosite-validated phospho/total-protein antibody pairs such as p-ERK/ERK, p-AKT/AKT, or p-S6/S6"]),
+            requirementFor(phosphorylation, "lysis-inhibitors", "REAGENT", ["新鲜蛋白酶/磷酸酶抑制剂和可即时淬灭样本的裂解体系", "Fresh protease/phosphatase inhibitors and lysis chemistry that permits immediate sample quenching"]),
+            requirementFor(phosphorylation, "kinetic-control", "CONTROL", ["未处理、载体、刺激时间梯度和激酶抑制/救援对照，并以总蛋白归一化", "Untreated, vehicle, stimulus time-course, and kinase-inhibition/rescue controls with total-protein normalization"]),
           ],
         ),
       ];
@@ -979,6 +1023,122 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       return [profile(mitochondrial, ["线粒体膜电位表型", "Mitochondrial membrane-potential phenotype"], ["膜电位是线粒体状态的一个维度，必须与线粒体质量、细胞活性和去极化阳性控制一起解释。", "Membrane potential is one dimension of mitochondrial state and must be interpreted with mitochondrial mass, viability, and a depolarization positive control."], [
         requirementFor(mitochondrial, "dye-pair", "REAGENT", ["TMRE/TMRM 或 JC-1 膜电位探针，配合线粒体质量标记（如 MitoTracker Green）", "TMRE/TMRM or JC-1 membrane-potential probe paired with a mitochondrial-mass marker such as MitoTracker Green"]),
         requirementFor(mitochondrial, "depolarization-control", "CONTROL", ["CCCP/FCCP 去极化阳性控制、活/死染、探针滴定及按细胞大小/质量的归一化", "CCCP/FCCP depolarization positive control, viability dye, probe titration, and normalization by cell size/mass"]),
+      ])];
+    }
+    case "CHIP_QPCR": {
+      const acetylation = "HISTONE_ACETYLATION_CHIP_QPCR";
+      const methylation = "HISTONE_METHYLATION_CHIP_QPCR";
+      const lactylation = "HISTONE_LACTYLATION_CHIP_QPCR";
+      const dnaMethylation = "DNA_METHYLATION_ENRICHMENT_QPCR";
+      return [
+        profile(acetylation, ["组蛋白乙酰化位点 ChIP-qPCR", "Histone-acetylation locus ChIP-qPCR"], ["验证候选启动子或增强子上的乙酰化富集；必须将全局乙酰化变化与预定义基因座的富集区分。", "Validates acetylation enrichment at candidate promoters or enhancers; global acetylation changes must be distinguished from enrichment at predefined loci."], [
+          requirementFor(acetylation, "validated-antibody", "REAGENT", ["经 ChIP 验证的 H3K27ac、H3K9ac 或假设匹配乙酰化标记抗体", "ChIP-validated H3K27ac, H3K9ac, or hypothesis-matched acetyl-mark antibody"]),
+          requirementFor(acetylation, "locus-primers", "REAGENT", ["目标调控区、阴性区域和需要时已知阳性区域的成对 qPCR 引物", "Paired qPCR primers for target regulatory regions, negative regions, and known positive regions when needed"]),
+          requirementFor(acetylation, "controls", "CONTROL", ["Input、IgG、抗体滴定、阴性位点及 HDAC/HAT 调节后的可逆性控制", "Input, IgG, antibody titration, negative locus, and reversibility after HDAC/HAT modulation"]),
+        ]),
+        profile(methylation, ["组蛋白甲基化位点 ChIP-qPCR", "Histone-methylation locus ChIP-qPCR"], ["通过候选位点富集区分激活性与抑制性组蛋白甲基化，不能从全局印迹单独推断调控状态。", "Uses candidate-locus enrichment to distinguish activating and repressive histone methylation; regulatory state cannot be inferred from a global blot alone."], [
+          requirementFor(methylation, "validated-antibody", "REAGENT", ["经 ChIP 验证的 H3K4me3、H3K27me3、H3K9me3 或假设匹配的甲基化标记抗体", "ChIP-validated H3K4me3, H3K27me3, H3K9me3, or hypothesis-matched methyl-mark antibody"]),
+          requirementFor(methylation, "locus-primers", "REAGENT", ["目标、阴性和已知标记阳性基因座的成对 qPCR 引物", "Paired qPCR primers for target, negative, and known mark-positive loci"]),
+          requirementFor(methylation, "controls", "CONTROL", ["Input、IgG、阴性位点、抗体特异性和 EZH2/KDM 调节或遗传扰动控制", "Input, IgG, negative locus, antibody specificity, and EZH2/KDM modulation or genetic-perturbation controls"]),
+        ]),
+        profile(lactylation, ["组蛋白乳酸化位点 ChIP-qPCR", "Histone-lactylation locus ChIP-qPCR"], ["将乳酸负荷与 H3K18la 或其他经验证乳酸化标记在候选位点的富集相连，并避免把培养基酸化当作修饰效应。", "Links lactate load to enrichment of H3K18la or another validated lactylation mark at candidate loci, avoiding interpretation of medium acidification as a modification effect."], [
+          requirementFor(lactylation, "validated-antibody", "REAGENT", ["经 ChIP/CUT 适用性验证的 H3K18la 或特异乳酸化标记抗体", "H3K18la or specific lactylation-mark antibody validated for ChIP/CUT suitability"]),
+          requirementFor(lactylation, "locus-primers", "REAGENT", ["候选乳酸化调控区、阴性区和已知阳性区的 qPCR 引物", "qPCR primers for candidate lactylated regulatory regions, negative regions, and known positive regions"]),
+          requirementFor(lactylation, "controls", "CONTROL", ["Input、IgG、pH/渗透压匹配、抗原肽竞争/独立抗体验证及糖酵解或 MCT 阻断控制", "Input, IgG, pH/osmolality matching, competing-peptide/independent-antibody validation, and glycolysis or MCT-blockade controls"]),
+        ]),
+        profile(dnaMethylation, ["DNA 甲基化富集 qPCR", "DNA-methylation enrichment qPCR"], ["仅适用于采用 5mC/5hmC 抗体的 MeDIP/hMeDIP 类富集设计；该设计应明确与传统 ChIP 的差异，并与亚硫酸氢盐方法正交验证。", "Applies only to MeDIP/hMeDIP-like enrichment using 5mC/5hmC antibodies; it must be distinguished from conventional ChIP and orthogonally validated with a bisulfite-based method."], [
+          requirementFor(dnaMethylation, "methylcytosine-antibody", "REAGENT", ["经 DNA 富集验证的 5mC 或 5hmC 抗体及甲基化/未甲基化 DNA 参考物", "DNA-enrichment-validated 5mC or 5hmC antibody with methylated/unmethylated DNA references"]),
+          requirementFor(dnaMethylation, "region-primers", "REAGENT", ["目标 CpG 区、阴性区域和甲基化阳性区域的 qPCR 引物", "qPCR primers for target CpG regions, negative regions, and methylation-positive regions"]),
+          requirementFor(dnaMethylation, "controls", "CONTROL", ["Input、IgG、DNA 片段长度/输入量控制和亚硫酸氢盐或氧化亚硫酸氢盐正交验证计划", "Input, IgG, DNA-fragment-size/input controls, and a bisulfite or oxidative-bisulfite orthogonal-validation plan"]),
+        ]),
+      ];
+    }
+    case "CUT_AND_RUN":
+    case "CUT_AND_TAG": {
+      const acetylation = "HISTONE_ACETYLATION_CUT";
+      const methylation = "HISTONE_METHYLATION_CUT";
+      const lactylation = "HISTONE_LACTYLATION_CUT";
+      const method = blueprint.code === "CUT_AND_TAG" ? "CUT&Tag" : "CUT&RUN";
+      return [
+        profile(acetylation, ["组蛋白乙酰化 " + method, "Histone acetylation by " + method], ["以低背景图谱定位 H3K27ac/H3K9ac 等乙酰化标记；跨条件比较需要稳定的核输入和适配的校准策略。", "Maps acetylation marks such as H3K27ac/H3K9ac at low background; comparisons across conditions require stable nuclear input and an appropriate calibration strategy."], [
+          requirementFor(acetylation, "mark-antibody", "REAGENT", ["经 " + method + " 验证的 H3K27ac、H3K9ac 或假设匹配抗体", method + "-validated H3K27ac, H3K9ac, or hypothesis-matched antibody"]),
+          requirementFor(acetylation, "targeting-reagents", "REAGENT", ["与 " + method + " 体系匹配的 Protein A/G 酶/转座酶、磁珠和建库试剂", "Protein A/G enzyme/transposase, magnetic beads, and library chemistry matched to " + method]),
+          requirementFor(acetylation, "controls", "CONTROL", ["IgG/无一抗、已知阳性与阴性区域、片段分布和需要时外源 spike-in 归一化", "IgG/no-primary, known positive and negative regions, fragment distribution, and exogenous spike-in normalization when needed"]),
+        ]),
+        profile(methylation, ["组蛋白甲基化 " + method, "Histone methylation by " + method], ["绘制 H3K4me3、H3K27me3、H3K9me3 等标记的基因组分布，以位点级结果连接基因表达而不是只报告全局变化。", "Maps genomic distributions of marks such as H3K4me3, H3K27me3, and H3K9me3, linking locus-level results to expression rather than reporting global change alone."], [
+          requirementFor(methylation, "mark-antibody", "REAGENT", ["经 " + method + " 验证的 H3K4me3、H3K27me3、H3K9me3 或假设匹配抗体", method + "-validated H3K4me3, H3K27me3, H3K9me3, or hypothesis-matched antibody"]),
+          requirementFor(methylation, "targeting-reagents", "REAGENT", ["与 " + method + " 匹配的靶向酶/转座酶、磁珠和低起始量建库试剂", "Targeting enzyme/transposase, magnetic beads, and low-input library chemistry matched to " + method]),
+          requirementFor(methylation, "controls", "CONTROL", ["IgG/无一抗、标记阳性和阴性基因座、片段/QC 阈值及 EZH2/KDM 扰动对照", "IgG/no-primary, mark-positive and negative loci, fragment/QC thresholds, and EZH2/KDM perturbation control"]),
+        ]),
+        profile(lactylation, ["组蛋白乳酸化 " + method, "Histone lactylation by " + method], ["仅在乳酸化抗体已验证适用于该染色质方法时开展位点图谱；乳酸变化、培养基条件和抗体特异性必须同时登记。", "Maps loci only when the lactylation antibody is validated for the chromatin method; lactate changes, medium conditions, and antibody specificity must all be recorded."], [
+          requirementFor(lactylation, "mark-antibody", "REAGENT", ["经 " + method + " 验证的 H3K18la 或特异乳酸化标记抗体", method + "-validated H3K18la or specific lactylation-mark antibody"]),
+          requirementFor(lactylation, "targeting-reagents", "REAGENT", ["与 " + method + " 匹配的靶向酶/转座酶、磁珠和建库试剂", "Targeting enzyme/transposase, magnetic beads, and library chemistry matched to " + method]),
+          requirementFor(lactylation, "controls", "CONTROL", ["IgG/无一抗、pH/渗透压匹配、抗原肽竞争/独立抗体验证、阴性区及糖酵解/MCT 阻断", "IgG/no-primary, pH/osmolality matching, competing-peptide/independent-antibody validation, negative regions, and glycolysis/MCT blockade"]),
+        ]),
+      ];
+    }
+    case "ATAC_QPCR": {
+      const accessibility = "CHROMATIN_ACCESSIBILITY_ATAC_QPCR";
+      return [profile(accessibility, ["靶向染色质可及性 ATAC-qPCR", "Targeted chromatin-accessibility ATAC-qPCR"], ["验证预定义开放或关闭调控区域的可及性；需以核完整性和开放/关闭区域对照排除技术性转座偏差。", "Validates accessibility at predefined open or closed regulatory regions; nuclei integrity and open/closed-region controls are needed to exclude technical tagmentation bias."], [
+        requirementFor(accessibility, "tagmentation", "REAGENT", ["Tn5 转座酶、细胞核分离体系和目标/关闭区 qPCR 引物", "Tn5 transposase, nuclei-isolation chemistry, and qPCR primers for target/open and closed regions"]),
+        requirementFor(accessibility, "locus-plan", "SAMPLE", ["预先登记的候选开放区域、关闭背景区和与表达读出关联的分析计划", "Prespecified candidate accessible regions, closed background regions, and analysis plan linking to expression readout"]),
+        requirementFor(accessibility, "controls", "CONTROL", ["细胞核完整性、无细胞/转座背景、片段化条件和生物学重复/批次控制", "Nuclei integrity, no-cell/tagmentation background, fragmentation conditions, and biological-replicate/batch controls"]),
+      ])];
+    }
+    case "ATAC_SEQUENCING": {
+      const accessibility = "CHROMATIN_ACCESSIBILITY_ATAC_SEQ";
+      return [profile(accessibility, ["染色质可及性 ATAC-seq", "Chromatin-accessibility ATAC-seq"], ["以全基因组开放峰、TSS 富集和核小体周期性评估可及性；候选峰必须和表达或位点级验证相连。", "Uses genome-wide accessible peaks, TSS enrichment, and nucleosomal periodicity to assess accessibility; candidate peaks must connect to expression or locus-level validation."], [
+        requirementFor(accessibility, "tagmentation", "REAGENT", ["Tn5 转座酶、适配样本的细胞核分离/去碎屑体系及 ATAC 建库试剂", "Tn5 transposase, sample-appropriate nuclei-isolation/debris-removal chemistry, and ATAC library reagents"]),
+        requirementFor(accessibility, "analysis-plan", "SOFTWARE", ["预定义的 TSS 富集、片段分布、重复一致性、峰调用和峰-基因关联分析阈值", "Prespecified thresholds for TSS enrichment, fragment distribution, replicate concordance, peak calling, and peak-to-gene linking"]),
+        requirementFor(accessibility, "controls", "CONTROL", ["细胞核完整性、转座背景、批次平衡和候选峰的独立表达/位点验证控制", "Nuclei integrity, tagmentation background, batch balancing, and independent expression/locus validation of candidate peaks"]),
+      ])];
+    }
+    case "SINGLE_CELL_ATAC_SEQUENCING": {
+      const accessibility = "SINGLE_CELL_CHROMATIN_ATLAS";
+      return [profile(accessibility, ["单细胞染色质可及性图谱", "Single-cell chromatin-accessibility atlas"], ["在单细胞层面描述细胞状态特异的可及性与调控元件；必须控制细胞核质量、双细胞和批次混杂。", "Describes cell-state-specific accessibility and regulatory elements at single-cell resolution; nuclei quality, doublets, and batch confounding must be controlled."], [
+        requirementFor(accessibility, "nuclei-reagents", "REAGENT", ["细胞核分离、Tn5 转座、单细胞条形码与适配样本的去碎屑/死细胞去除体系", "Nuclei-isolation, Tn5-tagmentation, single-cell barcoding, and sample-appropriate debris/dead-cell removal chemistry"]),
+        requirementFor(accessibility, "analysis-plan", "SOFTWARE", ["预定义的每核片段数、TSS 富集、双细胞识别、批次校正和细胞类型注释方案", "Prespecified per-nucleus fragment, TSS-enrichment, doublet-detection, batch-correction, and cell-type-annotation plan"]),
+        requirementFor(accessibility, "controls", "CONTROL", ["跨批次混样/参考样本、细胞核完整性和与 RNA/蛋白标志物正交验证的控制", "Cross-batch multiplexing/reference sample, nuclei-integrity, and orthogonal RNA/protein-marker validation controls"]),
+      ])];
+    }
+    case "WHOLE_GENOME_BISULFITE_SEQUENCING": {
+      const methylation = "DNA_METHYLATION_WGBS";
+      return [profile(methylation, ["DNA 甲基化/羟甲基化 WGBS", "DNA methylation/hydroxymethylation WGBS"], ["在全基因组 CpG 水平研究 DNA 甲基化；常规亚硫酸氢盐测序不能区分 5mC 与 5hmC，需在研究设计中明确该限制或配置正交方法。", "Studies DNA methylation at genome-wide CpG resolution; conventional bisulfite sequencing cannot distinguish 5mC from 5hmC, so the limitation or an orthogonal method must be specified in the design."], [
+        requirementFor(methylation, "conversion-and-controls", "REAGENT", ["亚硫酸氢盐转换体系、高质量基因组 DNA 及甲基化/未甲基化转换效率参考物", "Bisulfite-conversion chemistry, high-quality genomic DNA, and methylated/unmethylated conversion-efficiency references"]),
+        requirementFor(methylation, "regions-and-analysis", "SOFTWARE", ["预定义的 CpG/区域假设、覆盖深度、差异甲基化阈值和细胞组成校正方案", "Prespecified CpG/region hypothesis, coverage depth, differential-methylation threshold, and cell-composition-correction plan"]),
+        requirementFor(methylation, "controls", "CONTROL", ["转换率、文库复杂度、批次平衡和需要时 5mC/5hmC 的氧化亚硫酸氢盐或其他正交验证", "Conversion rate, library complexity, batch balance, and oxidative-bisulfite or other orthogonal 5mC/5hmC validation when needed"]),
+      ])];
+    }
+    case "DNA_METHYLATION_ARRAY": {
+      const methylation = "DNA_METHYLATION_ARRAY_PROFILE";
+      return [profile(methylation, ["DNA 甲基化芯片表型", "DNA-methylation-array phenotype"], ["用于候选 CpG、区域和细胞状态相关甲基化的稳定比较；应控制 DNA 质量、探针过滤、批次及细胞组成。", "Compares methylation at candidate CpGs/regions and cell states; DNA quality, probe filtering, batch, and cell composition must be controlled."], [
+        requirementFor(methylation, "input-and-controls", "REAGENT", ["符合平台输入标准的基因组 DNA、转换/扩增试剂和平台匹配的质控参考材料", "Platform-compliant genomic DNA, conversion/amplification reagents, and platform-matched QC reference material"]),
+        requirementFor(methylation, "analysis-plan", "SOFTWARE", ["预定义的探针过滤、归一化、批次校正、细胞组成校正和差异甲基化阈值", "Prespecified probe filtering, normalization, batch correction, cell-composition correction, and differential-methylation thresholds"]),
+        requirementFor(methylation, "controls", "CONTROL", ["DNA 量/完整性、转换/杂交 QC、技术重复或参考样本和候选位点正交验证", "DNA quantity/integrity, conversion/hybridization QC, technical replicate or reference sample, and orthogonal validation of candidate loci"]),
+      ])];
+    }
+    case "PHOSPHOPROTEOMICS": {
+      const phosphorylation = "PHOSPHORYLATION_KINASE_NETWORK";
+      return [profile(phosphorylation, ["磷酸化与激酶网络蛋白质组", "Phosphorylation and kinase-network proteomics"], ["在位点级别绘制刺激或药物后的激酶-底物网络；必须将即时去磷酸化抑制、富集质量和关键位点正交验证纳入同一检查。", "Maps kinase–substrate networks at site level after stimulation or drug treatment; immediate phosphatase inhibition, enrichment quality, and orthogonal validation of key sites belong in the same check."], [
+        requirementFor(phosphorylation, "quench-and-enrichment", "REAGENT", ["含新鲜蛋白酶/磷酸酶抑制剂的即时裂解体系、磷酸肽富集材料和内标/标准肽", "Immediate lysis chemistry with fresh protease/phosphatase inhibitors, phosphopeptide-enrichment material, and internal or standard peptides"]),
+        requirementFor(phosphorylation, "network-plan", "SOFTWARE", ["预定义的位点定位概率、富集/缺失值阈值、激酶-底物数据库和关键位点筛选标准", "Prespecified site-localization probability, enrichment/missing-value thresholds, kinase–substrate database, and key-site selection criteria"]),
+        requirementFor(phosphorylation, "controls", "CONTROL", ["未处理、载体、刺激时间梯度和激酶抑制剂控制，以及关键位点的 WB/PRM 正交验证", "Untreated, vehicle, stimulus time-course, and kinase-inhibitor controls, with WB/PRM orthogonal validation of key sites"]),
+      ])];
+    }
+    case "PHOSPHO_FLOW": {
+      const phosphorylation = "PHOSPHORYLATION_SIGNALING_FLOW";
+      return [profile(phosphorylation, ["磷酸化信号流式", "Phosphorylation-signaling flow cytometry"], ["在定义的细胞亚群内测量刺激后的磷酸化动力学；固定/透化窗口和单染/FMO 对照决定位点信号是否可信。", "Measures post-stimulation phosphorylation kinetics within defined cell subsets; fixation/permeabilization timing and single-stain/FMO controls determine whether site signals are interpretable."], [
+        requirementFor(phosphorylation, "paired-antibodies", "REAGENT", ["经 phospho-flow 验证的 p-ERK、p-AKT、p-STAT、p-S6 或假设匹配抗体，以及谱系/活死标记", "Phospho-flow-validated p-ERK, p-AKT, p-STAT, p-S6, or hypothesis-matched antibodies with lineage/viability markers"]),
+        requirementFor(phosphorylation, "fix-perm", "REAGENT", ["与目标磷酸化表位兼容的即时固定、透化和细胞内染色体系", "Immediate fixation, permeabilization, and intracellular-staining chemistry compatible with the target phosphoepitopes"]),
+        requirementFor(phosphorylation, "controls", "CONTROL", ["未刺激、刺激时间梯度、激酶抑制剂、单染补偿、FMO 和预定义亚群门控控制", "Unstimulated, stimulus time-course, kinase inhibitor, single-stain compensation, FMO, and prespecified subset-gating controls"]),
+      ])];
+    }
+    case "TARGETED_LC_MS_MS_QUANTIFICATION": {
+      const phosphorylation = "TARGETED_PHOSPHOSITE_MS";
+      return [profile(phosphorylation, ["靶向磷酸化位点质谱", "Targeted phosphosite mass spectrometry"], ["对预定义关键磷酸化位点进行定量确认；应使用稳定同位素标准、位点特异峰识别和线性范围验证。", "Quantitatively confirms predefined key phosphosites; stable-isotope standards, site-specific peak identification, and linear-range validation are required."], [
+        requirementFor(phosphorylation, "standards-and-enrichment", "REAGENT", ["目标磷酸肽稳定同位素标准、磷酸肽富集材料和含磷酸酶抑制剂的即时裂解体系", "Stable-isotope standards for target phosphopeptides, phosphopeptide-enrichment material, and immediate lysis chemistry with phosphatase inhibitors"]),
+        requirementFor(phosphorylation, "assay-plan", "SOFTWARE", ["预定义的离子对、保留时间、峰边界、定量线性范围和干扰排除规则", "Prespecified transitions, retention times, peak boundaries, quantitative linear range, and interference-exclusion rules"]),
+        requirementFor(phosphorylation, "controls", "CONTROL", ["未处理/刺激/抑制条件、标准曲线、基质空白和总蛋白或目标肽归一化控制", "Untreated/stimulated/inhibited conditions, calibration curve, matrix blank, and total-protein or target-peptide normalization controls"]),
       ])];
     }
     default:

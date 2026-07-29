@@ -17,6 +17,20 @@ type Requirement = {
   label: { zh: string; en: string };
 };
 
+type DirectionOption = {
+  code: string;
+  name: { zh: string; en: string };
+  description: { zh: string; en: string };
+  specializedReagents: { zh: string; en: string };
+  targetRequirements: { zh: string; en: string };
+  targetPanel: {
+    mechanistic: string[];
+    readout: string[];
+    controls: string[];
+  };
+  ruleCount: number;
+};
+
 type TechniqueDetail = {
   code: string;
   slug: string;
@@ -32,6 +46,7 @@ type TechniqueDetail = {
     description: { zh: string; en: string };
     additionalRequirements: Requirement[];
   }>;
+  directionOptions?: DirectionOption[];
 };
 
 type TechniqueSummary = {
@@ -75,6 +90,8 @@ type CheckItem = {
 type CheckResult = {
   techniqueCode: string;
   profileCode: string | null;
+  directionCode?: string | null;
+  direction?: DirectionOption | null;
   status: "BLOCKED" | "NEEDS_CONFIRMATION" | "READY" | "UNSUPPORTED";
   items: CheckItem[];
   reasons: string[];
@@ -125,6 +142,7 @@ export default function ExperimentCheckPage() {
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [selected, setSelected] = useState<TechniqueDetail | null>(null);
   const [profileCode, setProfileCode] = useState("");
+  const [directionCode, setDirectionCode] = useState("");
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +196,7 @@ export default function ExperimentCheckPage() {
     }
     setSelected(data.technique);
     setProfileCode("");
+    setDirectionCode("");
     setConfirmedIds(new Set());
     setResult(null);
   }
@@ -250,6 +269,9 @@ export default function ExperimentCheckPage() {
   const activeProfile = selected?.profiles.find(
     (profile) => profile.code === profileCode,
   );
+  const activeDirection = selected?.directionOptions?.find(
+    (domain) => domain.code === directionCode,
+  );
   const requirements = useMemo(
     () => [
       ...(selected?.requirements ?? []),
@@ -295,6 +317,7 @@ export default function ExperimentCheckPage() {
           labId,
           techniqueCode: selected.code,
           profileCode: profileCode || null,
+          directionCode: directionCode || null,
           confirmedRequirementIds: [...confirmedIds],
         }),
       },
@@ -316,7 +339,7 @@ export default function ExperimentCheckPage() {
           实验资源检查
         </h1>
         <p className="section-copy mt-1.5 max-w-3xl text-sm">
-          从服务端技术目录选择叶子技术，自动匹配库存试剂，并人工确认非库存资源。
+          选择具体技术后，可附加适用的表型／通路专题；系统会将方法要求与专题试剂规则一起核对库存。
         </p>
       </header>
 
@@ -499,7 +522,7 @@ export default function ExperimentCheckPage() {
 
               {selected.profiles.length ? (
                 <div>
-                  <label className="field-label" htmlFor="profile">应用 Profile（可选）</label>
+                  <label className="field-label" htmlFor="profile">方法应用 Profile（可选）</label>
                   <select
                     id="profile"
                     className="input-base"
@@ -521,6 +544,38 @@ export default function ExperimentCheckPage() {
                     <p className="field-hint">{activeProfile.description.zh}</p>
                   ) : null}
                 </div>
+              ) : null}
+
+              {selected.directionOptions?.length ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
+                  <label className="field-label text-violet-950" htmlFor="direction">
+                    研究专题／通路（可选）
+                  </label>
+                  <p className="mb-2 text-xs leading-5 text-violet-800">
+                    为本次检查附加与所选技术匹配的表型／通路要求；可与上方方法 Profile 同时使用。
+                  </p>
+                  <select
+                    id="direction"
+                    className="input-base border-violet-200 bg-white"
+                    value={directionCode}
+                    onChange={(event) => {
+                      setDirectionCode(event.target.value);
+                      setConfirmedIds(new Set());
+                      setResult(null);
+                    }}
+                  >
+                    <option value="">不附加专题要求</option>
+                    {selected.directionOptions.map((domain) => (
+                      <option key={domain.code} value={domain.code}>
+                        {domain.name.zh}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {activeDirection ? (
+                <PathwayTopicPanel domain={activeDirection} />
               ) : null}
 
               <div className="space-y-5">
@@ -611,44 +666,134 @@ export default function ExperimentCheckPage() {
 
 function ResultPanel({ result }: { result: CheckResult }) {
   const style = resultStyles[result.status];
+  const directionItems = result.items.filter((item) =>
+    item.requirementId.startsWith("direction:"),
+  );
+  const techniqueItems = result.items.filter(
+    (item) => !item.requirementId.startsWith("direction:"),
+  );
   return (
     <div className="space-y-4">
       <div className={`rounded-xl border p-4 ${style.className}`}>
         <p className="font-semibold">{style.title}</p>
         <p className="mt-2 text-sm leading-6">{style.copy}</p>
       </div>
+      {result.direction ? (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950">
+          已附加专题：<span className="font-semibold">{result.direction.name.zh}</span>
+          {result.direction.ruleCount ? `（${result.direction.ruleCount} 项专题库存规则）` : ""}
+        </div>
+      ) : null}
       {result.reasons.length ? (
         <ul className="list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
           {result.reasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
       ) : null}
-      <div className="space-y-2">
-        {result.items.map((item) => (
-          <div key={item.requirementId} className="rounded-lg border border-slate-200 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium text-slate-800">{item.label}</p>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                item.state === "MATCHED" || item.state === "CONFIRMED"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : item.state === "MISSING"
-                    ? "bg-rose-50 text-rose-700"
-                    : "bg-amber-50 text-amber-700"
-              }`}>
-                {item.state}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {kindLabels[item.kind] ?? item.kind} · {item.level}
-              {item.matchedName ? ` · ${item.matchedName}` : ""}
-            </p>
-          </div>
-        ))}
-      </div>
+      {directionItems.length ? (
+        <section>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-700">
+            专题／通路试剂检查
+          </p>
+          <ResultItems items={directionItems} tone="pathway" />
+        </section>
+      ) : null}
+      <section>
+        {directionItems.length ? (
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            方法基础要求
+          </p>
+        ) : null}
+        <ResultItems items={techniqueItems} />
+      </section>
       {result.checkRunId ? (
         <p className="break-all font-mono text-[10px] text-slate-400">
           audit: {result.checkRunId}
         </p>
       ) : null}
     </div>
+  );
+}
+
+function ResultItems({
+  items,
+  tone = "default",
+}: {
+  items: CheckItem[];
+  tone?: "default" | "pathway";
+}) {
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div
+          key={item.requirementId}
+          className={`rounded-lg border p-3 ${
+            tone === "pathway" ? "border-violet-200 bg-violet-50/40" : "border-slate-200"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-slate-800">{item.label}</p>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              item.state === "MATCHED" || item.state === "CONFIRMED"
+                ? "bg-emerald-50 text-emerald-700"
+                : item.state === "MISSING"
+                  ? "bg-rose-50 text-rose-700"
+                  : "bg-amber-50 text-amber-700"
+            }`}>
+              {item.state}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {kindLabels[item.kind] ?? item.kind} · {item.level}
+            {item.matchedName ? ` · ${item.matchedName}` : ""}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PathwayTopicPanel({ domain }: { domain: DirectionOption }) {
+  const panels = [
+    { label: "机制靶点", items: domain.targetPanel.mechanistic },
+    { label: "核心读出", items: domain.targetPanel.readout },
+    { label: "必要对照", items: domain.targetPanel.controls },
+  ].filter((panel) => panel.items.length);
+
+  return (
+    <section className="rounded-xl border border-violet-200 bg-violet-50/50 p-4" aria-label={`${domain.name.zh}专题要求`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">专题检查要求</p>
+          <h3 className="mt-1 text-base font-semibold text-violet-950">{domain.name.zh}</h3>
+        </div>
+        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
+          {domain.ruleCount} 项库存规则
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-violet-950/85">{domain.description.zh}</p>
+
+      <div className="mt-3 rounded-lg border border-violet-100 bg-white/80 p-3">
+        <p className="text-xs font-semibold text-violet-900">建议专用试剂</p>
+        <p className="mt-1 text-sm leading-6 text-slate-700">{domain.specializedReagents.zh}</p>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {panels.map((panel) => (
+          <div key={panel.label} className="rounded-lg border border-violet-100 bg-white/80 p-3">
+            <p className="text-xs font-semibold text-violet-900">{panel.label}</p>
+            <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-700">
+              {panel.items.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs leading-5 text-violet-900/90">
+        {domain.targetRequirements.zh} 运行检查后会将该专题的自动库存匹配结果一并列出。
+      </p>
+      <p className="mt-2 text-xs leading-5 text-slate-600">
+        所需试剂、靶点与对照仅供研究设计参考；请结合具体实验内容、研究对象的物种/来源、样本类型、模型特征及预期读出确认和调整。
+      </p>
+    </section>
   );
 }

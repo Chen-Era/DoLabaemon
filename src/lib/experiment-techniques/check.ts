@@ -1,5 +1,10 @@
 import { experimentTechniqueSchema } from "@/lib/experiment-techniques/types";
 import { supplementReagentCapabilityTags } from "@/lib/reagent-capability-bundles";
+import {
+  getPathwayCheckContext,
+  evaluatePathwayCheckRules,
+  type PathwayCheckContext,
+} from "@/lib/experiment-techniques/pathway-check";
 import type {
   ExperimentTechnique,
   TechniqueCheckItem,
@@ -12,11 +17,25 @@ export type InventoryCapability = {
   name: string;
   experimentTags: string[];
   available?: boolean;
+  catalogNo?: string | null;
+  vendor?: string | null;
+  subCategory?: string | null;
+  note?: string | null;
+  antibodyMeta?: {
+    role?: "PRIMARY" | "SECONDARY" | null;
+    targetName?: string | null;
+  } | null;
+  primerMeta?: {
+    targetName?: string | null;
+    isReferenceGene?: boolean | null;
+  } | null;
 };
 
 export type TechniqueCheckResult = {
   techniqueCode: string;
   profileCode: string | null;
+  directionCode: string | null;
+  direction: PathwayCheckContext | null;
   status: TechniqueCheckStatus;
   items: TechniqueCheckItem[];
   reasons: string[];
@@ -50,10 +69,14 @@ function unsupported(
   techniqueCode: string,
   profileCode: string | null,
   reasons: string[],
+  directionCode: string | null = null,
+  direction: PathwayCheckContext | null = null,
 ): TechniqueCheckResult {
   return {
     techniqueCode,
     profileCode,
+    directionCode,
+    direction,
     status: "UNSUPPORTED",
     items: [],
     reasons,
@@ -63,6 +86,7 @@ function unsupported(
 export function evaluateTechniqueReadiness(input: {
   technique: ExperimentTechnique;
   profileCode?: string | null;
+  directionCode?: string | null;
   confirmedRequirementIds?: string[];
   notApplicableRequirementIds?: string[];
   inventory?: InventoryCapability[];
@@ -70,6 +94,7 @@ export function evaluateTechniqueReadiness(input: {
   const {
     technique,
     profileCode = null,
+    directionCode = null,
     confirmedRequirementIds = [],
     notApplicableRequirementIds = [],
     inventory = [],
@@ -113,6 +138,15 @@ export function evaluateTechniqueReadiness(input: {
     return unsupported(technique.code, profileCode, [
       `Unknown profile ${profileCode} for ${technique.code}.`,
     ]);
+  }
+
+  const direction = directionCode
+    ? getPathwayCheckContext(technique.code, directionCode)
+    : null;
+  if (directionCode && !direction) {
+    return unsupported(technique.code, profileCode, [
+      `No pathway-specific rules are available for ${directionCode} with ${technique.code}.`,
+    ], directionCode);
   }
 
   const requirements = [
@@ -173,42 +207,82 @@ export function evaluateTechniqueReadiness(input: {
       item.verificationMode === "AUTO_INVENTORY" &&
       item.state === "MISSING",
   );
-  if (missingAutoRequiredReagent) {
-    return {
-      techniqueCode: technique.code,
-      profileCode,
-      status: "BLOCKED",
-      items,
-      reasons: ["One or more automatically verifiable required reagents are missing."],
-    };
-  }
+  const baseResult = (): TechniqueCheckResult => {
+    if (missingAutoRequiredReagent) {
+      return {
+        techniqueCode: technique.code,
+        profileCode,
+        directionCode,
+        direction,
+        status: "BLOCKED",
+        items,
+        reasons: ["One or more automatically verifiable required reagents are missing."],
+      };
+    }
 
-  const unconfirmedRequired = items.some(
-    (item) =>
-      item.level === "REQUIRED" &&
-      (item.state === "UNCONFIRMED" || item.state === "MISSING"),
-  );
-  const unresolvedConditional = items.some(
-    (item) =>
-      item.level === "CONDITIONAL" && item.state === "UNCONFIRMED",
-  );
-  if (unconfirmedRequired || unresolvedConditional) {
+    const unconfirmedRequired = items.some(
+      (item) =>
+        item.level === "REQUIRED" &&
+        (item.state === "UNCONFIRMED" || item.state === "MISSING"),
+    );
+    const unresolvedConditional = items.some(
+      (item) =>
+        item.level === "CONDITIONAL" && item.state === "UNCONFIRMED",
+    );
+    if (unconfirmedRequired || unresolvedConditional) {
+      return {
+        techniqueCode: technique.code,
+        profileCode,
+        directionCode,
+        direction,
+        status: "NEEDS_CONFIRMATION",
+        items,
+        reasons: [
+          "Required instruments, consumables, samples, controls, software or manually verified reagents still need confirmation.",
+        ],
+      };
+    }
+
     return {
       techniqueCode: technique.code,
       profileCode,
-      status: "NEEDS_CONFIRMATION",
+      directionCode,
+      direction,
+      status: "READY",
       items,
-      reasons: [
-        "Required instruments, consumables, samples, controls, software or manually verified reagents still need confirmation.",
-      ],
+      reasons: [],
     };
-  }
+  };
+
+  const base = baseResult();
+  if (!direction) return base;
+
+  const pathwayEvaluation = evaluatePathwayCheckRules(technique.code, direction, inventory);
+  const pathwayItems: TechniqueCheckItem[] = pathwayEvaluation.items.map((item, index) => ({
+    requirementId: `direction:${direction.code}:${technique.code}:${index}`,
+    label: item.displayName,
+    kind: "REAGENT",
+    level: item.level === "MIN_REQUIRED" ? "REQUIRED" : "RECOMMENDED",
+    verificationMode: "AUTO_INVENTORY",
+    state: item.isMissing ? "MISSING" : "MATCHED",
+    matchedName: item.matchedName,
+  }));
+  const missingRequiredPathwayRule = pathwayItems.some(
+    (item) => item.level === "REQUIRED" && item.state === "MISSING",
+  );
 
   return {
-    techniqueCode: technique.code,
-    profileCode,
-    status: "READY",
-    items,
-    reasons: [],
+    ...base,
+    items: [...base.items, ...pathwayItems],
+    status:
+      base.status === "BLOCKED" || missingRequiredPathwayRule
+        ? "BLOCKED"
+        : base.status,
+    reasons: [
+      ...base.reasons,
+      ...(missingRequiredPathwayRule
+        ? ["One or more required pathway-specific reagents are missing."]
+        : []),
+    ],
   };
 }

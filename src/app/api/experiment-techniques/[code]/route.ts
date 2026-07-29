@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { techniqueCategoryLabels } from "@/lib/experiment-techniques/catalog";
 import { getPublishedTechnique } from "@/lib/experiment-techniques/runtime";
+import { listPathwayCheckContexts } from "@/lib/experiment-techniques/pathway-check";
 import { evidenceSourceById } from "@/lib/experiment-techniques/sources";
 import { requireUserFromRequest } from "@/lib/session";
 
@@ -34,6 +35,7 @@ export async function GET(
 
     return NextResponse.json({
       technique,
+      directionOptions: listPathwayCheckContexts(technique.code),
       category: techniqueCategoryLabels[technique.categoryCode],
       sources,
       related,

@@ -13,6 +13,7 @@ const schema = z.object({
   labId: z.string().trim().min(1),
   techniqueCode: z.string().trim().min(1),
   profileCode: z.string().trim().min(1).nullable().optional(),
+  directionCode: z.string().trim().min(1).nullable().optional(),
   confirmedRequirementIds: z.array(z.string().trim().min(1)).default([]),
   notApplicableRequirementIds: z.array(z.string().trim().min(1)).default([]),
 });
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         techniqueCode: parsed.data.techniqueCode,
         profileCode: parsed.data.profileCode ?? null,
+        directionCode: parsed.data.directionCode ?? null,
+        direction: null,
         status: "UNSUPPORTED",
         items: [],
         reasons: ["Technique does not exist in the available catalog."],
@@ -42,6 +45,7 @@ export async function POST(request: Request) {
     const result = evaluateTechniqueReadiness({
       technique,
       profileCode: parsed.data.profileCode,
+      directionCode: parsed.data.directionCode,
       confirmedRequirementIds: parsed.data.confirmedRequirementIds,
       notApplicableRequirementIds: parsed.data.notApplicableRequirementIds,
       inventory: await listInventoryCapabilities(parsed.data.labId),
@@ -55,6 +59,7 @@ export async function POST(request: Request) {
           userId: user.id,
           experimentCode: technique.code,
           profileCode: parsed.data.profileCode ?? null,
+          directionCode: parsed.data.directionCode ?? null,
           techniqueRevision: technique.revision,
           confirmedRequirementIds: parsed.data.confirmedRequirementIds,
           confidenceLabel: "HIGH",

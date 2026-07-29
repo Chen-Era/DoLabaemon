@@ -12,6 +12,22 @@ export async function listInventoryCapabilities(
       name: reagent.name,
       experimentTags: reagent.experimentTags,
       available: true,
+      catalogNo: reagent.catalogNo,
+      vendor: reagent.vendor,
+      subCategory: reagent.subCategory,
+      note: reagent.note,
+      antibodyMeta: reagent.antibodyMeta
+        ? {
+            role: reagent.antibodyMeta.role,
+            targetName: reagent.antibodyMeta.targetName,
+          }
+        : null,
+      primerMeta: reagent.primerMeta
+        ? {
+            targetName: reagent.primerMeta.targetName,
+            isReferenceGene: reagent.primerMeta.isReferenceGene,
+          }
+        : null,
     }));
   }
 
@@ -27,5 +43,21 @@ export async function listInventoryCapabilities(
     available:
       (reagent.quantity === null || reagent.quantity > 0) &&
       (reagent.expiryDate === null || reagent.expiryDate.getTime() >= now),
+    catalogNo: reagent.catalogNo,
+    vendor: reagent.vendor,
+    subCategory: reagent.subCategory,
+    note: reagent.note,
+    antibodyMeta: reagent.antibodyMeta
+      ? {
+          role: reagent.antibodyMeta.role,
+          targetName: reagent.antibodyMeta.targetName,
+        }
+      : null,
+    primerMeta: reagent.primerMeta
+      ? {
+          targetName: reagent.primerMeta.targetName,
+          isReferenceGene: reagent.primerMeta.isReferenceGene,
+        }
+      : null,
   }));
 }
