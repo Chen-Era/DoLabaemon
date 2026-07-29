@@ -838,7 +838,6 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const autophagy = "AUTOPHAGY_FLUX_WB";
       const ecm = "ECM_REMODELING_WB";
       const mitochondrial = "MITOCHONDRIAL_BIOENERGETICS_WB";
-      const ifn = "INTERFERON_SIGNALING_WB";
       return [
         profile(
           autophagy,
@@ -870,23 +869,12 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
             requirementFor(mitochondrial, "functional-control", "CONTROL", ["呼吸抑制/解偶联或营养应激的阳性响应控制，并预定义细胞数和活性门槛", "Positive response control using respiratory inhibition/uncoupling or nutrient stress, with prespecified cell-number and viability thresholds"]),
           ],
         ),
-        profile(
-          ifn,
-          ["干扰素信号 WB", "Interferon-signaling western blot"],
-          ["将 IFN 刺激、JAK–STAT 磷酸化和 ISG 蛋白响应分层验证，并注明所研究的是 I 型、II 型或 III 型 IFN。", "Validates IFN stimulation, JAK–STAT phosphorylation, and ISG protein response in layers, while specifying type I, II, or III IFN."],
-          [
-            requirementFor(ifn, "ligand-and-block", "REAGENT", ["与假设匹配的重组 IFN-α/β、IFN-γ 或 IFN-λ，以及中和抗体或 JAK 抑制剂", "Hypothesis-matched recombinant IFN-α/β, IFN-γ, or IFN-λ, with a neutralizing antibody or JAK inhibitor"]),
-            requirementFor(ifn, "signal-panel", "REAGENT", ["p-STAT1/STAT1、p-STAT2/STAT2、IRF9 和 ISG15/MX1 等目标抗体面板", "Target antibody panel for p-STAT1/STAT1, p-STAT2/STAT2, IRF9, and ISG15/MX1"]),
-            requirementFor(ifn, "kinetic-control", "CONTROL", ["未刺激、IFN 刺激、阻断和时间梯度控制；磷酸化样本需立即加入磷酸酶抑制剂", "Unstimulated, IFN-stimulated, blocked, and time-gradient controls; phosphoprotein samples require immediate phosphatase inhibition"]),
-          ],
-        ),
       ];
     }
     case "QPCR": {
       const autophagy = "AUTOPHAGY_TRANSCRIPTIONAL_QPCR";
       const ecm = "ECM_REMODELING_QPCR";
       const mitochondrial = "MITOCHONDRIAL_BIOGENESIS_QPCR";
-      const ifn = "INTERFERON_STIMULATED_GENE_QPCR";
       return [
         profile(autophagy, ["自噬转录响应 qPCR", "Autophagy transcriptional-response qPCR"], ["用核心自噬与溶酶体基因的组合描述通路响应，同时用通量实验避免把 mRNA 变化误作通量。", "Describes pathway response with a core autophagy/lysosome gene set and pairs it with a flux assay to avoid equating mRNA changes with flux."], [
           requirementFor(autophagy, "primer-panel", "REAGENT", ["MAP1LC3B、SQSTM1、ATG5/ATG7、BECN1 和模型相关溶酶体基因的经验证引物", "Validated primers for MAP1LC3B, SQSTM1, ATG5/ATG7, BECN1, and model-relevant lysosomal genes"]),
@@ -900,17 +888,12 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
           requirementFor(mitochondrial, "primer-panel", "REAGENT", ["PPARGC1A、TFAM、NRF1、NDUFS1/COX5B 及 mtDNA/核 DNA 拷贝数配对引物", "Paired primers for PPARGC1A, TFAM, NRF1, NDUFS1/COX5B, and mtDNA/nuclear-DNA copy number"]),
           requirementFor(mitochondrial, "normalization-control", "CONTROL", ["细胞数、细胞周期和活性校正，以及氧张力/底物条件的预定义记录", "Cell-number, cell-cycle, and viability correction, with prespecified recording of oxygen and substrate conditions"]),
         ]),
-        profile(ifn, ["干扰素刺激基因 qPCR", "Interferon-stimulated-gene qPCR"], ["用早期信号与晚期 ISG 模块区分 IFN 通路，并避免把一般炎症转录本当作 IFN 特异响应。", "Separates early signaling from late ISG modules and avoids treating general inflammatory transcripts as IFN-specific response."], [
-          requirementFor(ifn, "isg-primer-panel", "REAGENT", ["ISG15、MX1、OAS1、IFIT1、IFITM3 和与 IFN 类型匹配的 IFNB1/IFNG/IFNL 目标引物", "Target primers for ISG15, MX1, OAS1, IFIT1, IFITM3, and IFNB1/IFNG/IFNL matched to the IFN type"]),
-          requirementFor(ifn, "specificity-control", "CONTROL", ["未刺激、重组 IFN 阳性、JAK 阻断和炎症非 IFN 刺激对照，以及经验证的参考基因", "Unstimulated, recombinant-IFN positive, JAK-blocked, and inflammatory non-IFN controls, plus validated reference genes"]),
-        ]),
       ];
     }
     case "IF": {
       const autophagy = "AUTOPHAGY_PUNCTA_IF";
       const ecm = "ECM_DEPOSITION_IF";
       const mitochondrial = "MITOCHONDRIAL_MORPHOLOGY_IF";
-      const ifn = "INTERFERON_NUCLEAR_SIGNALING_IF";
       return [
         profile(autophagy, ["自噬斑点 IF", "Autophagy-puncta immunofluorescence"], ["通过 LC3 与 p62/溶酶体共定位和每细胞定量评估自噬结构，必须结合通量阻断条件。", "Assesses autophagic structures using LC3 colocalization with p62/lysosomes and per-cell quantification, with a flux-block condition."], [
           requirementFor(autophagy, "marker-panel", "REAGENT", ["LC3B、SQSTM1/p62 与 LAMP1/LysoTracker 的兼容抗体/探针组合", "Compatible LC3B, SQSTM1/p62, and LAMP1/LysoTracker antibody/probe combination"]),
@@ -924,14 +907,9 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
           requirementFor(mitochondrial, "morphology-panel", "REAGENT", ["TOMM20 或 HSP60 抗体/经验证的 MitoTracker，以及 DRP1、MFN1/MFN2、OPA1 标记", "TOMM20 or HSP60 antibody/validated MitoTracker, with DRP1, MFN1/MFN2, and OPA1 markers"]),
           requirementFor(mitochondrial, "morphology-control", "CONTROL", ["膜电位依赖染料的染色活性控制、细胞周期/密度控制和预定义网络分割分析", "Staining-viability control for membrane-potential-dependent dyes, cell-cycle/density control, and prespecified network-segmentation analysis"]),
         ]),
-        profile(ifn, ["干扰素核信号 IF", "Interferon nuclear-signaling immunofluorescence"], ["以 p-STAT1/STAT2 或 IRF3 的核转位及 ISG 蛋白表达分层读出 IFN 激活。", "Uses nuclear translocation of p-STAT1/STAT2 or IRF3 and ISG protein expression as layered readouts of IFN activation."], [
-          requirementFor(ifn, "signal-panel", "REAGENT", ["p-STAT1/STAT1、p-STAT2/STAT2 或 IRF3，配合核染和 ISG15/MX1 标记", "p-STAT1/STAT1, p-STAT2/STAT2, or IRF3 with nuclear stain and ISG15/MX1 marker"]),
-          requirementFor(ifn, "translocation-control", "CONTROL", ["未刺激、IFN 或模式识别受体刺激、JAK/通路阻断以及核/胞质分割定量规则", "Unstimulated, IFN or pattern-recognition-receptor stimulated, JAK/pathway blocked controls, with nuclear/cytoplasmic segmentation rules"]),
-        ]),
       ];
     }
     case "FLOW": {
-      const ifn = "INTERFERON_RESPONSE_FLOW";
       const innate = "INNATE_INFLAMMATION_FLOW";
       const tCell = "T_CELL_IMMUNITY_FLOW";
       const bCell = "B_CELL_HUMORAL_FLOW";
@@ -941,10 +919,6 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       const metabolism = "IMMUNE_METABOLISM_FLOW";
       const antigen = "ANTIGEN_PRESENTATION_FLOW";
       return [
-        profile(ifn, ["干扰素响应流式", "Interferon-response flow cytometry"], ["在明确细胞群内读出 p-STAT、ISG 或 MHC 上调，并将受体/细胞活性与刺激时间一并控制。", "Reads p-STAT, ISG, or MHC induction within defined cell populations while controlling receptor context, viability, and stimulation time."], [
-          requirementFor(ifn, "panel", "REAGENT", ["活/死染、谱系标记、p-STAT1/p-STAT2 或 ISG15/MX1，以及 HLA-DR/MHC-I 的抗体面板", "Antibody panel for viability, lineage, p-STAT1/p-STAT2 or ISG15/MX1, and HLA-DR/MHC-I"]),
-          requirementFor(ifn, "controls", "CONTROL", ["未刺激、匹配 IFN 刺激、JAK 阻断、FMO 与磷酸化固定/透化时间控制", "Unstimulated, matched IFN-stimulated, JAK-blocked, FMO, and phospho-fix/perm timing controls"]),
-        ]),
         profile(innate, ["先天炎症/炎性小体流式", "Innate-inflammation/inflammasome flow cytometry"], ["区分炎性小体预激、caspase-1 活化和焦亡执行，避免只以单一细胞因子推断炎性小体。", "Distinguishes inflammasome priming, caspase-1 activation, and pyroptotic execution rather than inferring inflammasome activity from one cytokine."], [
           requirementFor(innate, "panel", "REAGENT", ["髓系谱系标记、活/死染、活性 caspase-1/ASC 或 GSDMD 读出，并按模型加入 IL-1β/IL-18", "Myeloid-lineage markers, viability dye, active caspase-1/ASC or GSDMD readout, with IL-1β/IL-18 as model-appropriate"]),
           requirementFor(innate, "controls", "CONTROL", ["priming 与 activation 分步条件、caspase-1 或 NLRP3 阻断、FMO 和双ts/碎片排除门控", "Separate priming and activation conditions, caspase-1 or NLRP3 blockade, FMO, and doublet/debris-exclusion gating"]),
@@ -980,14 +954,9 @@ function phenotypeProfilesFor(blueprint: TechniqueBlueprint): TechniqueProfile[]
       ];
     }
     case "SANDWICH_ELISA": {
-      const ifn = "INTERFERON_CYTOKINE_ELISA";
       const inflammasome = "INFLAMMASOME_CYTOKINE_ELISA";
       const complement = "COMPLEMENT_FC_EFFECTOR_ELISA";
       return [
-        profile(ifn, ["干扰素定量 ELISA", "Interferon-quantification ELISA"], ["定量 IFN 分泌时必须控制样本基质和标准曲线范围，并明确 IFN 亚型与生物活性验证。", "Quantification of secreted IFN requires control of sample matrix and standard-curve range, with declared IFN subtype and bioactivity validation."], [
-          requirementFor(ifn, "target-kit", "REAGENT", ["与 IFN-α、IFN-β、IFN-γ 或 IFN-λ 亚型匹配且经样本基质验证的夹心 ELISA 抗体对/试剂盒", "Sandwich-ELISA antibody pair/kit matched to IFN-α, IFN-β, IFN-γ, or IFN-λ and validated in the sample matrix"]),
-          requirementFor(ifn, "matrix-controls", "CONTROL", ["重组 IFN 标准、基质加标回收、稀释线性、空白和细胞数/体积归一化控制", "Recombinant IFN standard, matrix spike recovery, dilution linearity, blank, and cell-number/volume normalization controls"]),
-        ]),
         profile(inflammasome, ["炎性小体细胞因子 ELISA", "Inflammasome-cytokine ELISA"], ["以成熟 IL-1β/IL-18 分泌为一个读出，并用细胞死亡和 caspase-1 读出避免将裂解泄漏误判为分泌。", "Uses mature IL-1β/IL-18 secretion as one readout and pairs it with cell-death and caspase-1 measurements to avoid confusing lysis leakage with secretion."], [
           requirementFor(inflammasome, "target-kit", "REAGENT", ["成熟 IL-1β 和/或 IL-18 的特异夹心 ELISA 抗体对/试剂盒", "Specific sandwich-ELISA antibody pair/kit for mature IL-1β and/or IL-18"]),
           requirementFor(inflammasome, "release-controls", "CONTROL", ["priming/activation 分步、caspase-1 或 NLRP3 阻断、LDH/活性控制和重组细胞因子标准", "Separate priming/activation, caspase-1 or NLRP3 blockade, LDH/viability control, and recombinant cytokine standards"]),

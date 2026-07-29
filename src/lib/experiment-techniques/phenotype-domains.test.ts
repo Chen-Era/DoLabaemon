@@ -16,7 +16,7 @@ describe("phenotype/pathway research domains", () => {
       ["AUTOPHAGY", "MAP1LC3B/LC3B"],
       ["ECM_REMODELING", "COL1A1"],
       ["MITOCHONDRIAL_METABOLISM", "PPARGC1A/PGC-1α"],
-      ["INTERFERON_RESPONSE", "IFNAR1"],
+      ["TGF_BETA_SMAD_SIGNALING", "TGFB1"],
     ] as const) {
       const domain = getPhenotypePathwayDomain(code);
       assert.ok(domain, `${code} must be available as a phenotype/pathway topic`);
@@ -27,12 +27,47 @@ describe("phenotype/pathway research domains", () => {
     }
   });
 
+  it("adds broad, reusable pathway topics instead of the removed narrow IFN topic", () => {
+    const expected = [
+      "TGF_BETA_SMAD_SIGNALING",
+      "WNT_BETA_CATENIN_SIGNALING",
+      "PI3K_AKT_MTOR_SIGNALING",
+      "MAPK_ERK_SIGNALING",
+      "NF_KAPPA_B_INFLAMMATION",
+      "CALCIUM_SIGNALING",
+      "GLUCOSE_METABOLISM",
+      "LIPID_METABOLISM",
+      "FERROPTOSIS",
+      "NECROPTOSIS",
+      "LYSOSOMAL_FUNCTION",
+      "CELL_ADHESION_CYTOSKELETON",
+      "CIRCADIAN_RHYTHM",
+      "EPIGENETIC_REPROGRAMMING",
+      "DNA_METHYLATION_HYDROXYMETHYLATION",
+      "HISTONE_ACETYLATION",
+      "HISTONE_METHYLATION",
+      "HISTONE_LACTYLATION",
+      "CHROMATIN_ACCESSIBILITY_ARCHITECTURE",
+      "PROTEIN_PHOSPHORYLATION_KINASE_SIGNALING",
+      "NOTCH_HEDGEHOG_SIGNALING",
+    ];
+
+    assert.equal(getPhenotypePathwayDomain("INTERFERON_RESPONSE"), null);
+    for (const code of expected) {
+      const domain = getPhenotypePathwayDomain(code);
+      assert.ok(domain, `missing expanded pathway topic ${code}`);
+      assert.ok(domain.targetPanel.mechanistic.length > 0);
+      assert.ok(domain.targetPanel.readout.length > 0);
+      assert.ok(domain.targetPanel.controls.length > 0);
+      assert.ok(domain.reagentRequirements.length >= 2);
+    }
+  });
+
   it("splits immune work into independently selectable and controlled topics", () => {
     const immuneDomains = phenotypePathwayDomains.filter(
       (domain) => domain.category === "IMMUNE",
     );
     const expected = [
-      "INTERFERON_RESPONSE",
       "INFLAMMASOME",
       "T_CELL_ACTIVATION_EXHAUSTION",
       "B_CELL_HUMORAL_IMMUNITY",

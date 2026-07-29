@@ -305,8 +305,6 @@ describe("canonical reagent capability tags", () => {
       ["WB", "AUTOPHAGY_FLUX_WB", "LC3B"],
       ["WB", "ECM_REMODELING_WB", "COL1A1"],
       ["WB", "MITOCHONDRIAL_BIOENERGETICS_WB", "OXPHOS"],
-      ["WB", "INTERFERON_SIGNALING_WB", "p-STAT1"],
-      ["QPCR", "INTERFERON_STIMULATED_GENE_QPCR", "ISG15"],
       ["IF", "MITOCHONDRIAL_MORPHOLOGY_IF", "TOMM20"],
       ["FLOW", "INNATE_INFLAMMATION_FLOW", "caspase-1"],
       ["FLOW", "T_CELL_IMMUNITY_FLOW", "CD3"],
@@ -316,7 +314,6 @@ describe("canonical reagent capability tags", () => {
       ["FLOW", "IMMUNE_CHECKPOINT_FLOW", "PD-1"],
       ["FLOW", "IMMUNE_METABOLISM_FLOW", "2-NBDG"],
       ["FLOW", "ANTIGEN_PRESENTATION_FLOW", "HLA-DR"],
-      ["SANDWICH_ELISA", "INTERFERON_CYTOKINE_ELISA", "IFN-α"],
       ["SEAHORSE_OCR_ECAR", "MITOCHONDRIAL_STRESS_TEST", "FCCP"],
     ] as const) {
       const technique = leafFixture(code);

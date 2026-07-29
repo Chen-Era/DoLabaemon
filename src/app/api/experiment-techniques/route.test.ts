@@ -32,13 +32,14 @@ test("filters techniques by phenotype/pathway topics and exposes detailed requir
   assert.ok(data.items.some((item) => item.code === "WB"));
   assert.ok(data.items.every((item) => item.phenotypeCodes.includes("EXOSOME")));
 
-  const interferon = data.phenotypeDomains.find((domain) => domain.code === "INTERFERON_RESPONSE");
-  assert.equal(interferon?.category, "IMMUNE");
-  assert.ok(interferon?.targetPanel.mechanistic.includes("STAT1"));
-  assert.ok(interferon?.targetPanel.readout.includes("ISG15"));
-  assert.ok(interferon?.targetPanel.controls.length);
-  assert.ok(interferon?.reagentRequirements.some((requirement) => requirement.level === "REQUIRED"));
-  assert.ok(interferon?.reagentRequirements.flatMap((requirement) => requirement.items).some((item) => item.zh.includes("IFN")));
+  const tgfBeta = data.phenotypeDomains.find((domain) => domain.code === "TGF_BETA_SMAD_SIGNALING");
+  assert.equal(tgfBeta?.category, "TISSUE_MICROENVIRONMENT");
+  assert.ok(tgfBeta?.targetPanel.mechanistic.includes("TGFB1"));
+  assert.ok(tgfBeta?.targetPanel.readout.includes("p-SMAD2/3"));
+  assert.ok(tgfBeta?.targetPanel.controls.length);
+  assert.ok(tgfBeta?.reagentRequirements.some((requirement) => requirement.level === "REQUIRED"));
+  assert.ok(tgfBeta?.reagentRequirements.flatMap((requirement) => requirement.items).some((item) => item.zh.includes("TGF-β")));
+  assert.equal(data.phenotypeDomains.some((domain) => domain.code === "INTERFERON_RESPONSE"), false);
 });
 
 test("accepts the former domain query key as an alias and rejects ambiguous or unknown topics", async () => {
