@@ -499,6 +499,10 @@ function TechniqueAtlas({
                   <span className="font-semibold">设计要求：</span>
                   {selectedPhenotype.targetRequirements.zh}
                 </p>
+                <p className="mt-3 rounded-md border border-violet-200 bg-white/70 px-2.5 py-2 text-violet-900">
+                  <span className="font-semibold">适用说明：</span>
+                  上述试剂、靶点与对照仅供实验设计参考；请结合具体实验内容、研究对象的物种/来源、样本类型、模型特征及预期读出进行确认和调整。
+                </p>
               </div>
             ) : null}
           </div>
