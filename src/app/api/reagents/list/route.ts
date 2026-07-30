@@ -4,31 +4,43 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { assertLabAccess } from "@/lib/permissions";
 import { requireUserFromRequest } from "@/lib/session";
-import { isDemoMode } from "@/lib/demo-mode";
-import { demoListReagents } from "@/lib/demo-store";
+import { listReagents, reagentListSortKeys } from "@/lib/reagent-list";
 
 export const dynamic = "force-dynamic";
 
-const schema = z.object({ labId: z.string().min(1) });
+const schema = z.object({
+  labId: z.string().min(1),
+  page: z.coerce.number().int().positive().catch(1),
+  query: z.string().catch(""),
+  tag: z.string().catch("").transform((value) => value || null),
+  sort: z.enum(reagentListSortKeys).catch("uploadedAt"),
+  direction: z.enum(["asc", "desc"]).catch("desc"),
+});
 
 export async function GET(req: Request) {
   try {
     const user = await requireUserFromRequest(req);
     const { searchParams } = new URL(req.url);
-    const parsed = schema.safeParse({ labId: searchParams.get("labId") });
+    const parsed = schema.safeParse({
+      labId: searchParams.get("labId"),
+      page: searchParams.get("page") ?? undefined,
+      query: searchParams.get("query") ?? undefined,
+      tag: searchParams.get("tag") ?? undefined,
+      sort: searchParams.get("sort") ?? undefined,
+      direction: searchParams.get("direction") ?? undefined,
+    });
     if (!parsed.success) {
       return NextResponse.json({ error: "Missing labId", code: "MISSING_LAB_ID" }, { status: 400 });
     }
-    if (isDemoMode()) {
-      return NextResponse.json({ items: demoListReagents(parsed.data.labId) });
-    }
     await assertLabAccess(user.id, parsed.data.labId);
-    const items = await prisma.reagent.findMany({
-      where: { labId: parsed.data.labId },
-      include: { antibodyMeta: true, primerMeta: true },
-      orderBy: { createdAt: "desc" },
+    const result = await listReagents(prisma, parsed.data.labId, {
+      page: parsed.data.page,
+      query: parsed.data.query,
+      tag: parsed.data.tag,
+      sort: parsed.data.sort,
+      direction: parsed.data.direction,
     });
-    return NextResponse.json({ items });
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     if (message === "UNAUTHORIZED") {

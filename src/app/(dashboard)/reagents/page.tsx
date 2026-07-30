@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditIcon, LabsIcon, MinusIcon, PlusIcon, SearchIcon, SortIcon, TrashIcon } from "@/components/common/app-icons";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CopySelectedButton } from "@/components/common/copy-selected-button";
-import { ReagentEditor } from "@/components/reagent/reagent-editor";
 import { requestJson } from "@/lib/http";
 import { reagentCategoryLabel } from "@/lib/reagent-category";
+
+const ReagentEditor = dynamic(
+  () => import("@/components/reagent/reagent-editor").then((module) => module.ReagentEditor),
+  { loading: () => <div className="fixed inset-0 z-50 bg-slate-950/20" role="status" aria-label="正在打开试剂编辑器" /> },
+);
 
 type Lab = { role: string; lab: { id: string; name: string } };
 type Reagent = {
@@ -38,8 +43,19 @@ type Reagent = {
 type SortKey = "name" | "catalogNo" | "category" | "vendor" | "uploadedAt";
 type SortDirection = "asc" | "desc";
 type EditorState = { mode: "create" } | { mode: "edit"; reagent: Reagent } | null;
+type ReagentListData = {
+  items?: Reagent[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  availableTags?: string[];
+  error?: string;
+  code?: string;
+};
+type InitialReagentData = ReagentListData & { labs?: Lab[]; labId?: string | null };
 
 const checkboxClass = "h-4 w-4 accent-blue-600";
+const reagentPageSize = 50;
 const stepperButtonClass =
   "inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--line-strong)] bg-white text-slate-500 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -66,26 +82,38 @@ export default function ReagentsPage() {
   const [labs, setLabs] = useState<Lab[]>([]);
   const [labId, setLabId] = useState("");
   const [items, setItems] = useState<Reagent[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("ALL");
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({ key: "uploadedAt", direction: "desc" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const reagentRequestIdRef = useRef(0);
+  const skipInitialLabLoadRef = useRef(false);
   const [editor, setEditor] = useState<EditorState>(null);
   const [deleteTarget, setDeleteTarget] = useState<Reagent | null>(null);
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [adjustingIds, setAdjustingIds] = useState<Record<string, boolean>>({});
 
-  const loadReagents = useCallback(async (nextLabId: string) => {
+  const loadReagents = useCallback(async (nextLabId: string, nextPage = 1) => {
     const requestId = ++reagentRequestIdRef.current;
     setLoading(true);
+    setSelected({});
     try {
-      const { response, data } = await requestJson<{ items?: Reagent[]; error?: string; code?: string }>(
-        `/api/reagents/list?labId=${encodeURIComponent(nextLabId)}`,
-      );
+      const params = new URLSearchParams({
+        labId: nextLabId,
+        page: String(nextPage),
+        sort: sort.key,
+        direction: sort.direction,
+      });
+      if (debouncedSearch) params.set("query", debouncedSearch);
+      if (tagFilter !== "ALL") params.set("tag", tagFilter);
+      const { response, data } = await requestJson<ReagentListData>(`/api/reagents/list?${params.toString()}`);
       if (requestId !== reagentRequestIdRef.current) return;
       if (response.status === 401) {
         window.location.href = "/login";
@@ -98,6 +126,9 @@ export default function ReagentsPage() {
       }
       setError(null);
       setItems(data?.items ?? []);
+      setTotal(data?.total ?? 0);
+      setPage(data?.page ?? nextPage);
+      setAvailableTags(data?.availableTags ?? []);
     } catch {
       if (requestId !== reagentRequestIdRef.current) return;
       setError("网络异常，暂时无法读取试剂清单。");
@@ -105,7 +136,7 @@ export default function ReagentsPage() {
     } finally {
       if (requestId === reagentRequestIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, sort.direction, sort.key, tagFilter]);
 
   async function adjustQuantity(reagent: Reagent, delta: number) {
     if (adjustingIds[reagent.id]) return;
@@ -157,6 +188,7 @@ export default function ReagentsPage() {
       }
       setError(null);
       setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      setTotal((previous) => Math.max(0, previous - 1));
       setSelected((prev) => ({ ...prev, [deleteTarget.id]: false }));
       setDeleteTarget(null);
     } catch {
@@ -196,7 +228,7 @@ export default function ReagentsPage() {
       setError(null);
       setSelected({});
       setBatchDeleteOpen(false);
-      void loadReagents(labId);
+      void loadReagents(labId, page);
     } catch {
       setError("网络异常，暂时无法批量删除。");
       setBatchDeleteOpen(false);
@@ -206,7 +238,7 @@ export default function ReagentsPage() {
   }
 
   useEffect(() => {
-    void requestJson<{ items?: Lab[]; error?: string; code?: string }>("/api/labs/my")
+    void requestJson<InitialReagentData>("/api/reagents/bootstrap")
       .then(({ response, data }) => {
         if (response.status === 401) {
           window.location.href = "/login";
@@ -217,26 +249,43 @@ export default function ReagentsPage() {
           setLoading(false);
           return;
         }
-        const nextLabs = data?.items ?? [];
+        const nextLabs = data?.labs ?? [];
         setError(null);
         setLabs(nextLabs);
-        if (nextLabs.length) {
-          setLabId(nextLabs[0].lab.id);
+        if (data?.labId) {
+          // The bootstrap response already includes this lab's reagents.
+          skipInitialLabLoadRef.current = true;
+          setLabId(data.labId);
+          setItems(data.items ?? []);
+          setTotal(data.total ?? 0);
+          setPage(data.page ?? 1);
+          setAvailableTags(data.availableTags ?? []);
+          setSelected({});
+          setLoading(false);
         } else {
           setLoading(false);
         }
       })
       .catch(() => {
-        setError("网络异常，暂时无法读取实验室。");
+        setError("网络异常，暂时无法读取试剂清单。");
         setLoading(false);
       });
   }, []);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (!labId) return;
+    if (skipInitialLabLoadRef.current) {
+      skipInitialLabLoadRef.current = false;
+      return;
+    }
     setItems([]);
     setSelected({});
-    void loadReagents(labId);
+    void loadReagents(labId, 1);
   }, [labId, loadReagents]);
 
   function buildTargetSummary(reagent: Reagent) {
@@ -249,41 +298,8 @@ export default function ReagentsPage() {
     return parts.join(" | ");
   }
 
-  const availableTags = useMemo(
-    () => [...new Set(items.flatMap((item) => item.experimentTags ?? []))].sort((a, b) => a.localeCompare(b)),
-    [items],
-  );
-
-  const filteredItems = useMemo(() => {
-    const loweredSearch = search.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesTag = tagFilter === "ALL" || item.experimentTags?.includes(tagFilter);
-      if (!matchesTag) return false;
-      if (!loweredSearch) return true;
-      const haystack = [
-        item.name,
-        item.catalogNo,
-        item.category,
-        item.uploadedByName,
-        ...(item.experimentTags ?? []),
-        item.antibodyMeta?.targetName,
-        item.primerMeta?.targetName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(loweredSearch);
-    });
-  }, [items, search, tagFilter]);
-
-  const sortedItems = useMemo(() => {
-    const multiplier = sort.direction === "asc" ? 1 : -1;
-    return [...filteredItems].sort((left, right) => {
-      const leftValue = String(left[sort.key] ?? "");
-      const rightValue = String(right[sort.key] ?? "");
-      return leftValue.localeCompare(rightValue, "zh-CN", { numeric: true, sensitivity: "base" }) * multiplier;
-    });
-  }, [filteredItems, sort]);
+  const filteredItems = items;
+  const sortedItems = items;
 
   const selectedRows = useMemo(() => sortedItems.filter((item) => selected[item.id]), [selected, sortedItems]);
   const allFilteredSelected = sortedItems.length > 0 && sortedItems.every((item) => selected[item.id]);
@@ -315,6 +331,12 @@ export default function ReagentsPage() {
   }
 
   const showNoLabs = !loading && !error && labs.length === 0;
+  const pageCount = Math.max(1, Math.ceil(total / reagentPageSize));
+
+  function changePage(nextPage: number) {
+    if (loading || nextPage < 1 || nextPage > pageCount || nextPage === page) return;
+    void loadReagents(labId, nextPage);
+  }
 
   return (
     <div className="space-y-5">
@@ -335,8 +357,8 @@ export default function ReagentsPage() {
           ) : null}
         </div>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
-          <span>{loading ? "正在读取库存…" : `共 ${items.length} 条`}</span>
-          <span>{loading ? "—" : `当前显示 ${filteredItems.length} 条`}</span>
+          <span>{loading ? "正在读取库存…" : `共 ${total} 条`}</span>
+          <span>{loading ? "—" : `第 ${page} / ${pageCount} 页，当前显示 ${filteredItems.length} 条`}</span>
           <span>{loading ? "—" : `${availableTags.length} 个实验标签`}</span>
         </div>
       </section>
@@ -429,7 +451,7 @@ export default function ReagentsPage() {
                     className={checkboxClass}
                     checked={allFilteredSelected}
                     onChange={(e) => toggleSelectAll(e.target.checked)}
-                    aria-label="全选"
+                    aria-label="全选本页"
                   />
                 </th>
                 <th aria-sort={sortDirectionFor("name")}>
@@ -586,6 +608,19 @@ export default function ReagentsPage() {
           </table>
         </div>
       </section>
+      {!loading && total > reagentPageSize ? (
+        <nav className="flex items-center justify-end gap-3" aria-label="试剂列表分页">
+          <button type="button" className="button-secondary" onClick={() => changePage(page - 1)} disabled={page === 1}>
+            上一页
+          </button>
+          <span className="text-sm text-slate-500">
+            {page} / {pageCount}
+          </span>
+          <button type="button" className="button-secondary" onClick={() => changePage(page + 1)} disabled={page === pageCount}>
+            下一页
+          </button>
+        </nav>
+      ) : null}
       </>
       )}
 
@@ -597,7 +632,7 @@ export default function ReagentsPage() {
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null);
-            void loadReagents(labId);
+            void loadReagents(labId, page);
           }}
         />
       ) : null}

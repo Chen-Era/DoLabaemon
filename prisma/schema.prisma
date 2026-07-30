@@ -217,6 +217,7 @@ model Reagent {
   primerMeta       PrimerMeta?
 
   @@unique([labId, catalogNo])
+  @@index([labId, uploadedAt])
   @@index([uploadedById, uploadedAt])
 }
 

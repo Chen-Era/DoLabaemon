@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { LocaleProvider, type Locale } from "@/components/common/locale-provider";
-import { SessionProviderWrapper } from "@/components/session-provider";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -30,7 +29,7 @@ export default async function RootLayout({
     <html lang={locale} className="h-full antialiased" data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col">
         <LocaleProvider initialLocale={locale}>
-          <SessionProviderWrapper>{children}</SessionProviderWrapper>
+          {children}
         </LocaleProvider>
       </body>
     </html>
