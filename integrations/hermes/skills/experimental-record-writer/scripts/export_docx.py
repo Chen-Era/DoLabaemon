@@ -8,14 +8,32 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from record_bundle import RecordError, append_audit, as_list, load_bundle, now_iso, sha256, text as record_text, write_manifest
+from record_bundle import (
+    DEFAULT_PREVIOUS_RECORD,
+    RecordError,
+    append_audit,
+    as_list,
+    load_bundle,
+    normalized_date,
+    now_iso,
+    sha256,
+    text as record_text,
+    write_manifest,
+)
 
 LATIN_FONT = "Arial"
 CJK_FONT = "Arial Unicode MS"
 
 
-def text(value: Any, missing: str = "Not provided") -> str:
+def text(value: Any, missing: str = "未提供") -> str:
     return record_text(value, missing)
+
+
+def display_date(value: Any) -> str:
+    try:
+        return normalized_date(value)
+    except RecordError:
+        return text(value)
 
 def load_docx() -> Any:
     try:
@@ -142,7 +160,7 @@ def export_document(directory: Path, output: Path) -> None:
 
     title = document.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title.add_run("Experimental record")
+    title_run = title.add_run("实验记录")
     title_run.bold = True
     title_run.font.name = "Arial"
     title_run.font.size = Pt(18)
@@ -151,66 +169,70 @@ def export_document(directory: Path, output: Path) -> None:
     subtitle.add_run(text(record.get("title"))).bold = True
     document.add_paragraph()
 
-    add_table(document, ["Field", "Value"], [
-        ["Record ID", record.get("id")],
-        ["Revision", record.get("revision")],
-        ["Status", record.get("status")],
-        ["Execution time", record.get("performedAt")],
-        ["Performed by", ", ".join(text(item, "") for item in as_list(record.get("performedBy")))],
-        ["Project", record.get("project")],
-        ["Created at", record.get("createdAt")],
+    add_table(document, ["字段", "内容"], [
+        ["记录 ID", record.get("id")],
+        ["修订", record.get("revision")],
+        ["实际执行日期", record.get("performedAt")],
+        ["执行者", ", ".join(text(item, "") for item in as_list(record.get("performedBy"))) or "待确认"],
+        ["项目", record.get("project")],
+        ["创建日期", display_date(record.get("createdAt"))],
     ])
 
-    add_heading(document, "Objective")
+    add_heading(document, "目的")
     document.add_paragraph(text(record.get("objective")))
 
     technique = record.get("technique", {})
     protocol = record.get("protocol", {})
-    add_heading(document, "Technique and protocol")
-    add_table(document, ["Field", "Value"], [
-        ["Technique code", technique.get("code")],
-        ["Technique name", technique.get("name")],
-        ["Technique revision", technique.get("revision")],
-        ["Protocol", protocol.get("title")],
-        ["Protocol version", protocol.get("version")],
-        ["Protocol URL", protocol.get("url")],
-    ])
+    technique_rows = [["技术名称", technique.get("name")], ["方案", protocol.get("title")], ["方案版本", protocol.get("version")]]
+    if any(text(row[1]) != "未提供" for row in technique_rows):
+        add_heading(document, "技术与方案")
+        add_table(document, ["字段", "内容"], technique_rows)
 
-    add_heading(document, "Samples and inputs")
+    add_heading(document, "样本与输入")
     samples = values(record.get("samples"), "id")
     if samples:
-        add_table(document, ["Sample ID", "Description", "Source"], [[item.get("id"), item.get("description"), item.get("source")] for item in samples])
+        add_table(document, ["样本", "描述"], [[item.get("id"), item.get("description")] for item in samples])
     else:
-        document.add_paragraph("No sample information was provided.")
-    add_heading(document, "Reagent-use snapshot", level=2)
+        document.add_paragraph("待确认样本信息。")
+
+    groups = [item for item in as_list(record.get("groups")) if isinstance(item, dict)]
+    if groups:
+        add_heading(document, "实验分组")
+        add_table(document, ["分组", "样本/细胞系", "检测目标"], [
+            [item.get("id"), item.get("sample"), "；".join(text(target, "") for target in as_list(item.get("targets")))]
+            for item in groups
+        ])
+
+    add_heading(document, "试剂", level=2)
     reagents = values(record.get("reagents"))
     if reagents:
-        add_table(document, ["Name", "Manufacturer", "Catalog no.", "Lot no.", "Expiry", "Amount", "Concentration"], [[
-            item.get("name"), item.get("vendor"), item.get("catalogNo"), item.get("lotNo"), item.get("expiryDate"),
-            f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(), item.get("concentration"),
-        ] for item in reagents], [0.9, 1.25, 0.95, 0.8, 0.8, 0.8, 1.5])
+        add_table(document, ["名称", "厂家", "货号", "类别", "浓度/稀释度"], [[
+            item.get("reagentName") or item.get("name"),
+            item.get("manufacturer") or item.get("vendor"),
+            item.get("catalogNumber") or item.get("catalogNo"),
+            item.get("category"),
+            item.get("concentration"),
+        ] for item in reagents], [1.25, 1.25, 1.15, 1.1, 1.25])
     else:
-        document.add_paragraph("No actual reagent-use information was provided.")
+        document.add_paragraph("待补充试剂信息。")
 
-    add_heading(document, "Instruments and software", level=2)
+    add_heading(document, "仪器与软件", level=2)
     instruments = values(record.get("instruments"))
-    if instruments:
-        add_table(document, ["Instrument", "ID", "Key configuration", "Calibration/maintenance status"], [[item.get("name"), item.get("id"), item.get("configuration"), item.get("calibrationStatus")] for item in instruments])
-    else:
-        document.add_paragraph("No instrument information was provided.")
     software = values(record.get("software"))
-    if software:
-        add_table(document, ["Software", "Version", "Purpose"], [[item.get("name"), item.get("version"), item.get("purpose")] for item in software])
+    add_table(document, ["类别", "名称", "备注"], [
+        *[["仪器", item.get("name"), item.get("configuration") or DEFAULT_PREVIOUS_RECORD] for item in instruments],
+        *[["软件", item.get("name"), item.get("purpose") or DEFAULT_PREVIOUS_RECORD] for item in software],
+    ])
 
-    add_heading(document, "Planned steps")
+    add_heading(document, "计划步骤")
     planned_steps = as_list(record.get("plannedSteps"))
     if planned_steps:
         for item in planned_steps:
             document.add_paragraph(text(item), style="List Number")
     else:
-        document.add_paragraph("No planned steps were provided.")
+        document.add_paragraph("未提供计划步骤。")
 
-    add_heading(document, "Actual execution")
+    add_heading(document, "实际执行")
     actual_steps = values(record.get("actualSteps"), "action")
     if actual_steps:
         rows = []
@@ -221,57 +243,49 @@ def export_document(directory: Path, output: Path) -> None:
                     parameters.append(f"{text(parameter.get('name'))}={text(parameter.get('value'))}{text(parameter.get('unit'), '')}")
                 else:
                     parameters.append(text(parameter))
-            rows.append([item.get("sequence"), item.get("startedAt"), item.get("endedAt"), item.get("action"), "; ".join(parameters), item.get("performedBy")])
-        add_table(document, ["No.", "Started", "Ended", "Actual action", "Key parameters", "Performed by"], rows)
+            rows.append([
+                item.get("sequence"),
+                item.get("action"),
+                "; ".join(parameters) or DEFAULT_PREVIOUS_RECORD,
+                item.get("performedBy") or ", ".join(text(person, "") for person in as_list(record.get("performedBy"))) or "待确认",
+            ])
+        add_table(document, ["序号", "实际操作", "关键参数", "执行者"], rows)
     else:
-        document.add_paragraph("No actual execution steps were provided.")
+        document.add_paragraph("未提供实际执行步骤。")
 
-    add_heading(document, "Controls and quality control")
-    controls = values(record.get("controls"))
-    if controls:
-        add_table(document, ["Control/QC", "Predefined criterion", "Observed result", "Status"], [[item.get("name"), item.get("expected"), item.get("observed"), item.get("status")] for item in controls])
-    else:
-        document.add_paragraph("No control or quality-control record was provided.")
-
-    add_heading(document, "Deviations and anomalies")
+    add_heading(document, "偏差与异常")
     deviations = values(record.get("deviations"), "description")
     if deviations:
-        add_table(document, ["Occurred at", "Description", "Cause", "Impact", "Action", "Confirmed by"], [[item.get("occurredAt"), item.get("description"), item.get("cause"), item.get("impact"), item.get("action"), item.get("confirmedBy")] for item in deviations])
-    else:
-        document.add_paragraph("No deviations or anomalies were reported.")
+        add_table(document, ["描述", "原因", "影响", "处置"], [[item.get("description"), item.get("cause"), item.get("impact"), item.get("action")] for item in deviations])
 
-    add_heading(document, "Observations and results")
-    observations = as_list(record.get("observations"))
-    for observation in observations:
-        document.add_paragraph(text(observation), style="List Bullet")
+    add_heading(document, "结果与附件")
     results = [item for item in as_list(record.get("results")) if isinstance(item, dict)]
     if results:
-        add_table(document, ["Result ID", "Observed at", "Summary", "Recorded by"], [[item.get("id"), item.get("observedAt"), item.get("summary"), item.get("addedBy")] for item in results])
-    elif not observations:
-        document.add_paragraph("No observations or results were provided.")
+        add_table(document, ["日期", "结果摘要", "记录人"], [[display_date(item.get("observedAt")), item.get("summary"), item.get("addedBy")] for item in results])
+    else:
+        document.add_paragraph("未提供结果。")
 
     attachments = {item.get("id"): item for item in bundle.get("attachments", []) if isinstance(item, dict)}
     if attachments:
-        add_heading(document, "Original attachments")
+        add_heading(document, "附件清单")
         for attachment in attachments.values():
             source = directory / "attachments" / str(attachment.get("storedName", ""))
             document.add_paragraph(f"{attachment.get('id')}: {attachment.get('originalName')} | SHA-256: {attachment.get('sha256')}")
             if source.is_file() and is_image(source):
                 try:
                     document.add_picture(str(source), width=Inches(5.8))
-                    caption = document.add_paragraph(f"Figure: {attachment.get('originalName')}")
+                    caption = document.add_paragraph(f"图片：{attachment.get('originalName')}")
                     caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 except Exception as error:  # python-docx supports only a subset of image encodings
-                    document.add_paragraph(f"Image was not embedded. See the original attachment: {error}")
+                    document.add_paragraph(f"未嵌入图片，请查看原始附件：{error}")
 
-    add_heading(document, "Conclusion and next steps")
-    document.add_paragraph("Conclusion: " + text(record.get("conclusion")))
-    document.add_paragraph("Next steps: " + text(record.get("nextSteps")))
-    document.add_paragraph("This export is a snapshot of the record ID and revision. Use local revisions/ and audit.jsonl to trace history.")
+    if text(record.get("conclusion")) != "未提供":
+        add_heading(document, "结论")
+        document.add_paragraph(text(record.get("conclusion")))
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run(f"{record.get('id')} | revision {record.get('revision')} | exported {now_iso()}")
+    footer.add_run(f"{record.get('id')} | 修订 {record.get('revision')} | 导出日期 {display_date(now_iso())}")
     set_east_asia_font(document, OxmlElement, qn)
     output.parent.mkdir(parents=True, exist_ok=True)
     document.save(output)

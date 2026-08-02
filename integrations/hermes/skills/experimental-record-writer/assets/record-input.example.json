@@ -1,59 +1,65 @@
 {
-  "title": "RT-qPCR RNA extraction",
-  "performedAt": "2026-08-02T14:00:00+08:00",
-  "performedBy": ["Zhang San"],
-  "project": "Example project",
-  "objective": "Extract total RNA for later RT-qPCR.",
+  "title": "A498 与 ACHN 细胞 KLF6 蛋白表达检测",
+  "performedAt": "2026-08-02",
+  "performedBy": ["张三"],
+  "project": "示例项目",
+  "objective": "比较 A498 与 ACHN 细胞中 KLF6 蛋白表达，并以 β-actin 作为内参。",
   "technique": {
-    "code": "RNA_EXTRACTION",
-    "name": "Total RNA extraction",
-    "revision": "user-confirmed"
+    "name": "Western blot"
   },
   "protocol": {
-    "title": "Local RNA extraction SOP",
-    "version": "v1.2",
-    "url": "https://example.invalid/sop/rna-extraction"
+    "title": "本实验室 Western blot SOP",
+    "version": "v1.2"
   },
   "samples": [
     {
-      "id": "Sample-01",
-      "description": "User-supplied sample description",
-      "source": "user"
+      "id": "A498",
+      "description": "A498 细胞系"
+    },
+    {
+      "id": "ACHN",
+      "description": "ACHN 细胞系"
+    }
+  ],
+  "targets": ["KLF6", "β-actin"],
+  "groups": [
+    {
+      "id": "组 1",
+      "sample": "A498",
+      "targets": ["KLF6", "β-actin"]
+    },
+    {
+      "id": "组 2",
+      "sample": "ACHN",
+      "targets": ["KLF6", "β-actin"]
     }
   ],
   "reagents": [
     {
-      "name": "TRIzol",
-      "vendor": "Invitrogen",
-      "catalogNo": "15596026",
-      "lotNo": "USER-TO-CONFIRM",
-      "expiryDate": "",
-      "amount": "1",
-      "unit": "mL",
-      "concentration": "",
-      "source": "user-confirmed"
+      "reagentName": "KLF6 antibody",
+      "manufacturer": "示例厂家",
+      "catalogNumber": "示例货号",
+      "category": "primary antibody",
+      "antibody": {
+        "target": "KLF6"
+      },
+      "availability": {
+        "state": "available"
+      },
+      "lookupTimestamp": "2026-08-02T09:00:00+08:00",
+      "concentration": "按 SOP"
     }
   ],
   "instruments": [],
   "software": [],
-  "plannedSteps": [
-    "Follow the selected SOP. This is a plan, not an execution claim."
-  ],
   "actualSteps": [
     {
       "sequence": 1,
-      "startedAt": "2026-08-02T14:00:00+08:00",
-      "endedAt": "",
-      "action": "User must replace this example with the actual action.",
+      "action": "按本实验室 SOP 完成样本制备、蛋白分离、转膜、抗体孵育和信号采集。",
       "parameters": [],
-      "performedBy": "Zhang San"
+      "performedBy": "张三"
     }
   ],
-  "controls": [],
   "deviations": [],
-  "observations": [],
-  "conclusion": "",
-  "nextSteps": "",
-  "ethicsReference": "",
-  "sourceNotes": "Replace all example values before attestation."
+  "conclusion": ""
 }

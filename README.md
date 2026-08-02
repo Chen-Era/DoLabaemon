@@ -63,7 +63,7 @@ flowchart LR
 
 #### 实验记录 skill
 
-仓库随 Hermes skills 提供 `experimental-record-writer`。研究者只需说明实际做了什么、用了什么，再补充图片或文本结果，skill 就会创建带修订快照、SHA-256 附件清单和审计事件的本地记录包。默认输出表格化 Markdown，也可导出 DOCX；需要团队协作时，可在用户完成授权后通过飞书官方 `lark-cli` 创建云文档并逐个插入结果附件。该功能写入用户指定的本地目录或飞书，不会自动写入本项目的 Web 数据库。安装和使用说明见 [Hermes 知识管家](integrations/hermes/README.md#实验记录-skill)。
+仓库随 Hermes skills 提供 `experimental-record-writer`。研究者只需说明已完成的实验、样本或细胞系、分组和目标，就能生成简洁的表格化实验记录；执行日期默认为创建当天，未特别说明的仪器、软件和关键参数记为“同前次记录”。库存 MCP 的唯一精确匹配会回填试剂名称、厂家和货号。之后补充图片或文本结果时，skill 会创建本地修订，并可在用户授权后更新同一份飞书文档及附件。默认输出 Markdown，也可导出 DOCX。该功能写入用户指定的本地目录或飞书，不会自动写入本项目的 Web 数据库。安装和使用说明见 [Hermes 知识管家](integrations/hermes/README.md#实验记录-skill)。
 
 #### 库存 MCP
 
@@ -249,7 +249,7 @@ Experiment techniques can be submitted as drafts, reviewed, and published as rev
 
 #### Experimental-record skill
 
-The repository ships `experimental-record-writer` with the Hermes skills. A researcher can state what was actually done and used, then add image or text results. The skill creates a local record bundle with revision snapshots, a SHA-256 attachment manifest, and audit events. Table-based Markdown is the default, and DOCX export is available. After the user authorizes the official Lark/Feishu `lark-cli`, the confirmed snapshot can also become a Feishu document with its result files inserted in sequence. This workflow writes only to a user-selected local directory or Feishu. It does not automatically persist anything in this application's web database. See the [Hermes guide](integrations/hermes/README.md#实验记录-skill).
+The repository ships `experimental-record-writer` with the Hermes skills. A researcher can state the completed experiment, samples or cell lines, groups, and targets to create a concise table-based record. The execution date defaults to the creation date; instruments, software, and unspecified key parameters default to “same as the previous record.” A unique exact inventory match can fill the reagent name, manufacturer, and catalog number. Later image or text results create a local revision and, after user authorization, update the same Feishu document and its attachments. Markdown is the default export and DOCX is also available. This workflow writes only to a user-selected local directory or Feishu. It does not automatically persist anything in this application's web database. See the [Hermes guide](integrations/hermes/README.md#实验记录-skill).
 
 #### Inventory MCP
 
