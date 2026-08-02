@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ReagentCategory } from "@prisma/client";
-import { rankInventoryMatches } from "@/lib/mcp/lab-inventory";
+import {
+  rankInventoryMatches,
+  toRecordSafeInventoryReagent,
+  toRecordSafeReagentResolution,
+} from "@/lib/mcp/lab-inventory";
 
 const baseRow = {
   quantity: 1,
@@ -80,4 +84,71 @@ test("reports out-of-stock and expired inventory without hiding it", () => {
   ], "KLF6");
 
   assert.deepEqual(matches.map((item) => item.availability.state).sort(), ["expired", "out_of_stock"]);
+});
+
+test("projects candidates to fields that are safe to place in an experimental record", () => {
+  const [candidate] = rankInventoryMatches([
+    {
+      ...baseRow,
+      id: "internal-reagent-id",
+      name: "Rabbit anti-KLF6",
+      catalogNo: "KLF6-01",
+      vendor: "Proteintech",
+      category: ReagentCategory.ANTIBODY,
+      antibodyMeta: { role: "PRIMARY", targetName: "KLF6" },
+    },
+  ], "KLF6");
+
+  assert.deepEqual(toRecordSafeInventoryReagent(candidate), {
+    reagentName: "Rabbit anti-KLF6",
+    manufacturer: "Proteintech",
+    catalogNumber: "KLF6-01",
+    category: ReagentCategory.ANTIBODY,
+    antibody: { role: "PRIMARY", targetName: "KLF6" },
+    availability: { state: "available" },
+  });
+});
+
+test("projects Western-blot resolutions without inventory provenance", () => {
+  const [candidate] = rankInventoryMatches([
+    {
+      ...baseRow,
+      id: "internal-reagent-id",
+      name: "Rabbit anti-KLF6",
+      catalogNo: "KLF6-01",
+      vendor: "Proteintech",
+      category: ReagentCategory.ANTIBODY,
+      antibodyMeta: { role: "PRIMARY", targetName: "KLF6" },
+    },
+  ], "KLF6");
+
+  assert.deepEqual(toRecordSafeReagentResolution({
+    target: "KLF6",
+    status: "resolved",
+    selected: candidate,
+    candidates: [candidate],
+    requiresUserConfirmation: false,
+    warnings: [],
+  }), {
+    target: "KLF6",
+    status: "resolved",
+    selected: {
+      reagentName: "Rabbit anti-KLF6",
+      manufacturer: "Proteintech",
+      catalogNumber: "KLF6-01",
+      category: ReagentCategory.ANTIBODY,
+      antibody: { role: "PRIMARY", targetName: "KLF6" },
+      availability: { state: "available" },
+    },
+    candidates: [{
+      reagentName: "Rabbit anti-KLF6",
+      manufacturer: "Proteintech",
+      catalogNumber: "KLF6-01",
+      category: ReagentCategory.ANTIBODY,
+      antibody: { role: "PRIMARY", targetName: "KLF6" },
+      availability: { state: "available" },
+    }],
+    requiresUserConfirmation: false,
+    warnings: [],
+  });
 });

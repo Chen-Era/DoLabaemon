@@ -38,6 +38,26 @@ export type ReagentResolution = {
   warnings: string[];
 };
 
+/**
+ * The only reagent fields intended to cross from the inventory lookup into an
+ * experimental-record draft. Keep this projection free of database IDs,
+ * search-ranking details, lab identifiers, quantities, expiry dates, and
+ * service provenance.
+ */
+export type RecordSafeInventoryReagent = {
+  reagentName: string;
+  manufacturer: string | null;
+  catalogNumber: string;
+  category: ReagentCategory;
+  antibody: { role: "PRIMARY" | "SECONDARY"; targetName: string | null } | null;
+  availability: { state: InventoryCandidate["availability"]["state"] };
+};
+
+export type RecordSafeReagentResolution = Omit<ReagentResolution, "selected" | "candidates"> & {
+  selected: RecordSafeInventoryReagent | null;
+  candidates: RecordSafeInventoryReagent[];
+};
+
 export class McpInventoryError extends Error {
   constructor(public readonly code: "MCP_DEMO_UNSUPPORTED" | "MCP_SCOPE_REQUIRED" | "MCP_INVALID_TARGETS") {
     super(code);
@@ -130,6 +150,25 @@ export function rankInventoryMatches(rows: InventoryRow[], target: string, limit
     .filter((candidate): candidate is InventoryCandidate => candidate !== null)
     .sort((left, right) => right.match.score - left.match.score || left.name.localeCompare(right.name, "zh-CN"))
     .slice(0, Math.min(Math.max(1, limit), MAX_RESULTS));
+}
+
+export function toRecordSafeInventoryReagent(candidate: InventoryCandidate): RecordSafeInventoryReagent {
+  return {
+    reagentName: candidate.name,
+    manufacturer: candidate.vendor,
+    catalogNumber: candidate.catalogNo,
+    category: candidate.category,
+    antibody: candidate.antibody,
+    availability: { state: candidate.availability.state },
+  };
+}
+
+export function toRecordSafeReagentResolution(resolution: ReagentResolution): RecordSafeReagentResolution {
+  return {
+    ...resolution,
+    selected: resolution.selected ? toRecordSafeInventoryReagent(resolution.selected) : null,
+    candidates: resolution.candidates.map(toRecordSafeInventoryReagent),
+  };
 }
 
 function assertMcpAvailable() {
@@ -230,10 +269,7 @@ export async function resolveWesternBlotAntibodies(input: { userId: string; labI
     }
   }
   return {
-    source: "Dorlabaemon inventory catalog",
-    retrievedAt: new Date().toISOString(),
-    notProofOfActualUse: true,
-    labId: input.labId,
-    resolutions,
+    lookupTimestamp: new Date().toISOString(),
+    resolutions: resolutions.map(toRecordSafeReagentResolution),
   };
 }

@@ -34,3 +34,25 @@ lark-cli auth status --json --verify
 4. Store `lark-publish.json`, which binds the local record ID and revision to the remote document URL and per-file responses. Run `lark-cli docs +fetch` to verify the document if the user asks for confirmation.
 
 When a user asks to import the generated `record.docx` rather than create a native document, use `lark-cli drive +import --type docx` and keep the same local bundle. Do not overwrite an existing cloud document or upload files concurrently to the same destination.
+
+## Later result synchronisation
+
+When the researcher supplies a later result, first add it to the existing local bundle with `record_bundle.py add-result`. The result must be in the same bundle that was originally published, because `lark-publish.json` is the only permitted binding between the local record ID and the target Feishu document.
+
+```bash
+# Read-only: shows the exact append and media-insert commands, but does not call Feishu or modify local files.
+python scripts/publish_lark.py \
+  --record /path/to/record-bundle \
+  --sync-results \
+  --dry-run
+
+# External write: only after the user explicitly confirms the target document and pending result IDs.
+python scripts/publish_lark.py \
+  --record /path/to/record-bundle \
+  --sync-results \
+  --execute
+```
+
+`--sync-results` requires an existing `lark-publish.json` whose `recordId` equals the local record ID and whose receipt contains `document_id`. It never creates a second document, takes no parent token, and only uses `lark-cli docs +update --command append` plus `docs +media-insert` on that receipt's document. It does not use `overwrite`, replace prior text, alter sharing, or delete remote content.
+
+For each unsynchronised result, the helper appends a small “补充实验结果” section, then adds only its linked attachments. After each successful remote write it records the result summary response or attachment response in `lark-publish.json` under `resultSync`, so a retry only resumes missing work. Attachments already present in the original publication are recorded as already published and are not uploaded again. A changed summary for an already-published result is rejected; add a new result instead of overwriting historical content.

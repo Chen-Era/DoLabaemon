@@ -6,6 +6,7 @@ import {
   listAuthorizedLabs,
   resolveWesternBlotAntibodies,
   searchLabReagents,
+  toRecordSafeInventoryReagent,
 } from "@/lib/mcp/lab-inventory";
 
 /**
@@ -176,11 +177,8 @@ export async function executeInventoryMcpRequest(input: unknown, principal: McpA
           if (!args.success) return respond(error(id, -32602, "Invalid params", args.error.flatten()));
           const candidates = await searchLabReagents({ userId: principal.userId, ...args.data });
           return respond(result(id, toolResult({
-            source: "Dorlabaemon inventory catalog",
-            retrievedAt: new Date().toISOString(),
-            notProofOfActualUse: true,
-            labId: args.data.labId,
-            candidates,
+            lookupTimestamp: new Date().toISOString(),
+            candidates: candidates.map(toRecordSafeInventoryReagent),
           })));
         }
         if (call.data.name === "resolve_western_blot_antibodies") {

@@ -1,37 +1,17 @@
-# Record standard
+# 实验记录标准
 
-## Record model
+记录面向研究者的日常实验笔记。导出内容保持简短、可读、可补充；本地文件包在内部保留修订快照、附件哈希和审计事件。
 
-Use the local record bundle as a traceable source record plus export snapshots.
-
-| Section | Record | Do not infer |
-| --- | --- | --- |
-| Identity | Record ID, revision, status, recorder, performer, time with timezone, project | Missing person or time |
-| Method | Technique code and revision, protocol title/version/URL, planned and actual steps | That a planned step occurred |
-| Inputs | Sample IDs, reagent name/vendor/catalog/lot/expiry/amount, instrument configuration, software version | Lot, configuration, or quantity absent from a source |
-| Controls and QC | Predefined criterion, observed value, acceptance state, anomalous result | Controls or a pass state that was not reported |
-| Results | Observations, raw-file attachments, source hash, acquisition time, analysis method | Interpretation beyond the supplied data |
-| Changes | Actor, time, reason, before/after revision link | A retroactive correction without a reason |
-
-## Integrity rules
-
-Apply ALCOA-style practice: make entries attributable, legible, contemporaneous, original or a verified true copy, and accurate. Keep timestamps and an append-only audit event for creation, result additions, status changes, exports, and remote publication. A later correction is an amendment, not a replacement of the earlier snapshot.
-
-Keep accepted original source files unchanged. Save an attachment ID, original filename, MIME type, size, SHA-256, adding time, and whether it is original or derived. Before adding a result image or UTF-8 text file, screen it for prohibited inventory-platform attribution; reject it rather than alter it. Do not delete an attachment to hide a result.
-
-Status meanings:
-
-| Status | Meaning |
+| 内容 | 记录方式 |
 | --- | --- |
-| `DRAFT` | A working record. Required facts may still be missing. |
-| `ATTESTED` | The named person confirms the factual execution and attachments. |
-| `REVIEWED` | A named reviewer reviewed the attested record. |
-| `AMENDED` | A later factual addition or correction exists; retain both revisions and re-attest if required by the laboratory. |
+| 基本信息 | 记录 ID、修订、实际执行日期、执行者、项目、创建日期。默认实际执行日期为创建当天，仅保留日期。 |
+| 样本与输入 | 自动识别用户明确说出的样本、细胞系和靶标；分组默认用表格。无法识别时询问或标为待确认。 |
+| 试剂 | 写名称、厂家、货号、类别、浓度/稀释度。库存自动填入的信息必须来自唯一精确的已授权匹配。 |
+| 仪器与软件 | 未特别说明时写“同前次记录”。 |
+| 实际执行 | 写简短的常规步骤、关键参数和执行者。不要写开始/结束时间；缺省关键参数写“同前次记录”。 |
+| 结果与附件 | 写用户提供的结果摘要，保留原始图片或文本附件及 SHA-256。 |
+| 偏差与异常 | 用户报告时才写入。 |
 
-An AI-created draft is not an electronic signature, regulatory validation, or proof of compliance. Apply local SOP, ethics, biosafety, data-retention, and access-control requirements.
+不要在导出内容中写状态、技术代码、技术修订、方案链接、批号、有效期、用量、对照与质量控制、观察、后续、来源备注或完整性说明。
 
-## Sources
-
-- FDA, *Data Integrity and Compliance With Drug CGMP: Guidance for Industry*: https://www.fda.gov/media/119570/download
-- 21 CFR 11.10, controls for closed electronic-record systems: https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11/subpart-B/section-11.10
-- OECD, *Principles on Good Laboratory Practice*: https://www.oecd.org/content/dam/oecd/en/publications/reports/1998/01/oecd-principles-on-good-laboratory-practice_g1gh32e8/9789264078536-en.pdf
+AI 起草的常规流程是待研究者核对的记录草稿，不是电子签名、合规性结论或结果解释。应用本地 SOP、伦理、生物安全和数据保留要求。

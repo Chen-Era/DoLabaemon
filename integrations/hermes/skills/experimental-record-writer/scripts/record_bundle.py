@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 TERMINAL_STATUSES = {"ATTESTED", "REVIEWED"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 PLACEHOLDER_MARKERS = ("user-to-confirm", "must replace", "to be confirmed", "todo", "tbd")
@@ -35,6 +35,30 @@ PLATFORM_ATTRIBUTION_PATTERN = re.compile(
 PLATFORM_NAME_COMPACT = "dorlabaemon"
 TEXT_ATTACHMENT_SUFFIXES = {".txt", ".csv", ".tsv", ".json", ".md", ".log", ".xml", ".html", ".htm"}
 MAX_SCANNABLE_TEXT_BYTES = 8 * 1024 * 1024
+DEFAULT_PREVIOUS_RECORD = "同前次记录"
+
+# This deliberately small registry covers cell lines commonly named in a short
+# WB scenario.  It is a parser convenience, not a biological identification
+# service.  The caller can always provide --sample for a cell line that is not
+# listed here.
+CELL_LINE_ALIASES = {
+    "a498": "A498",
+    "achn": "ACHN",
+    "786-o": "786-O",
+    "786o": "786-O",
+    "caki-1": "Caki-1",
+    "caki1": "Caki-1",
+    "hek293t": "HEK293T",
+    "293t": "HEK293T",
+}
+TARGET_ALIASES = {
+    "β-actin": "β-actin",
+    "β actin": "β-actin",
+    "beta-actin": "β-actin",
+    "beta actin": "β-actin",
+    "actb": "β-actin",
+    "klf6": "KLF6",
+}
 
 
 class RecordError(ValueError):
@@ -43,6 +67,11 @@ class RecordError(ValueError):
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def today_iso_date() -> str:
+    """Return the local creation date for date-only notebook entries."""
+    return datetime.now().astimezone().date().isoformat()
 
 
 def as_list(value: Any) -> list[Any]:
@@ -54,6 +83,132 @@ def text(value: Any, missing: str = "未提供") -> str:
         return missing
     value = str(value).strip()
     return value if value else missing
+
+
+def normalized_date(value: Any, default: str | None = None) -> str:
+    """Keep execution dates date-only, without recording hours or minutes."""
+    candidate = str(value or "").strip()
+    if not candidate:
+        return default or today_iso_date()
+    try:
+        return datetime.fromisoformat(candidate.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        try:
+            return datetime.strptime(candidate, "%Y-%m-%d").date().isoformat()
+        except ValueError:
+            raise RecordError("实际执行日期必须为 YYYY-MM-DD 或 ISO 8601 日期时间")
+
+
+def unique_texts(values: list[Any]) -> list[str]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        candidate = str(value).strip()
+        key = candidate.casefold()
+        if candidate and key not in seen:
+            output.append(candidate)
+            seen.add(key)
+    return output
+
+
+def normalize_target(value: Any) -> str:
+    candidate = str(value or "").strip()
+    normalized = re.sub(r"\s+", " ", candidate.casefold())
+    return TARGET_ALIASES.get(normalized, candidate.upper() if re.fullmatch(r"[a-z0-9-]+", candidate.casefold()) else candidate)
+
+
+def normalize_cell_line(value: Any) -> str:
+    candidate = str(value or "").strip()
+    normalized = re.sub(r"\s+", "", candidate.casefold())
+    return CELL_LINE_ALIASES.get(normalized, candidate)
+
+
+def contains_token(value: str, alias: str) -> bool:
+    """Match ASCII aliases next to Chinese text without relying on \b."""
+    return re.search(rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])", value, re.IGNORECASE) is not None
+
+
+def infer_cell_lines(scenario: str) -> list[str]:
+    normalized = scenario.casefold().replace("–", "-").replace("—", "-")
+    return unique_texts(
+        canonical for alias, canonical in CELL_LINE_ALIASES.items() if contains_token(normalized, alias)
+    )
+
+
+def infer_targets(scenario: str) -> list[str]:
+    normalized = scenario.casefold().replace("–", "-").replace("—", "-")
+    matches: list[tuple[int, str]] = []
+    for alias, canonical in TARGET_ALIASES.items():
+        found = re.search(rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])", normalized, re.IGNORECASE)
+        if found:
+            matches.append((found.start(), canonical))
+    return unique_texts([canonical for _, canonical in sorted(matches)])
+
+
+def normalize_samples(values: list[Any], scenario: str) -> list[dict[str, str]]:
+    output: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in [*values, *infer_cell_lines(scenario)]:
+        if isinstance(item, dict):
+            sample_id = normalize_cell_line(item.get("id") or item.get("name") or item.get("description"))
+            description = str(item.get("description") or "").strip()
+            source = str(item.get("source") or "用户陈述").strip()
+        else:
+            sample_id = normalize_cell_line(item)
+            description = ""
+            source = "用户陈述"
+        if not sample_id or sample_id.casefold() in seen:
+            continue
+        seen.add(sample_id.casefold())
+        output.append({
+            "id": sample_id,
+            "description": description or f"{sample_id} 细胞系",
+            "source": source,
+        })
+    return output
+
+
+def build_groups(samples: list[dict[str, str]], targets: list[str], supplied: list[Any]) -> list[dict[str, Any]]:
+    if supplied:
+        groups: list[dict[str, Any]] = []
+        for index, item in enumerate(supplied, start=1):
+            if not isinstance(item, dict):
+                continue
+            sample = normalize_cell_line(item.get("sample") or item.get("sampleId"))
+            group_targets = unique_texts([normalize_target(value) for value in as_list(item.get("targets"))])
+            groups.append({
+                "id": str(item.get("id") or f"组 {index}").strip(),
+                "sample": sample,
+                "targets": group_targets or targets,
+            })
+        if groups:
+            return groups
+    if not samples or not targets:
+        return []
+    return [
+        {"id": f"组 {index}", "sample": sample["id"], "targets": targets}
+        for index, sample in enumerate(samples, start=1)
+    ]
+
+
+def normalize_reagent(item: Any) -> dict[str, str]:
+    """Retain only concise, useful reagent identity fields in the record view."""
+    source = item if isinstance(item, dict) else {"name": item}
+    availability = source.get("availability") if isinstance(source.get("availability"), dict) else {}
+    return {
+        "reagentName": str(source.get("reagentName") or source.get("name") or "").strip(),
+        "manufacturer": str(source.get("manufacturer") or source.get("vendor") or "").strip(),
+        "catalogNumber": str(source.get("catalogNumber") or source.get("catalogNo") or "").strip(),
+        "category": str(source.get("category") or "").strip(),
+        "antibody": source.get("antibody") if isinstance(source.get("antibody"), dict) else {},
+        "availability": {"state": str(availability.get("state") or "").strip()},
+        "lookupTimestamp": str(source.get("lookupTimestamp") or source.get("retrievedAt") or "").strip(),
+        "concentration": str(source.get("concentration") or source.get("dilution") or "").strip(),
+    }
+
+
+def default_previous_record(items: list[Any], field: str) -> list[Any]:
+    return items if items else [{field: DEFAULT_PREVIOUS_RECORD}]
 
 
 def contains_platform_attribution(value: str) -> bool:
@@ -181,7 +336,7 @@ def record_path(directory: Path) -> Path:
 
 def load_bundle(directory: Path) -> dict[str, Any]:
     bundle = json_read(record_path(directory))
-    if bundle.get("schemaVersion") != SCHEMA_VERSION or not isinstance(bundle.get("record"), dict):
+    if bundle.get("schemaVersion") not in {"1.0", SCHEMA_VERSION} or not isinstance(bundle.get("record"), dict):
         raise RecordError("记录格式不受此版本脚本支持")
     bundle.setdefault("attachments", [])
     bundle["attachments"] = as_list(bundle["attachments"])
@@ -189,7 +344,7 @@ def load_bundle(directory: Path) -> dict[str, Any]:
     return bundle
 
 
-def normalized_record(source: dict[str, Any], layout: str, source_path: Path) -> dict[str, Any]:
+def normalized_record(source: dict[str, Any], layout: str, source_path: Path, default_actor: str = "") -> dict[str, Any]:
     assert_no_platform_attribution(source, "input")
     title = str(source.get("title", "")).strip()
     if not title:
@@ -197,32 +352,44 @@ def normalized_record(source: dict[str, Any], layout: str, source_path: Path) ->
 
     day = datetime.now().astimezone().strftime("%Y%m%d")
     identifier = str(source.get("recordId", "")).strip() or f"ER-{day}-{uuid.uuid4().hex[:8].upper()}"
+    scenario = str(source.get("scenario") or source.get("objective") or title).strip()
+    source_performers = unique_texts(as_list(source.get("performedBy")))
+    performers = source_performers or unique_texts([default_actor])
+    targets = unique_texts(
+        [normalize_target(item) for item in [*as_list(source.get("targets")), *infer_targets(scenario)]]
+    )
+    samples = normalize_samples(as_list(source.get("samples")), scenario)
+    actual_steps = [item if isinstance(item, dict) else {"action": item} for item in as_list(source.get("actualSteps"))]
+    for item in actual_steps:
+        item.pop("startedAt", None)
+        item.pop("endedAt", None)
+        item.setdefault("parameters", [])
+        if not str(item.get("performedBy") or "").strip():
+            item["performedBy"] = performers[0] if performers else "待确认"
     return {
         "id": identifier,
         "revision": 1,
         "status": "DRAFT",
         "layout": layout,
         "title": title,
-        "performedAt": source.get("performedAt", ""),
-        "performedBy": as_list(source.get("performedBy")),
+        "performedAt": normalized_date(source.get("performedAt"), today_iso_date()),
+        "performedBy": performers,
         "project": source.get("project", ""),
         "objective": source.get("objective", ""),
         "technique": source.get("technique") if isinstance(source.get("technique"), dict) else {},
         "protocol": source.get("protocol") if isinstance(source.get("protocol"), dict) else {},
-        "samples": as_list(source.get("samples")),
-        "reagents": as_list(source.get("reagents")),
-        "instruments": as_list(source.get("instruments")),
-        "software": as_list(source.get("software")),
+        "samples": samples,
+        "targets": targets,
+        "groups": build_groups(samples, targets, as_list(source.get("groups"))),
+        "reagents": [normalize_reagent(item) for item in as_list(source.get("reagents"))],
+        "instruments": default_previous_record(as_list(source.get("instruments")), "name"),
+        "software": default_previous_record(as_list(source.get("software")), "name"),
         "plannedSteps": as_list(source.get("plannedSteps")),
-        "actualSteps": as_list(source.get("actualSteps")),
-        "controls": as_list(source.get("controls")),
+        "actualSteps": actual_steps,
         "deviations": as_list(source.get("deviations")),
-        "observations": as_list(source.get("observations")),
         "results": [],
         "conclusion": source.get("conclusion", ""),
-        "nextSteps": source.get("nextSteps", ""),
         "ethicsReference": source.get("ethicsReference", ""),
-        "sourceNotes": source.get("sourceNotes", ""),
         "createdAt": now_iso(),
         "inputSnapshot": {
             "sha256": sha256(source_path),
@@ -247,17 +414,20 @@ def load_sparse_template(experiment: str) -> dict[str, Any]:
     raise RecordError(f"未找到实验类型 {experiment!r} 的标准草稿模板。请使用精确代码或在 assets/standard-draft-templates.json 中扩展模板。")
 
 
-def sparse_draft_input(template: dict[str, Any], scenario: str, targets: list[str], reported_as: str) -> dict[str, Any]:
+def sparse_draft_input(
+    template: dict[str, Any], scenario: str, targets: list[str], samples: list[str], reported_as: str
+) -> dict[str, Any]:
     technique_name = text(template.get("name"), "未提供")
-    clean_targets = [target.strip() for target in targets if target.strip()]
+    clean_targets = unique_texts([normalize_target(target) for target in [*targets, *infer_targets(scenario)]])
     target_reagents = [
         {
-            "name": f"{target} 对应一抗（厂家、货号待补充）" if reported_as == "reported" else f"{target} 检测目标（对应一抗待确认）",
-            "vendor": "",
-            "catalogNo": "",
-            "lotNo": "",
-            "expiryDate": "",
-            "amount": "",
+            "reagentName": f"{target} 一抗",
+            "manufacturer": "",
+            "catalogNumber": "",
+            "category": "primary antibody",
+            "antibody": {"target": target},
+            "availability": {"state": ""},
+            "lookupTimestamp": "",
             "concentration": "",
         }
         for target in clean_targets
@@ -270,8 +440,6 @@ def sparse_draft_input(template: dict[str, Any], scenario: str, targets: list[st
                 action_text = f"使用 {'、'.join(clean_targets)} 对应一抗孵育膜，洗膜后加入匹配二抗。"
             actual_steps.append({
                 "sequence": sequence,
-                "startedAt": "",
-                "endedAt": "",
                 "action": action_text,
                 "parameters": [],
                 "performedBy": "",
@@ -283,6 +451,7 @@ def sparse_draft_input(template: dict[str, Any], scenario: str, targets: list[st
         planned_steps.append("开始前核对所需资源：" + "；".join(checklist) + "。")
     return {
         "title": f"{technique_name}：{scenario}",
+        "scenario": scenario,
         "performedAt": "",
         "performedBy": [],
         "project": "",
@@ -297,23 +466,16 @@ def sparse_draft_input(template: dict[str, Any], scenario: str, targets: list[st
             "version": template.get("revision", ""),
             "url": "",
         },
-        "samples": [],
+        "samples": samples,
+        "targets": clean_targets,
         "reagents": target_reagents,
         "instruments": [],
         "software": [],
         "plannedSteps": planned_steps,
         "actualSteps": actual_steps,
-        "controls": [],
         "deviations": [],
-        "observations": [],
         "conclusion": "",
-        "nextSteps": "补充实际执行人、时间、关键参数、试剂实际使用信息和结果后再进行证明。",
         "ethicsReference": "",
-        "sourceNotes": (
-            "研究者报告实验已完成；本记录的常规实际步骤由标准工作流起草，提交证明前需由研究者核对并按实际情况修改。"
-            if reported_as == "reported"
-            else "本草稿的标准流程仅作待确认的计划和记录清单，不代表这些步骤已实际完成。"
-        ),
     }
 
 
@@ -331,7 +493,7 @@ def parameters(step: dict[str, Any]) -> str:
             values.append(f"{text(parameter.get('name'))}={text(parameter.get('value'))}{text(parameter.get('unit'), '')}")
         else:
             values.append(text(parameter))
-    return "; ".join(values) if values else "未提供"
+    return "; ".join(values) if values else DEFAULT_PREVIOUS_RECORD
 
 
 def attachment_link(attachment: dict[str, Any]) -> str:
@@ -342,151 +504,95 @@ def attachment_link(attachment: dict[str, Any]) -> str:
     return f"[{filename}]({relative})"
 
 
+def reagent_rows(record: dict[str, Any]) -> list[list[Any]]:
+    reagents = [item if isinstance(item, dict) else {"reagentName": item} for item in as_list(record.get("reagents"))]
+    return [[
+        item.get("reagentName") or item.get("name"),
+        item.get("manufacturer") or item.get("vendor"),
+        item.get("catalogNumber") or item.get("catalogNo"),
+        item.get("category"),
+        item.get("concentration"),
+    ] for item in reagents]
+
+
+def result_date(value: Any) -> str:
+    try:
+        return normalized_date(value)
+    except RecordError:
+        return text(value)
+
+
 def render_narrative_markdown(bundle: dict[str, Any]) -> str:
-    """Render a compact factual note while retaining the fields that identify evidence."""
+    """Render a short notebook note without dropping samples, groups, or reagents."""
     record = bundle["record"]
-    lines = [f"# 实验记录：{record['title']}", ""]
-    performers = ", ".join(text(item, "") for item in as_list(record.get("performedBy"))) or "未提供"
-    lines.extend([
-        f"记录 ID：{record.get('id')}；修订：{record.get('revision')}；状态：{record.get('status')}。",
-        f"实际执行时间：{text(record.get('performedAt'))}；执行者：{performers}。",
+    performers = ", ".join(text(item, "") for item in as_list(record.get("performedBy"))) or "待确认"
+    lines = [
+        f"# 实验记录：{record['title']}",
         "",
+        f"实际执行日期：{text(record.get('performedAt'))}。执行者：{performers}。",
         f"目的：{text(record.get('objective'))}",
         "",
         "## 实际执行",
         "",
-    ])
+    ]
     actual = [item if isinstance(item, dict) else {"action": item} for item in as_list(record.get("actualSteps"))]
-    for item in actual:
-        lines.append(f"{text(item.get('sequence'))}. {text(item.get('action'))}（开始：{text(item.get('startedAt'))}；结束：{text(item.get('endedAt'))}；参数：{parameters(item)}）")
-    if not actual:
-        lines.append("未提供实际执行步骤。")
-    results = [item for item in as_list(record.get("results")) if isinstance(item, dict)]
-    lines.extend(["", "## 观察与结果", ""])
-    for observation in as_list(record.get("observations")):
-        lines.append(f"- {text(observation)}")
-    for result in results:
-        lines.append(f"- {text(result.get('observedAt'))}：{text(result.get('summary'))}")
-    if not results and not as_list(record.get("observations")):
-        lines.append("未提供观察或结果。")
-    reagents = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("reagents"))]
-    if reagents:
-        lines.extend(["", "## 关键试剂实际使用快照", ""])
-        lines.extend(markdown_table(["名称", "货号", "批号", "用量"], [[item.get("name"), item.get("catalogNo"), item.get("lotNo"), f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip()] for item in reagents]))
-    attachments = [item for item in bundle.get("attachments", []) if isinstance(item, dict)]
-    if attachments:
-        lines.extend(["", "## 原始附件", ""])
-        lines.extend(markdown_table(["附件", "SHA-256", "加入时间"], [[attachment_link(item), item.get("sha256"), item.get("addedAt")] for item in attachments]))
-    lines.extend(["", f"结论：{text(record.get('conclusion'))}", "", f"下一步：{text(record.get('nextSteps'))}", "", "本记录只陈述已提供或已确认的信息。"])
+    lines.extend([
+        f"{text(item.get('sequence'))}. {text(item.get('action'))}（关键参数：{parameters(item)}；执行者：{text(item.get('performedBy'), performers)}）"
+        for item in actual
+    ] or ["未提供实际执行步骤。"])
+    append_common_sections(lines, bundle)
     return "\n".join(lines) + "\n"
 
 
-def render_markdown(bundle: dict[str, Any]) -> str:
+def append_common_sections(lines: list[str], bundle: dict[str, Any]) -> None:
     record = bundle["record"]
-    if record.get("layout") == "narrative":
-        return render_narrative_markdown(bundle)
     attachments = {item.get("id"): item for item in bundle.get("attachments", []) if isinstance(item, dict)}
-    lines = [f"# 实验记录：{record['title']}", ""]
-    lines.extend(markdown_table(
-        ["字段", "值"],
-        [
-            ["记录 ID", record.get("id")],
-            ["修订", record.get("revision")],
-            ["状态", record.get("status")],
-            ["实际执行时间", record.get("performedAt")],
-            ["执行者", ", ".join(text(item, "") for item in as_list(record.get("performedBy")))],
-            ["项目", record.get("project")],
-            ["创建时间", record.get("createdAt")],
-        ],
-    ))
-    lines.extend(["", "## 目的", "", text(record.get("objective")), ""])
-
-    technique = record.get("technique", {})
-    protocol = record.get("protocol", {})
-    lines.extend(["## 技术与方案", ""])
-    lines.extend(markdown_table(
-        ["字段", "值"],
-        [
-            ["技术代码", technique.get("code")],
-            ["技术名称", technique.get("name")],
-            ["技术修订", technique.get("revision")],
-            ["方案", protocol.get("title")],
-            ["方案版本", protocol.get("version")],
-            ["方案链接", protocol.get("url")],
-        ],
-    ))
-
     samples = [item if isinstance(item, dict) else {"id": item} for item in as_list(record.get("samples"))]
     lines.extend(["", "## 样本与输入", ""])
     if samples:
-        lines.extend(markdown_table(
-            ["样本 ID", "描述", "来源"],
-            [[item.get("id"), item.get("description"), item.get("source")] for item in samples],
-        ))
+        lines.extend(markdown_table(["样本", "描述"], [[item.get("id"), item.get("description")] for item in samples]))
     else:
-        lines.append("未提供样本信息。")
+        lines.append("待确认样本信息。")
 
-    reagents = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("reagents"))]
-    lines.extend(["", "### 试剂实际使用快照", ""])
-    if reagents:
+    groups = [item for item in as_list(record.get("groups")) if isinstance(item, dict)]
+    if groups:
+        lines.extend(["", "## 实验分组", ""])
         lines.extend(markdown_table(
-            ["名称", "厂家", "货号", "批号", "有效期", "用量", "浓度"],
-            [[
-                item.get("name"), item.get("vendor"), item.get("catalogNo"), item.get("lotNo"),
-                item.get("expiryDate"), f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(),
-                item.get("concentration"),
-            ] for item in reagents],
+            ["分组", "样本/细胞系", "检测目标"],
+            [[item.get("id"), item.get("sample"), "；".join(text(target, "") for target in as_list(item.get("targets")))] for item in groups],
         ))
-    else:
-        lines.append("未提供试剂实际使用信息。")
 
-    instruments = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("instruments"))]
-    lines.extend(["", "### 仪器与软件", ""])
-    rows = [[item.get("name"), item.get("id"), item.get("configuration"), item.get("calibrationStatus")] for item in instruments]
+    lines.extend(["", "### 试剂", ""])
+    rows = reagent_rows(record)
     if rows:
-        lines.extend(markdown_table(["仪器", "ID", "关键配置", "校准/维护状态"], rows))
+        lines.extend(markdown_table(["名称", "厂家", "货号", "类别", "浓度/稀释度"], rows))
     else:
-        lines.append("未提供仪器信息。")
+        lines.append("待补充试剂信息。")
+
+    lines.extend(["", "### 仪器与软件", ""])
+    instruments = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("instruments"))]
     software = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("software"))]
-    if software:
-        lines.extend([""] + markdown_table(["软件", "版本", "用途"], [[item.get("name"), item.get("version"), item.get("purpose")] for item in software]))
+    lines.extend(markdown_table(
+        ["类别", "名称", "备注"],
+        [
+            *[["仪器", item.get("name"), item.get("configuration") or DEFAULT_PREVIOUS_RECORD] for item in instruments],
+            *[["软件", item.get("name"), item.get("purpose") or DEFAULT_PREVIOUS_RECORD] for item in software],
+        ],
+    ))
 
     planned = as_list(record.get("plannedSteps"))
-    lines.extend(["", "## 计划步骤", ""])
-    lines.extend([f"{index}. {text(step)}" for index, step in enumerate(planned, start=1)] or ["未提供计划步骤。"])
-
-    actual = [item if isinstance(item, dict) else {"action": item} for item in as_list(record.get("actualSteps"))]
-    lines.extend(["", "## 实际执行", ""])
-    if actual:
-        lines.extend(markdown_table(
-            ["序号", "开始", "结束", "实际操作", "关键参数", "执行者"],
-            [[item.get("sequence"), item.get("startedAt"), item.get("endedAt"), item.get("action"), parameters(item), item.get("performedBy")] for item in actual],
-        ))
-    else:
-        lines.append("未提供实际执行步骤。")
-
-    controls = [item if isinstance(item, dict) else {"name": item} for item in as_list(record.get("controls"))]
-    lines.extend(["", "## 对照与质量控制", ""])
-    if controls:
-        lines.extend(markdown_table(["对照/质控", "预设判据", "实际结果", "状态"], [[item.get("name"), item.get("expected"), item.get("observed"), item.get("status")] for item in controls]))
-    else:
-        lines.append("未提供对照或质量控制记录。")
+    if planned:
+        lines.extend(["", "## 计划步骤", "", *[f"{index}. {text(step)}" for index, step in enumerate(planned, start=1)]])
 
     deviations = [item if isinstance(item, dict) else {"description": item} for item in as_list(record.get("deviations"))]
-    lines.extend(["", "## 偏差与异常", ""])
     if deviations:
-        lines.extend(markdown_table(["发生时间", "描述", "原因", "影响", "处置", "确认人"], [[item.get("occurredAt"), item.get("description"), item.get("cause"), item.get("impact"), item.get("action"), item.get("confirmedBy")] for item in deviations]))
-    else:
-        lines.append("未报告偏差或异常。")
-
-    observations = as_list(record.get("observations"))
-    lines.extend(["", "## 观察", ""])
-    lines.extend([f"- {text(item)}" for item in observations] or ["未提供观察。"])
+        lines.extend(["", "## 偏差与异常", ""])
+        lines.extend(markdown_table(["描述", "原因", "影响", "处置"], [[item.get("description"), item.get("cause"), item.get("impact"), item.get("action")] for item in deviations]))
 
     results = [item for item in as_list(record.get("results")) if isinstance(item, dict)]
-    lines.extend(["", "## 结果与原始附件", ""])
+    lines.extend(["", "## 结果与附件", ""])
     if results:
-        lines.extend(markdown_table(["结果 ID", "观察时间", "摘要", "记录人"], [[item.get("id"), item.get("observedAt"), item.get("summary"), item.get("addedBy")] for item in results]))
+        lines.extend(markdown_table(["日期", "结果摘要", "记录人"], [[result_date(item.get("observedAt")), item.get("summary"), item.get("addedBy")] for item in results]))
         for result in results:
             links = [attachment_link(attachments[attachment_id]) for attachment_id in as_list(result.get("attachmentIds")) if attachment_id in attachments]
             if links:
@@ -497,14 +603,47 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     all_attachments = [item for item in bundle.get("attachments", []) if isinstance(item, dict)]
     if all_attachments:
         lines.extend(["", "### 附件清单", ""])
-        lines.extend(markdown_table(["附件 ID", "原始文件名", "类型", "SHA-256", "加入时间"], [[item.get("id"), item.get("originalName"), item.get("kind"), item.get("sha256"), item.get("addedAt")] for item in all_attachments]))
+        lines.extend(markdown_table(["附件 ID", "原始文件名", "类型", "SHA-256"], [[item.get("id"), item.get("originalName"), item.get("kind"), item.get("sha256")] for item in all_attachments]))
 
-    lines.extend(["", "## 结论与后续", "", f"结论：{text(record.get('conclusion'))}", "", f"下一步：{text(record.get('nextSteps'))}"])
-    if text(record.get("ethicsReference")) != "未提供":
-        lines.extend(["", f"伦理/审批引用：{text(record.get('ethicsReference'))}"])
-    if text(record.get("sourceNotes")) != "未提供":
-        lines.extend(["", f"来源备注：{text(record.get('sourceNotes'))}"])
-    lines.extend(["", "## 完整性说明", "", "本记录只陈述已提供或已确认的信息。`未提供` 字段需要在后续修订中补充，不应由模型或模板推断。"])
+    if text(record.get("conclusion")) != "未提供":
+        lines.extend(["", "## 结论", "", text(record.get("conclusion"))])
+
+
+def render_markdown(bundle: dict[str, Any]) -> str:
+    record = bundle["record"]
+    if record.get("layout") == "narrative":
+        return render_narrative_markdown(bundle)
+    performers = ", ".join(text(item, "") for item in as_list(record.get("performedBy"))) or "待确认"
+    lines = [f"# 实验记录：{record['title']}", ""]
+    lines.extend(markdown_table(
+        ["字段", "值"],
+        [
+            ["记录 ID", record.get("id")],
+            ["修订", record.get("revision")],
+            ["实际执行日期", record.get("performedAt")],
+            ["执行者", performers],
+            ["项目", record.get("project")],
+            ["创建日期", result_date(record.get("createdAt"))],
+        ],
+    ))
+    lines.extend(["", "## 目的", "", text(record.get("objective"))])
+
+    technique = record.get("technique", {})
+    protocol = record.get("protocol", {})
+    technique_rows = [["技术名称", technique.get("name")], ["方案", protocol.get("title")], ["方案版本", protocol.get("version")]]
+    if any(text(row[1]) != "未提供" for row in technique_rows):
+        lines.extend(["", "## 技术与方案", "", *markdown_table(["字段", "值"], technique_rows)])
+
+    actual = [item if isinstance(item, dict) else {"action": item} for item in as_list(record.get("actualSteps"))]
+    lines.extend(["", "## 实际执行", ""])
+    if actual:
+        lines.extend(markdown_table(
+            ["序号", "实际操作", "关键参数", "执行者"],
+            [[item.get("sequence"), item.get("action"), parameters(item), item.get("performedBy") or performers] for item in actual],
+        ))
+    else:
+        lines.append("未提供实际执行步骤。")
+    append_common_sections(lines, bundle)
     return "\n".join(lines) + "\n"
 
 
@@ -569,12 +708,11 @@ def commit_revision(directory: Path, bundle: dict[str, Any], event: str, actor: 
     append_audit(directory, event, bundle, actor, reason, details, previous_revision)
 
 
-def require_timezone(timestamp: Any) -> bool:
-    if not isinstance(timestamp, str) or not timestamp.strip():
-        return False
+def require_execution_date(value: Any) -> bool:
     try:
-        return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).tzinfo is not None
-    except ValueError:
+        normalized_date(value)
+        return True
+    except RecordError:
         return False
 
 
@@ -611,8 +749,8 @@ def validate_bundle(
     if for_terminal_status or record.get("status") in TERMINAL_STATUSES:
         if not as_list(record.get("performedBy")):
             errors.append("证明/复核前必须填写执行者")
-        if not require_timezone(record.get("performedAt")):
-            errors.append("证明/复核前必须填写带时区的实际执行时间")
+        if not require_execution_date(record.get("performedAt")):
+            errors.append("证明/复核前必须填写实际执行日期")
         if not str(record.get("objective", "")).strip():
             errors.append("证明/复核前必须填写实验目的")
         actual = [step for step in as_list(record.get("actualSteps")) if isinstance(step, dict) and str(step.get("action", "")).strip()]
@@ -624,10 +762,6 @@ def validate_bundle(
         warnings.append("未记录样本；确认该技术确实不需要样本信息")
     if not as_list(record.get("reagents")):
         warnings.append("未记录试剂；确认该技术确实不需要试剂实际使用快照")
-    if not as_list(record.get("instruments")):
-        warnings.append("未记录仪器；确认该技术确实不需要仪器或配置")
-    if not as_list(record.get("controls")):
-        warnings.append("未记录对照或质量控制；确认其不适用或补充原因")
     return errors, warnings
 
 
@@ -640,7 +774,7 @@ def create_command(args: argparse.Namespace) -> None:
         raise RecordError(f"输出目录已存在且非空: {directory}")
     directory.mkdir(parents=True, exist_ok=True)
     source = json_read(source_path)
-    bundle = {"schemaVersion": SCHEMA_VERSION, "record": normalized_record(source, args.layout, source_path), "attachments": []}
+    bundle = {"schemaVersion": SCHEMA_VERSION, "record": normalized_record(source, args.layout, source_path, args.actor), "attachments": []}
     commit_revision(directory, bundle, "CREATE", args.actor, "创建记录草稿", {"inputSha256": sha256(source_path)}, None)
     print(json.dumps({"record": str(directory), "recordId": bundle["record"]["id"], "revision": 1, "status": "DRAFT"}, ensure_ascii=False))
 
@@ -653,11 +787,11 @@ def create_sparse_draft_command(args: argparse.Namespace) -> None:
     if not scenario:
         raise RecordError("稀疏输入草稿必须提供 --scenario")
     template = load_sparse_template(args.experiment)
-    source = sparse_draft_input(template, scenario, args.target, args.reported_as)
+    source = sparse_draft_input(template, scenario, args.target, args.sample, args.reported_as)
     directory.mkdir(parents=True, exist_ok=True)
     bundle = {
         "schemaVersion": SCHEMA_VERSION,
-        "record": normalized_record(source, args.layout, sparse_template_path()),
+        "record": normalized_record(source, args.layout, sparse_template_path(), args.actor),
         "attachments": [],
     }
     commit_revision(
@@ -720,7 +854,7 @@ def add_result_command(args: argparse.Namespace) -> None:
     bundle["attachments"].extend(attachments)
     result = {
         "id": f"result-{uuid.uuid4().hex[:12]}",
-        "observedAt": args.observed_at or "未提供",
+        "observedAt": normalized_date(args.observed_at, today_iso_date()),
         "summary": args.summary,
         "addedBy": args.actor or "未提供",
         "addedAt": now_iso(),
@@ -785,17 +919,18 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--input", required=True, help="JSON file with user-confirmed facts")
     create.add_argument("--output-dir", required=True, help="new record-bundle directory")
     create.add_argument("--layout", choices=("table", "narrative"), default="table")
-    create.add_argument("--actor", default="", help="person creating the draft")
+    create.add_argument("--actor", default="", help="当前用户；未提供时需在证明前补充执行者")
     create.set_defaults(handler=create_command)
 
     sparse = commands.add_parser("create-sparse-draft", help="create a DRAFT from an experiment name and a short scenario")
     sparse.add_argument("--experiment", required=True, help="exact technique code, name, or template alias")
     sparse.add_argument("--scenario", required=True, help="short user-supplied experimental context")
     sparse.add_argument("--target", action="append", default=[], help="repeat for each user-reported target or reagent")
+    sparse.add_argument("--sample", action="append", default=[], help="repeat for each sample or cell line; known cell lines are also inferred from --scenario")
     sparse.add_argument("--reported-as", choices=("planned", "reported"), default="reported")
     sparse.add_argument("--output-dir", required=True, help="new record-bundle directory")
     sparse.add_argument("--layout", choices=("table", "narrative"), default="table")
-    sparse.add_argument("--actor", default="", help="person creating the draft")
+    sparse.add_argument("--actor", default="", help="当前用户；作为默认执行者")
     sparse.set_defaults(handler=create_sparse_draft_command)
 
     add_result = commands.add_parser("add-result", help="copy result files into an existing record")

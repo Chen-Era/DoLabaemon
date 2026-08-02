@@ -18,7 +18,7 @@ The server exposes three tools:
 | `search_lab_reagents` | Search a minimal reagent projection by target, name, or catalog number. |
 | `resolve_western_blot_antibodies` | Resolve `PRIMARY`-antibody candidates for declared WB targets. |
 
-Returned candidates contain the reagent ID, name, catalog number, vendor, antibody target/role, and truthful stock/expiry state. They exclude notes, uploaded-by data, user profile data, model credentials, and original experiment files.
+Each reagent returned by a lookup is deliberately record-safe and contains only: `reagentName`, `manufacturer`, `catalogNumber`, `category`, relevant `antibody` target/role metadata, and `availability.state`. The tool response also includes a `lookupTimestamp`. It excludes internal reagent and lab IDs, quantities, units, expiry dates, search-ranking details, notes, uploaded-by data, user profile data, model credentials, original experiment files, and inventory-service provenance.
 
 ## Configure a local MCP-capable model
 
@@ -54,9 +54,9 @@ For a request such as “跑了 KLF6 和 β-actin 的 WB”, an agent should:
 
 1. Call `list_authorized_labs` when the laboratory is not already explicit.
 2. Call `resolve_western_blot_antibodies` with `targets: ["KLF6", "β-actin"]`.
-3. For a single exact primary-antibody target match, use the returned catalog number as an **inventory-derived reagent snapshot**. In the experimental record, show the manufacturer, catalog number, timestamp, and stock state only. Do not write the service name, URL, MCP name, token, or internal reagent ID into the record; full lookup provenance stays in the service's access logs.
+3. For a single exact primary-antibody target match, use the returned reagent name, manufacturer, catalog number, relevant antibody metadata, availability state, and lookup timestamp as a reagent snapshot. Do not write a service name, URL, MCP name, token, internal reagent ID, laboratory ID, or other lookup provenance into the record.
 4. For zero, fuzzy, or multiple candidates, present the choices and require the researcher to choose. Never choose by vendor, recency, quantity, or apparent popularity.
-5. Ask separately for lot number, amount, concentration, dilution, and actual execution time. The MCP cannot infer them.
+5. The MCP only supplies catalog information and availability; it does not prove what was used. Follow the experimental-record skill's current rules for omitted lot, expiry, amount, and execution-time fields.
 
 `resolved` means the catalog contains exactly one primary-antibody target match. It does **not** establish that the reagent, bottle, lot, or stock unit was used in this experiment. The experimental-record skill must preserve this distinction.
 
