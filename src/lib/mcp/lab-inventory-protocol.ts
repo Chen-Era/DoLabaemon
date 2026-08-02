@@ -8,10 +8,45 @@ import {
   searchLabReagents,
 } from "@/lib/mcp/lab-inventory";
 
-const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+/**
+ * The MCP revisions this stateless, tools-only server implements. Keep the
+ * newest compatible revision first: that is the fallback returned during
+ * `initialize` when a client offers an unknown future revision.
+ */
+export const INVENTORY_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] as const;
+
+export const LATEST_INVENTORY_MCP_PROTOCOL_VERSION = INVENTORY_MCP_PROTOCOL_VERSIONS[0];
 
 export function isSupportedInventoryMcpProtocolVersion(value: string) {
-  return SUPPORTED_PROTOCOL_VERSIONS.includes(value);
+  return (INVENTORY_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
+
+export function negotiateInventoryMcpProtocolVersion(requestedVersion: string | undefined) {
+  return requestedVersion && isSupportedInventoryMcpProtocolVersion(requestedVersion)
+    ? requestedVersion
+    : LATEST_INVENTORY_MCP_PROTOCOL_VERSION;
+}
+
+/**
+ * `MCP-Protocol-Version` only governs requests after initialize. This small
+ * structural check lets the HTTP transport negotiate an initial connection
+ * before rejecting an unsupported request header.
+ */
+export function isInventoryMcpInitializeRequest(input: unknown) {
+  return !!input
+    && typeof input === "object"
+    && !Array.isArray(input)
+    && (input as { jsonrpc?: unknown }).jsonrpc === "2.0"
+    && (input as { method?: unknown }).method === "initialize";
+}
+
+export function inventoryMcpInitializeProtocolVersion(input: unknown) {
+  if (!isInventoryMcpInitializeRequest(input)) return LATEST_INVENTORY_MCP_PROTOCOL_VERSION;
+  const params = (input as { params?: unknown }).params;
+  const requestedVersion = params && typeof params === "object" && !Array.isArray(params)
+    ? (params as { protocolVersion?: unknown }).protocolVersion
+    : undefined;
+  return negotiateInventoryMcpProtocolVersion(typeof requestedVersion === "string" ? requestedVersion : undefined);
 }
 
 const requestSchema = z.object({
@@ -112,9 +147,7 @@ export async function executeInventoryMcpRequest(input: unknown, principal: McpA
         if (!requested.success) {
           return respond(error(id, -32602, "Invalid params", requested.error.flatten()));
         }
-        const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.includes(requested.data.protocolVersion ?? "")
-          ? requested.data.protocolVersion
-          : SUPPORTED_PROTOCOL_VERSIONS[0];
+        const protocolVersion = negotiateInventoryMcpProtocolVersion(requested.data.protocolVersion);
         return respond(result(id, {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
@@ -124,6 +157,8 @@ export async function executeInventoryMcpRequest(input: unknown, principal: McpA
       }
       case "ping":
         return respond(result(id, {}));
+      case "notifications/initialized":
+        return null;
       case "tools/list":
         return respond(result(id, { tools: inventoryMcpTools }));
       case "tools/call": {
