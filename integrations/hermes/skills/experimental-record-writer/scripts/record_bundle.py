@@ -9,13 +9,16 @@ system and does not replace an institution's ELN, LIMS, or SOP controls.
 from __future__ import annotations
 
 import argparse
+from difflib import SequenceMatcher
 import hashlib
 import json
 import mimetypes
 import os
 import re
 import shutil
+import subprocess
 import sys
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +32,9 @@ PLACEHOLDER_MARKERS = ("user-to-confirm", "must replace", "to be confirmed", "to
 PLATFORM_ATTRIBUTION_PATTERN = re.compile(
     r"(?:dorlabaemon(?:\.era\.ac\.cn)?|dorlabaemon\s+inventory\s+mcp)", re.IGNORECASE
 )
+PLATFORM_NAME_COMPACT = "dorlabaemon"
+TEXT_ATTACHMENT_SUFFIXES = {".txt", ".csv", ".tsv", ".json", ".md", ".log", ".xml", ".html", ".htm"}
+MAX_SCANNABLE_TEXT_BYTES = 8 * 1024 * 1024
 
 
 class RecordError(ValueError):
@@ -50,6 +56,21 @@ def text(value: Any, missing: str = "未提供") -> str:
     return value if value else missing
 
 
+def contains_platform_attribution(value: str) -> bool:
+    """Recognize the service name, including a small OCR spelling error."""
+    if PLATFORM_ATTRIBUTION_PATTERN.search(value):
+        return True
+    normalized = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value).casefold()
+        if not unicodedata.combining(character)
+    )
+    for token in re.findall(r"[a-z]{6,}", normalized):
+        if SequenceMatcher(None, token, PLATFORM_NAME_COMPACT).ratio() >= 0.84:
+            return True
+    return False
+
+
 def assert_no_platform_attribution(value: Any, location: str = "record") -> None:
     """Keep service names out of every file that constitutes a record bundle.
 
@@ -65,11 +86,51 @@ def assert_no_platform_attribution(value: Any, location: str = "record") -> None
         for index, item in enumerate(value):
             assert_no_platform_attribution(item, f"{location}[{index}]")
         return
-    if isinstance(value, str) and PLATFORM_ATTRIBUTION_PATTERN.search(value):
+    if isinstance(value, str) and contains_platform_attribution(value):
         raise RecordError(
             f"实验记录不能包含库存平台名称（位置：{location}）。"
             "请仅保留试剂厂家、货号和实际实验事实。"
         )
+
+
+def assert_safe_attachment_content(source: Path) -> None:
+    """Reject platform attribution embedded in an image or text attachment.
+
+    Attachments are part of the record bundle.  Their content is retained
+    unchanged when it is accepted, so rejecting a forbidden attribution before
+    copying is the only way to preserve both the user's file and the record
+    boundary.
+    """
+    suffix = source.suffix.lower()
+    if suffix in TEXT_ATTACHMENT_SUFFIXES:
+        if source.stat().st_size > MAX_SCANNABLE_TEXT_BYTES:
+            raise RecordError(f"文本附件超过 {MAX_SCANNABLE_TEXT_BYTES // (1024 * 1024)} MiB，不能完成平台名称检查: {source.name}")
+        try:
+            contents = source.read_text(encoding="utf-8")
+        except UnicodeDecodeError as error:
+            raise RecordError(f"文本附件必须是 UTF-8，不能完成平台名称检查: {source.name}") from error
+        assert_no_platform_attribution(contents, f"attachment content: {source.name}")
+        return
+    if suffix in IMAGE_SUFFIXES:
+        tesseract = shutil.which("tesseract")
+        if not tesseract:
+            raise RecordError("添加图片附件前需要安装可用的 tesseract OCR，以检查图片中是否包含库存平台名称。")
+        try:
+            result = subprocess.run(
+                [tesseract, str(source), "stdout", "-l", "eng"],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RecordError(f"图片 OCR 检查超时，未加入记录: {source.name}") from error
+        if result.returncode != 0:
+            detail = result.stderr.strip() or "unknown OCR error"
+            raise RecordError(f"图片 OCR 检查失败，未加入记录: {source.name} ({detail})")
+        assert_no_platform_attribution(result.stdout, f"image OCR: {source.name}")
+        return
+    raise RecordError("结果附件仅支持图片或 UTF-8 文本文件，以便完成实验记录的平台名称检查。")
 
 
 def markdown(value: Any) -> str:
@@ -167,6 +228,92 @@ def normalized_record(source: dict[str, Any], layout: str, source_path: Path) ->
             "sha256": sha256(source_path),
             "capturedAt": now_iso(),
         },
+    }
+
+
+def sparse_template_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "assets" / "standard-draft-templates.json"
+
+
+def load_sparse_template(experiment: str) -> dict[str, Any]:
+    templates = as_list(json_read(sparse_template_path()).get("templates"))
+    requested = experiment.strip().casefold()
+    for template in templates:
+        if not isinstance(template, dict):
+            continue
+        names = [template.get("code"), template.get("name"), *as_list(template.get("aliases"))]
+        if requested in {str(name).strip().casefold() for name in names if name}:
+            return template
+    raise RecordError(f"未找到实验类型 {experiment!r} 的标准草稿模板。请使用精确代码或在 assets/standard-draft-templates.json 中扩展模板。")
+
+
+def sparse_draft_input(template: dict[str, Any], scenario: str, targets: list[str], reported_as: str) -> dict[str, Any]:
+    technique_name = text(template.get("name"), "未提供")
+    clean_targets = [target.strip() for target in targets if target.strip()]
+    target_reagents = [
+        {
+            "name": f"{target} 对应一抗（厂家、货号待补充）" if reported_as == "reported" else f"{target} 检测目标（对应一抗待确认）",
+            "vendor": "",
+            "catalogNo": "",
+            "lotNo": "",
+            "expiryDate": "",
+            "amount": "",
+            "concentration": "",
+        }
+        for target in clean_targets
+    ]
+    actual_steps: list[dict[str, Any]] = []
+    if reported_as == "reported":
+        for sequence, action in enumerate(as_list(template.get("reportedSteps")), start=1):
+            action_text = text(action)
+            if sequence == 3 and clean_targets:
+                action_text = f"使用 {'、'.join(clean_targets)} 对应一抗孵育膜，洗膜后加入匹配二抗。"
+            actual_steps.append({
+                "sequence": sequence,
+                "startedAt": "",
+                "endedAt": "",
+                "action": action_text,
+                "parameters": [],
+                "performedBy": "",
+                "draftedFromStandardWorkflow": True,
+            })
+    checklist = [text(item) for item in as_list(template.get("requiredChecklist"))]
+    planned_steps = [text(item) for item in as_list(template.get("plannedSteps"))] if reported_as == "planned" else []
+    if checklist and reported_as == "planned":
+        planned_steps.append("开始前核对所需资源：" + "；".join(checklist) + "。")
+    return {
+        "title": f"{technique_name}：{scenario}",
+        "performedAt": "",
+        "performedBy": [],
+        "project": "",
+        "objective": scenario,
+        "technique": {
+            "code": template.get("code", ""),
+            "name": technique_name,
+            "revision": template.get("revision", ""),
+        },
+        "protocol": {
+            "title": template.get("protocolTitle", f"{technique_name} standard draft checklist"),
+            "version": template.get("revision", ""),
+            "url": "",
+        },
+        "samples": [],
+        "reagents": target_reagents,
+        "instruments": [],
+        "software": [],
+        "plannedSteps": planned_steps,
+        "actualSteps": actual_steps,
+        "controls": [],
+        "deviations": [],
+        "observations": [],
+        "conclusion": "",
+        "nextSteps": "补充实际执行人、时间、关键参数、试剂实际使用信息和结果后再进行证明。",
+        "ethicsReference": "",
+        "sourceNotes": (
+            "研究者报告实验已完成；本记录的常规实际步骤由标准工作流起草，提交证明前需由研究者核对并按实际情况修改。"
+            if reported_as == "reported"
+            else "本草稿的标准流程仅作待确认的计划和记录清单，不代表这些步骤已实际完成。"
+        ),
     }
 
 
@@ -498,11 +645,46 @@ def create_command(args: argparse.Namespace) -> None:
     print(json.dumps({"record": str(directory), "recordId": bundle["record"]["id"], "revision": 1, "status": "DRAFT"}, ensure_ascii=False))
 
 
+def create_sparse_draft_command(args: argparse.Namespace) -> None:
+    directory = Path(args.output_dir).expanduser().resolve()
+    if directory.exists() and any(directory.iterdir()):
+        raise RecordError(f"输出目录已存在且非空: {directory}")
+    scenario = args.scenario.strip()
+    if not scenario:
+        raise RecordError("稀疏输入草稿必须提供 --scenario")
+    template = load_sparse_template(args.experiment)
+    source = sparse_draft_input(template, scenario, args.target, args.reported_as)
+    directory.mkdir(parents=True, exist_ok=True)
+    bundle = {
+        "schemaVersion": SCHEMA_VERSION,
+        "record": normalized_record(source, args.layout, sparse_template_path()),
+        "attachments": [],
+    }
+    commit_revision(
+        directory,
+        bundle,
+        "CREATE_SPARSE_DRAFT",
+        args.actor,
+        "根据实验名称和场景创建标准流程草稿",
+        {"technique": template.get("code"), "reportedAs": args.reported_as, "targetCount": len(args.target)},
+        None,
+    )
+    print(json.dumps({
+        "record": str(directory),
+        "recordId": bundle["record"]["id"],
+        "revision": 1,
+        "status": "DRAFT",
+        "template": template.get("code"),
+        "reportedAs": args.reported_as,
+    }, ensure_ascii=False))
+
+
 def copy_attachment(directory: Path, path_value: str, kind: str) -> dict[str, Any]:
     source = Path(path_value).expanduser().resolve()
     if not source.is_file():
         raise RecordError(f"附件不存在或不是文件: {source}")
     assert_no_platform_attribution(source.name, "attachment filename")
+    assert_safe_attachment_content(source)
     digest = sha256(source)
     stored_name = f"att-{digest[:12]}-{safe_filename(source.name)}"
     destination = directory / "attachments" / stored_name
@@ -605,6 +787,16 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--layout", choices=("table", "narrative"), default="table")
     create.add_argument("--actor", default="", help="person creating the draft")
     create.set_defaults(handler=create_command)
+
+    sparse = commands.add_parser("create-sparse-draft", help="create a DRAFT from an experiment name and a short scenario")
+    sparse.add_argument("--experiment", required=True, help="exact technique code, name, or template alias")
+    sparse.add_argument("--scenario", required=True, help="short user-supplied experimental context")
+    sparse.add_argument("--target", action="append", default=[], help="repeat for each user-reported target or reagent")
+    sparse.add_argument("--reported-as", choices=("planned", "reported"), default="reported")
+    sparse.add_argument("--output-dir", required=True, help="new record-bundle directory")
+    sparse.add_argument("--layout", choices=("table", "narrative"), default="table")
+    sparse.add_argument("--actor", default="", help="person creating the draft")
+    sparse.set_defaults(handler=create_sparse_draft_command)
 
     add_result = commands.add_parser("add-result", help="copy result files into an existing record")
     add_result.add_argument("--record", required=True)

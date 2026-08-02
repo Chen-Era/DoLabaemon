@@ -99,7 +99,9 @@ npm run knowledge:hermes-sync -- --file /data/knowledge.jsonl --strict
 观察时间为 2026-08-02T15:42:00+08:00；记录“A260/280 为 1.96 和 1.99”。
 ```
 
-skill 会复制而不是移动附件，计算 SHA-256，并新增一个记录修订。对于 DOCX，使用 bundled exporter 后必须渲染检查。对于飞书，先完成官方 CLI 的配置与最小权限授权，再要求 skill 执行发布；发布前会有 dry-run，发布后会将本地记录 ID、修订号和飞书文档 URL 保存到 `lark-publish.json`。用户若在 Dorlabaemon 的 **MCP 接入** 页签发了只读库存令牌，skill 还可查询自己有权限实验室的试剂货号；唯一精确命中可写为库存来源快照，多候选仍须用户选择，且库存命中不等于实际使用。完整命令和边界见 [`skills/experimental-record-writer/SKILL.md`](skills/experimental-record-writer/SKILL.md) 与 [库存 MCP 指南](../../docs/mcp-inventory.md)。
+skill 会复制而不是移动附件，计算 SHA-256，并新增一个记录修订。图片会先由本地 `tesseract` OCR、文本会直接检查；若发现库存平台名称，附件会被拒绝且原文件不被改写。对于 DOCX，使用 bundled exporter 后必须渲染检查。对于飞书，先完成官方 CLI 的配置与最小权限授权，再要求 skill 执行发布；发布前会有 dry-run，发布后会将本地记录 ID、修订号和飞书文档 URL 保存到 `lark-publish.json`。用户若在 Dorlabaemon 的 **MCP 接入** 页签发了只读库存令牌，skill 还可查询自己有权限实验室的试剂货号；唯一精确命中可写为库存来源快照，多候选仍须用户选择，且库存命中不等于实际使用。完整命令和边界见 [`skills/experimental-record-writer/SKILL.md`](skills/experimental-record-writer/SKILL.md) 与 [库存 MCP 指南](../../docs/mcp-inventory.md)。
+
+仅提供实验名称和场景时也能生成草稿。例如研究者说“已完成比较缺氧处理后肾癌细胞中 KLF6 的蛋白表达，并以 β-actin 作为上样内参”，skill 会匹配 `WB` 模板并将简短常规流程写入实际执行表，同时写入两个待补货号的目标抗体条目；研究者只需核对和修正。它不会虚构数值参数、时间、货号、批号、稀释度或结果。若用户说的是计划实验，标准流程则只写入计划步骤。随后由研究者补充实际事实和原始结果文件。
 
 ## 定时同步建议
 

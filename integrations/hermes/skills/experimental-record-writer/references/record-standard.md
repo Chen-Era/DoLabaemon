@@ -17,7 +17,7 @@ Use the local record bundle as a traceable source record plus export snapshots.
 
 Apply ALCOA-style practice: make entries attributable, legible, contemporaneous, original or a verified true copy, and accurate. Keep timestamps and an append-only audit event for creation, result additions, status changes, exports, and remote publication. A later correction is an amendment, not a replacement of the earlier snapshot.
 
-Keep original source files unchanged. Save an attachment ID, original filename, MIME type, size, SHA-256, adding time, and whether it is original or derived. Do not delete an attachment to hide a result.
+Keep accepted original source files unchanged. Save an attachment ID, original filename, MIME type, size, SHA-256, adding time, and whether it is original or derived. Before adding a result image or UTF-8 text file, screen it for prohibited inventory-platform attribution; reject it rather than alter it. Do not delete an attachment to hide a result.
 
 Status meanings:
 

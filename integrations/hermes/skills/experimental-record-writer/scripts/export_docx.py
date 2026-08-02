@@ -10,6 +10,7 @@ from typing import Any
 
 from record_bundle import RecordError, append_audit, as_list, load_bundle, now_iso, sha256, text as record_text, write_manifest
 
+LATIN_FONT = "Arial"
 CJK_FONT = "Arial Unicode MS"
 
 
@@ -39,16 +40,38 @@ def set_cell(cell: Any, value: Any, bold: bool = False) -> None:
     run.font.size = Pt(9)
 
 
-def add_table(document: Any, headers: list[str], rows: list[list[Any]]) -> None:
+def add_table(
+    document: Any, headers: list[str], rows: list[list[Any]], column_widths: list[float] | None = None
+) -> None:
+    from docx.oxml import OxmlElement
+
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
-    table.autofit = True
+    table.autofit = column_widths is None
     for cell, header in zip(table.rows[0].cells, headers):
         set_cell(cell, header, bold=True)
+    header_properties = table.rows[0]._tr.get_or_add_trPr()
+    repeat_header = OxmlElement("w:tblHeader")
+    repeat_header.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", "true")
+    header_properties.append(repeat_header)
     for row in rows:
-        cells = table.add_row().cells
+        table_row = table.add_row()
+        row_properties = table_row._tr.get_or_add_trPr()
+        keep_row_together = OxmlElement("w:cantSplit")
+        row_properties.append(keep_row_together)
+        cells = table_row.cells
         for cell, value in zip(cells, row):
             set_cell(cell, value)
+    if column_widths:
+        if len(column_widths) != len(headers):
+            raise RecordError("DOCX 表格列宽数量必须与表头数量一致")
+        from docx.shared import Inches
+
+        for column, width in zip(table.columns, column_widths):
+            column.width = Inches(width)
+        for table_row in table.rows:
+            for cell, width in zip(table_row.cells, column_widths):
+                cell.width = Inches(width)
     document.add_paragraph()
 
 
@@ -77,11 +100,11 @@ def set_east_asia_font(document: Any, oxml_element: Any, qn: Any) -> None:
             if fonts is None:
                 fonts = oxml_element("w:rFonts")
                 properties.insert(0, fonts)
-            run.font.name = CJK_FONT
-            fonts.set(qn("w:ascii"), CJK_FONT)
-            fonts.set(qn("w:hAnsi"), CJK_FONT)
+            run.font.name = LATIN_FONT
+            fonts.set(qn("w:ascii"), LATIN_FONT)
+            fonts.set(qn("w:hAnsi"), LATIN_FONT)
             fonts.set(qn("w:eastAsia"), CJK_FONT)
-            fonts.set(qn("w:cs"), CJK_FONT)
+            fonts.set(qn("w:cs"), LATIN_FONT)
             fonts.set(qn("w:hint"), "eastAsia")
             language = properties.find(qn("w:lang"))
             if language is None:
@@ -114,7 +137,7 @@ def export_document(directory: Path, output: Path) -> None:
     section.left_margin = Inches(0.75)
     section.right_margin = Inches(0.75)
     normal = document.styles["Normal"]
-    normal.font.name = "Arial"
+    normal.font.name = LATIN_FONT
     normal.font.size = Pt(10)
 
     title = document.add_paragraph()
@@ -165,7 +188,7 @@ def export_document(directory: Path, output: Path) -> None:
         add_table(document, ["Name", "Manufacturer", "Catalog no.", "Lot no.", "Expiry", "Amount", "Concentration"], [[
             item.get("name"), item.get("vendor"), item.get("catalogNo"), item.get("lotNo"), item.get("expiryDate"),
             f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(), item.get("concentration"),
-        ] for item in reagents])
+        ] for item in reagents], [0.9, 1.25, 0.95, 0.8, 0.8, 0.8, 1.5])
     else:
         document.add_paragraph("No actual reagent-use information was provided.")
 

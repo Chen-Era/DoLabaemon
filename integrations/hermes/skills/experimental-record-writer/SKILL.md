@@ -12,8 +12,8 @@ Create a factual, reviewable record. Treat the user's statement, confirmed inven
 - Record only facts the user supplied, confirmed repository facts, or facts in an attached source. Mark anything else as `未提供` or `待确认`.
 - Never invent a time, lot number, concentration, temperature, duration, replicate count, control, instrument setting, observation, or result. Do not backdate.
 - Keep plans, actual execution, observations, interpretations, and next steps in separate sections. Record failed, negative, and anomalous results without softening or deleting them.
-- Preserve original image and text result files unchanged. Copy them into the record bundle, compute SHA-256, and list them in the record. Treat OCR, image interpretation, and derived tables as derived files with their source identified.
-- Do not put the inventory platform name, URL, token, MCP name, or other service attribution in `record.json`, Markdown, DOCX, audit entries, filenames, or Feishu exports. For a reagent, show its manufacturer (`vendor`) and catalog number only. Service-side access logs retain the lookup provenance.
+- Preserve original image and text result files unchanged. Before copying an attachment, inspect UTF-8 text directly and screen images with local `tesseract` OCR. Copy only an accepted file into the record bundle, compute SHA-256, and list it in the record. Treat OCR, image interpretation, and derived tables as derived files with their source identified.
+- Do not put the inventory platform name, URL, token, MCP name, or other service attribution in `record.json`, Markdown, DOCX, audit entries, filenames, attachments, or Feishu exports. For a reagent, show its manufacturer (`vendor`) and catalog number only. Service-side access logs retain the lookup provenance. If an image OCR check or text attachment contains a platform name, reject it without altering the original file.
 - Start every record as `DRAFT`. Do not attest or review it for the user. A record remains a file-based audit trail, not a claim of 21 CFR Part 11 compliance.
 - Use plain technical language. Prefer short, active sentences and tables. Do not add promotional wording, vague attributions, filler, or em dashes.
 
@@ -41,6 +41,8 @@ python scripts/record_bundle.py create \
 
 3. When the user provides an image or text result, add it to the same bundle. The script copies rather than moves the source. If the record is already attested or reviewed, require a real amendment reason.
 
+Image attachment screening requires a local `tesseract` executable with English recognition data. If it is missing or OCR fails, do not add the image until the check can be completed. Result attachments are limited to images and UTF-8 text files so the record can enforce the platform-name boundary.
+
 ```bash
 python scripts/record_bundle.py add-result \
   --record /absolute/path/records/2026-08-02-rna-extraction \
@@ -60,6 +62,26 @@ python scripts/record_bundle.py attest --record /absolute/path/records/2026-08-0
 
 The bundle contains `record.json` (current structured record), immutable `revisions/`, `audit.jsonl`, `manifest.json`, `record.md`, revisioned exports, and `attachments/`. `record.md` is a current view; revision snapshots and the audit file preserve prior states.
 
+### Sparse experiment name and scenario
+
+When the user supplies only an experiment name and a short scenario, create a `DRAFT` from the selected repository-derived standard workflow. If the user says the experiment was completed, write a concise conventional workflow into `actualSteps` to save the researcher from retyping routine steps. Mark these rows as standard-workflow drafts in the structured record and require the researcher to review them before attestation. Never invent numeric parameters, times, operators, vendors, catalog numbers, lots, dilutions, controls, observations, or results. If the user is only planning an experiment, put the workflow in `plannedSteps` instead.
+
+Use `create-sparse-draft` for a deterministic standard draft. Extract user-reported targets from the scenario and pass each one with `--target`. Use `--reported-as planned` when the user is preparing an experiment rather than reporting one already performed.
+
+For a user-reported target antibody, query the configured inventory MCP before asking for a catalog number. Copy the manufacturer and catalog number only from one exact, user-authorized primary-antibody match; otherwise show candidates or ask the researcher to provide the reagent information. A target name alone must remain a target-detection entry rather than a made-up product.
+
+```bash
+python scripts/record_bundle.py create-sparse-draft \
+  --experiment WB \
+  --scenario "比较缺氧处理后肾癌细胞中 KLF6 的蛋白表达，并以 β-actin 作为上样内参。" \
+  --target KLF6 \
+  --target β-actin \
+  --reported-as reported \
+  --output-dir /absolute/path/records/2026-08-02-klf6-wb
+```
+
+The first bundled template is `WB`, derived from this repository's published WB workflow and reagent checklist. Extend `assets/standard-draft-templates.json` with a new code, aliases, planned steps, reported steps, and required checklist before using another technique. Do not turn a generic template into numeric, pass/fail, or result language.
+
 ## Markdown and DOCX
 
 Markdown is produced automatically. For DOCX, run the exporter with a Python runtime that has `python-docx`, then render and inspect it before delivery. For DOCX work, follow the `documents` skill's render-and-inspect workflow. The exporter embeds supported image attachments inline and lists other source files with their hashes.
@@ -75,7 +97,7 @@ python /path/to/documents/render_docx.py \
 
 Inspect every rendered page. If no DOCX runtime or renderer is available, provide the Markdown record and state that DOCX visual review was not completed.
 
-When a record contains Chinese text, render it on the target delivery runtime. If the target runtime lacks a compatible CJK font, provide the Markdown source and ask the user to verify the DOCX in Microsoft Word or another CJK-capable renderer before treating it as delivered.
+When a record contains Chinese text, render it on the target delivery runtime. If the local headless renderer drops or substitutes CJK glyphs, do not treat that preview as a successful visual check: provide the complete Markdown source and ask the user to verify the DOCX in Microsoft Word, WPS Office, Feishu, or another CJK-capable renderer before treating it as delivered. The DOCX exporter writes an explicit `Arial Unicode MS` East-Asian font preference but cannot install or guarantee fonts in the recipient's renderer.
 
 ## Feishu/Lark delivery
 
