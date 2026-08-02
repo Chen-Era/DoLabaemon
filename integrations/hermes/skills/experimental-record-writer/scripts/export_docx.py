@@ -162,9 +162,9 @@ def export_document(directory: Path, output: Path) -> None:
     add_heading(document, "Reagent-use snapshot", level=2)
     reagents = values(record.get("reagents"))
     if reagents:
-        add_table(document, ["Name", "Vendor", "Catalog no.", "Lot no.", "Expiry", "Amount", "Concentration", "Source"], [[
+        add_table(document, ["Name", "Manufacturer", "Catalog no.", "Lot no.", "Expiry", "Amount", "Concentration"], [[
             item.get("name"), item.get("vendor"), item.get("catalogNo"), item.get("lotNo"), item.get("expiryDate"),
-            f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(), item.get("concentration"), item.get("source"),
+            f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(), item.get("concentration"),
         ] for item in reagents])
     else:
         document.add_paragraph("No actual reagent-use information was provided.")

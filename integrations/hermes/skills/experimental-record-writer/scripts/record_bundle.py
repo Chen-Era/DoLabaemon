@@ -26,6 +26,9 @@ SCHEMA_VERSION = "1.0"
 TERMINAL_STATUSES = {"ATTESTED", "REVIEWED"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 PLACEHOLDER_MARKERS = ("user-to-confirm", "must replace", "to be confirmed", "todo", "tbd")
+PLATFORM_ATTRIBUTION_PATTERN = re.compile(
+    r"(?:dorlabaemon(?:\.era\.ac\.cn)?|dorlabaemon\s+inventory\s+mcp)", re.IGNORECASE
+)
 
 
 class RecordError(ValueError):
@@ -45,6 +48,28 @@ def text(value: Any, missing: str = "未提供") -> str:
         return missing
     value = str(value).strip()
     return value if value else missing
+
+
+def assert_no_platform_attribution(value: Any, location: str = "record") -> None:
+    """Keep service names out of every file that constitutes a record bundle.
+
+    Inventory-service provenance is retained by the service's access logs.  A
+    scientific record identifies a reagent by manufacturer and catalogue
+    number, rather than by the system used to look it up.
+    """
+    if isinstance(value, dict):
+        for key, item in value.items():
+            assert_no_platform_attribution(item, f"{location}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            assert_no_platform_attribution(item, f"{location}[{index}]")
+        return
+    if isinstance(value, str) and PLATFORM_ATTRIBUTION_PATTERN.search(value):
+        raise RecordError(
+            f"实验记录不能包含库存平台名称（位置：{location}）。"
+            "请仅保留试剂厂家、货号和实际实验事实。"
+        )
 
 
 def markdown(value: Any) -> str:
@@ -99,10 +124,12 @@ def load_bundle(directory: Path) -> dict[str, Any]:
         raise RecordError("记录格式不受此版本脚本支持")
     bundle.setdefault("attachments", [])
     bundle["attachments"] = as_list(bundle["attachments"])
+    assert_no_platform_attribution(bundle, "record bundle")
     return bundle
 
 
 def normalized_record(source: dict[str, Any], layout: str, source_path: Path) -> dict[str, Any]:
+    assert_no_platform_attribution(source, "input")
     title = str(source.get("title", "")).strip()
     if not title:
         raise RecordError("输入 JSON 必须提供 title")
@@ -137,7 +164,6 @@ def normalized_record(source: dict[str, Any], layout: str, source_path: Path) ->
         "sourceNotes": source.get("sourceNotes", ""),
         "createdAt": now_iso(),
         "inputSnapshot": {
-            "fileName": source_path.name,
             "sha256": sha256(source_path),
             "capturedAt": now_iso(),
         },
@@ -257,11 +283,11 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     lines.extend(["", "### 试剂实际使用快照", ""])
     if reagents:
         lines.extend(markdown_table(
-            ["名称", "厂商", "货号", "批号", "有效期", "用量", "浓度", "来源"],
+            ["名称", "厂家", "货号", "批号", "有效期", "用量", "浓度"],
             [[
                 item.get("name"), item.get("vendor"), item.get("catalogNo"), item.get("lotNo"),
                 item.get("expiryDate"), f"{text(item.get('amount'), '')} {text(item.get('unit'), '')}".strip(),
-                item.get("concentration"), item.get("source"),
+                item.get("concentration"),
             ] for item in reagents],
         ))
     else:
@@ -364,6 +390,9 @@ def write_manifest(directory: Path, bundle: dict[str, Any], exports: list[dict[s
 
 
 def append_audit(directory: Path, event: str, bundle: dict[str, Any], actor: str, reason: str, details: dict[str, Any] | None = None, previous_revision: int | None = None) -> None:
+    assert_no_platform_attribution(
+        {"event": event, "actor": actor, "reason": reason, "details": details or {}}, "audit event"
+    )
     row = {
         "eventId": uuid.uuid4().hex,
         "event": event,
@@ -465,7 +494,7 @@ def create_command(args: argparse.Namespace) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     source = json_read(source_path)
     bundle = {"schemaVersion": SCHEMA_VERSION, "record": normalized_record(source, args.layout, source_path), "attachments": []}
-    commit_revision(directory, bundle, "CREATE", args.actor, "创建记录草稿", {"inputFile": source_path.name}, None)
+    commit_revision(directory, bundle, "CREATE", args.actor, "创建记录草稿", {"inputSha256": sha256(source_path)}, None)
     print(json.dumps({"record": str(directory), "recordId": bundle["record"]["id"], "revision": 1, "status": "DRAFT"}, ensure_ascii=False))
 
 
@@ -473,6 +502,7 @@ def copy_attachment(directory: Path, path_value: str, kind: str) -> dict[str, An
     source = Path(path_value).expanduser().resolve()
     if not source.is_file():
         raise RecordError(f"附件不存在或不是文件: {source}")
+    assert_no_platform_attribution(source.name, "attachment filename")
     digest = sha256(source)
     stored_name = f"att-{digest[:12]}-{safe_filename(source.name)}"
     destination = directory / "attachments" / stored_name
@@ -500,6 +530,10 @@ def add_result_command(args: argparse.Namespace) -> None:
     previous = int(record["revision"])
     if record.get("status") in TERMINAL_STATUSES and not args.reason:
         raise RecordError("向已证明或已复核记录添加结果时必须提供 --reason")
+    assert_no_platform_attribution(
+        {"summary": args.summary, "observedAt": args.observed_at, "actor": args.actor, "reason": args.reason},
+        "result",
+    )
     attachments = [copy_attachment(directory, item, "derived" if args.derived else "original") for item in args.attachment]
     bundle["attachments"].extend(attachments)
     result = {

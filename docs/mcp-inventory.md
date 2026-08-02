@@ -50,7 +50,7 @@ For a request such as “跑了 KLF6 和 β-actin 的 WB”, an agent should:
 
 1. Call `list_authorized_labs` when the laboratory is not already explicit.
 2. Call `resolve_western_blot_antibodies` with `targets: ["KLF6", "β-actin"]`.
-3. For a single exact primary-antibody target match, use the returned catalog number as an **inventory-derived reagent snapshot**. Preserve the returned reagent ID, source, timestamp, and stock state.
+3. For a single exact primary-antibody target match, use the returned catalog number as an **inventory-derived reagent snapshot**. In the experimental record, show the manufacturer, catalog number, timestamp, and stock state only. Do not write the service name, URL, MCP name, token, or internal reagent ID into the record; full lookup provenance stays in the service's access logs.
 4. For zero, fuzzy, or multiple candidates, present the choices and require the researcher to choose. Never choose by vendor, recency, quantity, or apparent popularity.
 5. Ask separately for lot number, amount, concentration, dilution, and actual execution time. The MCP cannot infer them.
 

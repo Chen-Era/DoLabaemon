@@ -8,7 +8,7 @@ Use the Dorlabaemon inventory MCP only after the user has configured a personal 
 2. Use `resolve_western_blot_antibodies` for a Western blot target list, or `search_lab_reagents` for another named reagent.
 3. Treat every returned item as an inventory candidate. It is never proof of the product, unit, lot, dilution, or volume actually used.
 4. If the MCP returns `ambiguous`, `not_found`, a fuzzy name match, or more than one candidate, show a compact candidate table and ask the researcher to select. Never choose by stock quantity, recency, vendor, or apparent popularity.
-5. A single `resolved` exact primary-antibody target may supply an inventory-derived catalog number only when the user has already said that target was used. Preserve the reagent ID, vendor, catalog number, availability state, lookup timestamp, and `source: Dorlabaemon inventory MCP` in the reagent snapshot.
+5. A single `resolved` exact primary-antibody target may supply an inventory-derived catalog number only when the user has already said that target was used. In the experiment record, preserve only the manufacturer (`vendor`), catalog number, availability state, and lookup timestamp as a generic inventory check. Never write a service name, URL, MCP name, token, or internal reagent ID into the record bundle or its exports. Service-side access logs retain the full lookup provenance.
 6. Still ask for lot number, expiry of the actual container, amount, concentration/dilution, and the actual operation. Leave each missing field as `未提供` or `待确认`.
 
 For “跑了 KLF6 和 β-actin 的 WB”, query the targets as `KLF6` and `β-actin`. The server recognizes the `ACTB` alias but must not conflate a secondary antibody with the requested primary antibody.

@@ -13,6 +13,7 @@ Create a factual, reviewable record. Treat the user's statement, confirmed inven
 - Never invent a time, lot number, concentration, temperature, duration, replicate count, control, instrument setting, observation, or result. Do not backdate.
 - Keep plans, actual execution, observations, interpretations, and next steps in separate sections. Record failed, negative, and anomalous results without softening or deleting them.
 - Preserve original image and text result files unchanged. Copy them into the record bundle, compute SHA-256, and list them in the record. Treat OCR, image interpretation, and derived tables as derived files with their source identified.
+- Do not put the inventory platform name, URL, token, MCP name, or other service attribution in `record.json`, Markdown, DOCX, audit entries, filenames, or Feishu exports. For a reagent, show its manufacturer (`vendor`) and catalog number only. Service-side access logs retain the lookup provenance.
 - Start every record as `DRAFT`. Do not attest or review it for the user. A record remains a file-based audit trail, not a claim of 21 CFR Part 11 compliance.
 - Use plain technical language. Prefer short, active sentences and tables. Do not add promotional wording, vague attributions, filler, or em dashes.
 
