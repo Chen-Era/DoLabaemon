@@ -42,7 +42,11 @@ Returned candidates contain the reagent ID, name, catalog number, vendor, antibo
 
 The exact configuration field name differs by client. Use the client’s documentation, but preserve the endpoint and `Authorization` header. The MCP specification requires bearer tokens to be sent in the authorization header, not in a query string. [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 
-The client must support JSON responses to POST requests and send an `Accept` header for both `application/json` and `text/event-stream`, as required by Streamable HTTP. The endpoint validates any supplied `Origin` header against the configured site origin. [MCP transport specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
+The client must support JSON responses to POST requests and send an `Accept` header for both `application/json` and `text/event-stream`, as required by Streamable HTTP. The endpoint validates any supplied `Origin` header against the configured site origin. It negotiates `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05` during `initialize`; a newer client is offered the newest compatible version rather than being rejected during its first handshake. [MCP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+
+### A client reports HTTP 400 while connecting
+
+The server itself does not need Hermes or any other MCP client SDK. Confirm that the remote URL ends in `/api/mcp`, the `Authorization: Bearer …` header is present, and the client is configured for **Streamable HTTP**. The initial `initialize` request can use a newer protocol header; the server now negotiates down to a supported version. If a later request still receives `MCP_PROTOCOL_VERSION_UNSUPPORTED`, update the client or configure it to use `2025-11-25` (preferred) or one of the versions listed above.
 
 ## Record-writing behavior
 

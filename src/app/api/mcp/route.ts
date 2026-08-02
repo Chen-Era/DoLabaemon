@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { authenticateMcpBearerToken, readBearerToken } from "@/lib/mcp/access-tokens";
-import { executeInventoryMcpRequest, isSupportedInventoryMcpProtocolVersion } from "@/lib/mcp/lab-inventory-protocol";
+import {
+  executeInventoryMcpRequest,
+  inventoryMcpInitializeProtocolVersion,
+  INVENTORY_MCP_PROTOCOL_VERSIONS,
+  isInventoryMcpInitializeRequest,
+  isSupportedInventoryMcpProtocolVersion,
+  LATEST_INVENTORY_MCP_PROTOCOL_VERSION,
+} from "@/lib/mcp/lab-inventory-protocol";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const endpointHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -68,11 +75,31 @@ export async function POST(req: Request) {
       { status: 406, headers: endpointHeaders },
     );
   }
-  const version = protocolVersion(req);
-  if (!isSupportedInventoryMcpProtocolVersion(version)) {
+  const requestedHeaderVersion = protocolVersion(req);
+  let input: unknown;
+  try {
+    input = await req.json();
+  } catch {
     return NextResponse.json(
-      { error: "Unsupported MCP protocol version", code: "MCP_PROTOCOL_VERSION_UNSUPPORTED" },
-      { status: 400, headers: withProtocolHeader(endpointHeaders, "2025-06-18") },
+      { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } },
+      { status: 400, headers: withProtocolHeader(endpointHeaders, requestedHeaderVersion) },
+    );
+  }
+  const isInitializeRequest = isInventoryMcpInitializeRequest(input);
+  // The MCP protocol version is negotiated by the initialize message. A client
+  // may send a newer header there, so rejecting it before that exchange causes
+  // otherwise compatible clients (including Feishu/Hermes bridges) to fail.
+  const version = isInitializeRequest
+    ? inventoryMcpInitializeProtocolVersion(input)
+    : requestedHeaderVersion;
+  if (!isInitializeRequest && !isSupportedInventoryMcpProtocolVersion(version)) {
+    return NextResponse.json(
+      {
+        error: "Unsupported MCP protocol version",
+        code: "MCP_PROTOCOL_VERSION_UNSUPPORTED",
+        supportedProtocolVersions: INVENTORY_MCP_PROTOCOL_VERSIONS,
+      },
+      { status: 400, headers: withProtocolHeader(endpointHeaders, LATEST_INVENTORY_MCP_PROTOCOL_VERSION) },
     );
   }
   let principal;
@@ -87,15 +114,6 @@ export async function POST(req: Request) {
   }
   if (!principal) {
     return unauthorized(version);
-  }
-  let input: unknown;
-  try {
-    input = await req.json();
-  } catch {
-    return NextResponse.json(
-      { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } },
-      { status: 400, headers: withProtocolHeader(endpointHeaders, version) },
-    );
   }
   try {
     const response = await executeInventoryMcpRequest(input, principal);
