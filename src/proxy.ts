@@ -12,8 +12,10 @@ export const config = {
     "/labs/:path*",
     "/reagents/:path*",
     "/experiment-check/:path*",
+    "/mcp/:path*",
     "/api/labs/:path*",
     "/api/reagents/:path*",
     "/api/experiment/:path*",
+    "/api/mcp/tokens/:path*",
   ],
 };

@@ -61,6 +61,14 @@ flowchart LR
 
 实验技术可以作为草稿提交、审核并发布为修订版本。AI 自检和知识写回都会留下记录，实验室管理员可以查看并回滚变更。可选的 Hermes 集成会在服务器上定时整理试剂知识，导出 JSONL 后由项目校验并导入。高置信度的知识库命中可以减少联网核验次数。
 
+#### 实验记录 skill
+
+仓库随 Hermes skills 提供 `experimental-record-writer`。研究者只需说明实际做了什么、用了什么，再补充图片或文本结果，skill 就会创建带修订快照、SHA-256 附件清单和审计事件的本地记录包。默认输出表格化 Markdown，也可导出 DOCX；需要团队协作时，可在用户完成授权后通过飞书官方 `lark-cli` 创建云文档并逐个插入结果附件。该功能写入用户指定的本地目录或飞书，不会自动写入本项目的 Web 数据库。安装和使用说明见 [Hermes 知识管家](integrations/hermes/README.md#实验记录-skill)。
+
+#### 库存 MCP
+
+已登录用户可在 **MCP 接入** 页面创建可撤销、可过期的只读令牌，将 `https://dorlabaemon.era.ac.cn/api/mcp` 配置到支持 Streamable HTTP 的本地模型或受控 Agent。MCP 在每次调用时重新验证实验室成员权限；它能为如“跑了 KLF6 和 β-actin 的 WB”返回已有一抗候选及货号，但只在唯一精确匹配时提供库存来源快照，多候选必须由研究者选择。库存结果不是本次实际使用的证据。见 [库存 MCP 指南](docs/mcp-inventory.md)。
+
 #### 网页版和桌面端
 
 Web 应用使用 Next.js，桌面端使用 Electron，两端共享一个项目代码库。桌面端连接已部署的服务，不在本地运行数据库或保存服务端密钥。
@@ -180,6 +188,8 @@ npm run desktop:dist:win
 | [桌面客户端](docs/desktop-client.md) | Electron 客户端的构建、配置与安全边界。 |
 | [服务器部署](docs/deployment-server.md) | Docker、Caddy 和 Nginx 的生产部署。 |
 | [Hermes 知识管家](integrations/hermes/README.md) | Hermes 的部署、定时产出与导入流程。 |
+| [实验记录 skill](integrations/hermes/README.md#实验记录-skill) | 本地可追溯实验记录、结果附件、MD/DOCX 导出与飞书发布。 |
+| [库存 MCP](docs/mcp-inventory.md) | 登录授权后的实验室库存检索、模型配置、货号回填边界与飞书接入路线。 |
 | [Hermes 集成机制](docs/hermes-integration.md) | 项目侧的校验、写库和检索置信度机制。 |
 
 ### 生产部署
@@ -236,6 +246,14 @@ After a reagent name or catalog number is entered, the system can generate a str
 #### Maintainable rules and knowledge
 
 Experiment techniques can be submitted as drafts, reviewed, and published as revisions. AI self-checks and knowledge write-backs are recorded so laboratory administrators can review and roll back changes. The optional Hermes integration researches reagent knowledge on a server at scheduled intervals, exports JSONL, and lets the project validate and import it. High-confidence knowledge-base matches can reduce online verification.
+
+#### Experimental-record skill
+
+The repository ships `experimental-record-writer` with the Hermes skills. A researcher can state what was actually done and used, then add image or text results. The skill creates a local record bundle with revision snapshots, a SHA-256 attachment manifest, and audit events. Table-based Markdown is the default, and DOCX export is available. After the user authorizes the official Lark/Feishu `lark-cli`, the confirmed snapshot can also become a Feishu document with its result files inserted in sequence. This workflow writes only to a user-selected local directory or Feishu. It does not automatically persist anything in this application's web database. See the [Hermes guide](integrations/hermes/README.md#实验记录-skill).
+
+#### Inventory MCP
+
+Signed-in users can create a revocable, expiring read-only token on the **MCP Access** page and configure `https://dorlabaemon.era.ac.cn/api/mcp` in a Streamable HTTP-capable local model or controlled agent. Every call rechecks laboratory membership. For a request such as “ran a KLF6 and β-actin WB,” the MCP can return existing primary-antibody candidates and catalog numbers; only one exact match is an inventory-derived snapshot, while multiple candidates require the researcher’s selection. Inventory is not evidence of actual use. See the [inventory MCP guide](docs/mcp-inventory.md).
 
 #### One workspace for team collaboration
 
@@ -356,6 +374,8 @@ See the [desktop client guide](docs/desktop-client.md) for connection scope, sec
 | [Desktop client](docs/desktop-client.md) | Build, configuration, and security boundaries for the Electron client. |
 | [Server deployment](docs/deployment-server.md) | Production deployment with Docker, Caddy, and Nginx. |
 | [Hermes knowledge steward](integrations/hermes/README.md) | Hermes setup, scheduled output, and import workflow. |
+| [Experimental-record skill](integrations/hermes/README.md#实验记录-skill) | Traceable local records, result attachments, MD/DOCX export, and Feishu publishing. |
+| [Inventory MCP](docs/mcp-inventory.md) | Signed-in inventory retrieval, model setup, catalog-number enrichment, and the Feishu integration boundary. |
 | [Hermes integration](docs/hermes-integration.md) | Project-side validation, persistence, and retrieval-confidence behavior. |
 
 ### Production deployment

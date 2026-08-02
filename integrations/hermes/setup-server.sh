@@ -7,7 +7,8 @@
 #
 # 本脚本完成：
 #   1. 检测并安装 Hermes Agent（官方安装器，见 NousResearch/hermes-agent 的 README）
-#   2. 把本目录 skills/ 下的全部子目录（reagent-curator、reagent-parser …）
+#   2. 把本目录 skills/ 下的全部子目录（reagent-curator、reagent-parser、
+#      experimental-record-writer 等）
 #      拷贝到 Hermes 的 skills 目录（默认 ~/.hermes/skills/）
 #   3. 创建知识导出目录（默认 integrations/hermes/output/）
 #   4. 打印下一步手动指引（用 hermes cron/routine 机制定时产出 JSONL）

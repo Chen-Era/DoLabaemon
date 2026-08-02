@@ -1,0 +1,59 @@
+{
+  "title": "RT-qPCR RNA extraction",
+  "performedAt": "2026-08-02T14:00:00+08:00",
+  "performedBy": ["Zhang San"],
+  "project": "Example project",
+  "objective": "Extract total RNA for later RT-qPCR.",
+  "technique": {
+    "code": "RNA_EXTRACTION",
+    "name": "Total RNA extraction",
+    "revision": "user-confirmed"
+  },
+  "protocol": {
+    "title": "Local RNA extraction SOP",
+    "version": "v1.2",
+    "url": "https://example.invalid/sop/rna-extraction"
+  },
+  "samples": [
+    {
+      "id": "Sample-01",
+      "description": "User-supplied sample description",
+      "source": "user"
+    }
+  ],
+  "reagents": [
+    {
+      "name": "TRIzol",
+      "vendor": "Invitrogen",
+      "catalogNo": "15596026",
+      "lotNo": "USER-TO-CONFIRM",
+      "expiryDate": "",
+      "amount": "1",
+      "unit": "mL",
+      "concentration": "",
+      "source": "user-confirmed"
+    }
+  ],
+  "instruments": [],
+  "software": [],
+  "plannedSteps": [
+    "Follow the selected SOP. This is a plan, not an execution claim."
+  ],
+  "actualSteps": [
+    {
+      "sequence": 1,
+      "startedAt": "2026-08-02T14:00:00+08:00",
+      "endedAt": "",
+      "action": "User must replace this example with the actual action.",
+      "parameters": [],
+      "performedBy": "Zhang San"
+    }
+  ],
+  "controls": [],
+  "deviations": [],
+  "observations": [],
+  "conclusion": "",
+  "nextSteps": "",
+  "ethicsReference": "",
+  "sourceNotes": "Replace all example values before attestation."
+}
