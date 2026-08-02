@@ -23,6 +23,8 @@
 - `GET/POST /api/settings/llm`: 读取或保存用户级模型、搜索、skill、MCP、自检与自动学习配置
 - `POST /api/settings/llm/test`: 测试模型、搜索、skill registry 与 MCP 注册状态
 - `GET/POST /api/settings/ai-policy`: 读取或保存实验室级 AI 写回策略
+- `GET/POST/DELETE /api/mcp/tokens`: 已登录用户列出、创建或撤销其只读库存 MCP 个人访问令牌；明文令牌只在创建响应中出现一次
+- `POST /api/mcp`: 使用 `Authorization: Bearer <personal-token>` 的只读 Streamable HTTP MCP；提供实验室列表、试剂检索与 WB 一抗候选解析，且每次调用重新检查实验室成员权限
 - `GET /api/knowledge/logs?labId=...`: 查询知识变更日志
 - `POST /api/knowledge/rollback`: 回滚某条知识变更日志
 - 仪表盘页面 `/knowledge`：调用上述接口展示知识审计记录、前后内容摘要与回滚操作

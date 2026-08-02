@@ -1,0 +1,4 @@
+interface:
+  display_name: "实验记录助手"
+  short_description: "将实验实际步骤、试剂和原始结果整理为可追溯记录文件包，供复核存档"
+  default_prompt: "Use $experimental-record-writer to create a traceable experiment record from my actual experiment and results."

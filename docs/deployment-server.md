@@ -117,6 +117,8 @@ docker compose -f docker-compose.prod.yml exec app npm run knowledge:sync
 
 每次拉取新代码重建镜像后，迁移与知识同步都需要按上面顺序重跑一次。
 
+本版本加入库存 MCP 时，`prisma migrate deploy` 会创建 MCP 访问令牌表。部署完成后可在登录后的 **MCP 接入** 页面创建可撤销、限期的只读令牌；不要通过环境变量、反向代理日志或飞书消息分发令牌。MCP 配置与飞书接入边界见 [库存 MCP 指南](mcp-inventory.md)。
+
 查看运行状态：
 
 ```bash

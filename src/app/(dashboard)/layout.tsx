@@ -44,6 +44,7 @@ const navGroups: NavGroup[] = [
     label: "管理",
     items: [
       { href: "/knowledge", label: "实验知识库", icon: SidebarKnowledgeIcon },
+      { href: "/mcp", label: "MCP 接入", icon: SidebarSettingsIcon },
       { href: "/settings", label: "设置", icon: SidebarSettingsIcon },
     ],
   },
@@ -55,6 +56,7 @@ const pageMeta = [
   { href: "/reagents/new", title: "录入试剂" },
   { href: "/experiment-check", title: "实验检查" },
   { href: "/knowledge", title: "实验知识库" },
+  { href: "/mcp", title: "MCP 接入" },
   { href: "/settings", title: "设置" },
   { href: "/reagents", title: "试剂清单" },
   { href: "/labs", title: "实验室" },
@@ -74,6 +76,8 @@ function navigationLabel(href: string | undefined) {
       return "Experiment knowledge";
     case "/settings":
       return "Settings";
+    case "/mcp":
+      return "MCP access";
     default:
       return "Research workspace";
   }
