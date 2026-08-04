@@ -175,6 +175,7 @@ export default function AnimalsPage() {
   const [detailRack, setDetailRack] = useState<ApiRack | null>(null);
   const [cageLoading, setCageLoading] = useState(false);
   const [savingCage, setSavingCage] = useState(false);
+  const [resettingCage, setResettingCage] = useState(false);
   const [cageMessage, setCageMessage] = useState<string | null>(null);
   const [bulkContext, setBulkContext] = useState<AnimalBulkRecordContext | null>(null);
   const [savingOperation, setSavingOperation] = useState(false);
@@ -434,6 +435,34 @@ export default function AnimalsPage() {
     }
   }
 
+  async function resetCage() {
+    const cageId = selectedApiCage?.id;
+    const position = selectedTag?.position;
+    if (!cageId || !position) return;
+    setResettingCage(true);
+    setCageMessage(null);
+    try {
+      const { response, data } = await requestJson<{ error?: string }>(`/api/animals/cages/${encodeURIComponent(cageId)}/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) throw new Error(data?.error ?? "重置笼牌失败");
+      setCageDialog(null);
+      setDetailCage(null);
+      setDetailRack(null);
+      setError(null);
+      setStatusMessage(`${position} 笼牌已重置，笼位现可重新创建笼牌。`);
+      await loadRacks(labId, { keepBoard: true });
+    } catch (resetError) {
+      const message = resetError instanceof Error ? resetError.message : "重置笼牌失败，请稍后重试。";
+      setError(message);
+      setCageMessage(message);
+    } finally {
+      setResettingCage(false);
+    }
+  }
+
   async function saveCageBatch(record: AnimalBatchCageCreateRecord) {
     if (!cageBatchContext) return;
     const positions = record.positions.map(indicesFor);
@@ -575,18 +604,25 @@ export default function AnimalsPage() {
 
       {cageDialog && selectedTag ? (
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget && !savingCage) setCageDialog(null);
+          if (event.target === event.currentTarget && !savingCage && !resettingCage) setCageDialog(null);
         }}>
           <section className={styles.modal} role="dialog" aria-modal="true" aria-label={`${selectedTag.position} 笼牌`}>
             <header className={styles.modalHeader}>
               <p><strong>{selectedTag.position}</strong> · 笼牌与小鼠动态</p>
-              <button type="button" className={styles.modalClose} onClick={() => setCageDialog(null)} disabled={savingCage} aria-label="关闭笼牌">×</button>
+              <button type="button" className={styles.modalClose} onClick={() => setCageDialog(null)} disabled={savingCage || resettingCage} aria-label="关闭笼牌">×</button>
             </header>
             <div className={styles.modalBody}>
               {cageLoading ? <p className="text-sm text-slate-500">正在读取笼牌历史…</p> : null}
               {cageMessage ? <p className={`${cageMessage.startsWith("笼牌已保存") ? "success-panel" : "danger-panel"} mb-4 text-sm`} role="status">{cageMessage}</p> : null}
               <div className={styles.cageWorkflow}>
-                <AnimalCageEditor cage={selectedTag} busy={savingCage} onCancel={() => setCageDialog(null)} onSave={saveCage} />
+                <AnimalCageEditor
+                  cage={selectedTag}
+                  busy={savingCage || resettingCage}
+                  resetBusy={resettingCage}
+                  onCancel={() => setCageDialog(null)}
+                  onSave={saveCage}
+                  onReset={selectedApiCage?.id ? resetCage : undefined}
+                />
                 <section className={styles.historyPanel}>
                   <h2>操作记录</h2>
                   <p>按鼠或整笼批量登记的项目会自动汇总在这里。</p>

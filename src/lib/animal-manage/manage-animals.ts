@@ -7,6 +7,7 @@ import {
   makeActiveSlotKey,
   type AnimalCageBatchCreateInput,
   type AnimalCageCreateInput,
+  type AnimalCageResetInput,
   type AnimalCageUpdateInput,
   type AnimalBatchAdmissionInput,
   type AnimalOperationCreateInput,
@@ -49,7 +50,9 @@ function serializeCage<T extends {
 }
 
 function serializeRack<T extends { cages: Array<{ rowIndex: number; columnIndex: number; movedInAt: Date; initialAgeWeeks: number; mice?: Array<unknown> }> }>(rack: T) {
-  return { ...rack, cages: rack.cages.map(serializeCage) };
+  // Do not pass serializeCage directly to Array.map: map's second argument is
+  // the row index, which otherwise overwrites the derived resident count.
+  return { ...rack, cages: rack.cages.map((cage) => serializeCage(cage)) };
 }
 
 function isUniqueConstraintError(error: unknown) {
@@ -285,6 +288,55 @@ export async function updateAnimalCage(cageId: string, input: AnimalCageUpdateIn
     include: { mice: activeMouseInclude },
   });
   return serializeCage(updated);
+}
+
+/**
+ * Retires an in-use cage card without deleting its audit trail.  The unique
+ * active slot key is released only after all active mice have been recorded
+ * as leaving, so a new card can safely be created in the same position.
+ */
+export async function resetAnimalCage(cageId: string, input: AnimalCageResetInput, createdById: string) {
+  return prisma.$transaction(async (tx) => {
+    const cage = await tx.animalCage.findUnique({
+      where: { id: cageId },
+      include: {
+        rack: { select: { labId: true } },
+        mice: { where: { status: "ACTIVE" }, select: { id: true } },
+      },
+    });
+    if (!cage) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+    if (cage.status !== "ACTIVE") throw new Error("ANIMAL_CAGE_CLOSED");
+
+    const resetAt = dateFromInput(input.resetAt);
+    const activeMouseIds = cage.mice.map((mouse) => mouse.id);
+    const reason = input.reason?.trim() || "笼牌重置";
+
+    if (activeMouseIds.length) {
+      await tx.animalMouse.updateMany({
+        where: { id: { in: activeMouseIds }, status: "ACTIVE" },
+        data: { status: "LEFT", movedOutAt: resetAt, leaveReason: reason },
+      });
+      await tx.animalOperation.createMany({
+        data: activeMouseIds.map((mouseId) => ({
+          labId: cage.rack.labId,
+          mouseId,
+          cageId,
+          operationType: "笼牌重置",
+          operationAt: resetAt,
+          note: reason,
+          sourceScope: "SYSTEM",
+          createdById,
+        })),
+      });
+    }
+
+    await tx.animalCage.update({
+      where: { id: cageId },
+      data: { status: "CLOSED", activeSlotKey: null, closedAt: resetAt },
+    });
+
+    return { cageId, resetAt, departedMouseIds: activeMouseIds };
+  });
 }
 
 export async function updateAnimalCageResidents(

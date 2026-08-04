@@ -83,4 +83,33 @@ test("demo animal records retain per-mouse operations after a cage becomes empty
   assert.equal(persistedCage?.mice.length, 5, "detail keeps former mice for audit history");
   assert.ok(persistedCage?.mice.every((mouse) => mouse.operations.some((item) => item.operationType === "给药")));
   assert.ok(persistedCage?.mice.every((mouse) => mouse.operations.some((item) => item.operationType === "离笼")));
+
+  const resettableCage = demoStore.demoCreateAnimalCage({
+    labId: "demo-lab",
+    rackId: rack.id,
+    rowIndex: 2,
+    columnIndex: 1,
+    movedInAt: "2026-08-04",
+    initialAgeWeeks: 7,
+    sex: "MALE",
+    mouseCount: 2,
+  }, "demo-user");
+  const reset = demoStore.demoResetAnimalCage(resettableCage.id, {
+    resetAt: "2026-08-05",
+    reason: "更换实验批次",
+  }, "demo-user");
+  assert.equal(reset.departedMouseIds.length, 2, "reset marks every still-active mouse as having left");
+  assert.equal(demoStore.demoListAnimalRacks("demo-lab")[0]?.cages.some((item) => item.id === resettableCage.id), false);
+
+  const replacement = demoStore.demoCreateAnimalCage({
+    labId: "demo-lab",
+    rackId: rack.id,
+    rowIndex: 2,
+    columnIndex: 1,
+    movedInAt: "2026-08-06",
+    initialAgeWeeks: 8,
+    sex: "FEMALE",
+    mouseCount: 1,
+  }, "demo-user");
+  assert.equal(replacement.positionName, "A2", "reset releases the position for a replacement card");
 });

@@ -126,6 +126,16 @@ export const animalCageUpdateSchema = z
   .partial()
   .refine((value) => Object.values(value).some((item) => item !== undefined), { message: "EMPTY_UPDATE" });
 
+/**
+ * Closes the current cage card and releases its Excel-style position for a
+ * replacement card. Any still-active residents are marked as having left at
+ * the reset time; their mouse and operation history is retained.
+ */
+export const animalCageResetSchema = z.object({
+  resetAt: optionalDateInputSchema,
+  reason: nullableTrimmedString(500),
+});
+
 export const animalResidentUpdateSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("ADMIT"),
@@ -203,6 +213,7 @@ export type AnimalRackUpdateInput = z.infer<typeof animalRackUpdateSchema>;
 export type AnimalCageCreateInput = z.infer<typeof animalCageCreateSchema>;
 export type AnimalCageBatchCreateInput = z.infer<typeof animalCageBatchCreateSchema>;
 export type AnimalCageUpdateInput = z.infer<typeof animalCageUpdateSchema>;
+export type AnimalCageResetInput = z.infer<typeof animalCageResetSchema>;
 export type AnimalResidentUpdateInput = z.infer<typeof animalResidentUpdateSchema>;
 export type AnimalBatchAdmissionInput = z.infer<typeof animalBatchAdmissionSchema>;
 export type AnimalOperationCreateInput = z.infer<typeof animalOperationCreateSchema>;

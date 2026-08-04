@@ -222,17 +222,21 @@ export type AnimalCageEditorProps = {
   asOfDate?: string;
   submitLabel?: string;
   busy?: boolean;
+  resetBusy?: boolean;
   onCancel?: () => void;
   onSave: (result: { cage: AnimalCageTag; movement: AnimalCageMovement | null }) => void | Promise<void>;
+  /** Only supplied for an existing cage tag; removes the tag after a deliberate confirmation. */
+  onReset?: () => void | Promise<void>;
 };
 
 /**
  * A self-contained cage-tag form. It returns both the updated cage and an optional
  * stock movement so persistence code can keep its tag and audit log in sync.
  */
-export function AnimalCageEditor({ cage, asOfDate = localDateString(), submitLabel = "保存笼牌", busy = false, onCancel, onSave }: AnimalCageEditorProps) {
+export function AnimalCageEditor({ cage, asOfDate = localDateString(), submitLabel = "保存笼牌", busy = false, resetBusy = false, onCancel, onSave, onReset }: AnimalCageEditorProps) {
   const [values, setValues] = useState<CageEditorValues>(() => toEditorValues(cage));
   const [error, setError] = useState<string | null>(null);
+  const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false);
   const baselineCount = Math.max(0, Math.trunc(cage.mouseCount));
   const enteredCount = Number(values.countValue);
   const nextCount = values.countMode === "SET"
@@ -403,6 +407,35 @@ export function AnimalCageEditor({ cage, asOfDate = localDateString(), submitLab
         <span>备注</span>
         <textarea rows={3} value={values.note ?? ""} placeholder="可记录来源、禁配信息或其他注意事项" onChange={(event) => updateValue("note", event.target.value)} />
       </label>
+
+      {cage.id && onReset ? (
+        <section className={styles.resetPanel} aria-label="危险操作">
+          <div className={styles.resetPanelHeading}>
+            <div>
+              <p>危险操作</p>
+              <h3>重置笼牌</h3>
+            </div>
+            {!resetConfirmationOpen ? (
+              <button className={styles.resetTrigger} type="button" onClick={() => setResetConfirmationOpen(true)} disabled={busy || resetBusy}>
+                重置笼牌…
+              </button>
+            ) : null}
+          </div>
+          {resetConfirmationOpen ? (
+            <div className={styles.resetConfirmation} role="alert">
+              <p>确认后将清空该笼位当前在笼的 <strong>{baselineCount}</strong> 只小鼠，并移除这张笼牌；笼位会恢复为可创建笼牌的状态。此操作不可撤销。</p>
+              <div className={styles.resetActions}>
+                <button className="button-secondary" type="button" onClick={() => setResetConfirmationOpen(false)} disabled={resetBusy}>取消</button>
+                <button className={styles.resetConfirmButton} type="button" onClick={() => void onReset()} disabled={busy || resetBusy}>
+                  {resetBusy ? "正在重置…" : "确认重置笼牌"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className={styles.resetHint}>用于撤销错误建档或清空已结束的笼位；不会影响其他笼位。</p>
+          )}
+        </section>
+      ) : null}
 
       {error ? <p className={styles.errorMessage} role="alert">{error}</p> : null}
       <div className={styles.formActions}>

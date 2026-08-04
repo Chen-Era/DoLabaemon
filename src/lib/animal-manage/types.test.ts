@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   animalBatchAdmissionSchema,
   animalCageBatchCreateSchema,
+  animalCageResetSchema,
   animalOperationCreateSchema,
   animalRackCreateSchema,
   cagePositionName,
@@ -57,6 +58,12 @@ test("batch cage creation accepts distinct Excel positions and rejects duplicate
   };
   assert.equal(animalCageBatchCreateSchema.safeParse(payload).success, true);
   assert.equal(animalCageBatchCreateSchema.safeParse({ ...payload, positions: [payload.positions[0], payload.positions[0]] }).success, false);
+});
+
+test("cage reset accepts an optional reset date and reason", () => {
+  assert.equal(animalCageResetSchema.safeParse({}).success, true);
+  assert.equal(animalCageResetSchema.safeParse({ resetAt: "2026-08-04", reason: "换批次" }).success, true);
+  assert.equal(animalCageResetSchema.safeParse({ resetAt: "not-a-date" }).success, false);
 });
 
 test("current age accumulates from the entry date and never runs backwards", () => {

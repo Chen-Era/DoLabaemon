@@ -388,6 +388,102 @@
   line-height: 1.45;
 }
 
+.resetPanel {
+  margin-top: 1.15rem;
+  border: 1px solid rgba(177, 59, 79, 0.28);
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, rgba(177, 59, 79, 0.08), rgba(255, 255, 255, 0));
+  padding: 0.9rem;
+}
+
+.resetPanelHeading,
+.resetActions {
+  display: flex;
+  align-items: center;
+}
+
+.resetPanelHeading {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.resetPanelHeading p,
+.resetPanelHeading h3,
+.resetHint,
+.resetConfirmation p {
+  margin: 0;
+}
+
+.resetPanelHeading p {
+  color: var(--danger);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.resetPanelHeading h3 {
+  margin-top: 0.18rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.resetHint,
+.resetConfirmation p {
+  margin-top: 0.52rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.resetConfirmation p strong {
+  color: var(--danger);
+}
+
+.resetTrigger,
+.resetConfirmButton {
+  border-radius: var(--radius-sm);
+  padding: 0.48rem 0.62rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.resetTrigger {
+  border: 1px solid rgba(177, 59, 79, 0.34);
+  background: var(--surface);
+  color: var(--danger);
+}
+
+.resetTrigger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.resetActions {
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.resetConfirmButton {
+  border: 1px solid var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.resetConfirmButton:hover:not(:disabled) {
+  filter: brightness(0.93);
+}
+
+.resetTrigger:disabled,
+.resetConfirmButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .formActions {
   justify-content: flex-end;
   gap: 0.6rem;

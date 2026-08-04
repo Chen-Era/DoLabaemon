@@ -29,6 +29,7 @@ import {
   makeActiveSlotKey,
   type AnimalCageBatchCreateInput,
   type AnimalCageCreateInput,
+  type AnimalCageResetInput,
   type AnimalCageUpdateInput,
   type AnimalBatchAdmissionInput,
   type AnimalOperationCreateInput,
@@ -1250,6 +1251,45 @@ export function demoUpdateAnimalCage(cageId: string, input: AnimalCageUpdateInpu
   cage.updatedAt = new Date().toISOString();
   writeStore(store);
   return demoAnimalCage(store, cage);
+}
+
+/** Demo-mode equivalent of closing a card and releasing its rack position. */
+export function demoResetAnimalCage(cageId: string, input: AnimalCageResetInput, createdById: string) {
+  const store = readStore();
+  const cage = store.animalCages.find((item) => item.id === cageId);
+  const rack = cage ? store.animalRacks.find((item) => item.id === cage.rackId) : null;
+  if (!cage || !rack) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+  if (cage.status !== "ACTIVE") throw new Error("ANIMAL_CAGE_CLOSED");
+
+  const now = new Date().toISOString();
+  const resetAt = demoAnimalDate(input.resetAt);
+  const reason = input.reason?.trim() || "笼牌重置";
+  const activeMice = store.animalMice.filter((mouse) => mouse.cageId === cageId && mouse.status === "ACTIVE");
+  for (const mouse of activeMice) {
+    mouse.status = "LEFT";
+    mouse.movedOutAt = resetAt;
+    mouse.leaveReason = reason;
+    mouse.updatedAt = now;
+    store.animalOperations.push({
+      id: uid("animal-operation"),
+      labId: rack.labId,
+      mouseId: mouse.id,
+      cageId,
+      operationType: "笼牌重置",
+      operationAt: resetAt,
+      note: reason,
+      sourceScope: "SYSTEM",
+      batchId: null,
+      createdById,
+      createdAt: now,
+    });
+  }
+  cage.status = "CLOSED";
+  cage.activeSlotKey = null;
+  cage.closedAt = resetAt;
+  cage.updatedAt = now;
+  writeStore(store);
+  return { cageId, resetAt, departedMouseIds: activeMice.map((mouse) => mouse.id) };
 }
 
 export function demoUpdateAnimalCageResidents(cageId: string, input: AnimalResidentUpdateInput, createdById: string) {
