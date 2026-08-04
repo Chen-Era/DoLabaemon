@@ -176,6 +176,7 @@ export async function createAnimalCage(input: AnimalCageCreateInput, createdById
           strain: input.strain ?? null,
           sex: input.sex,
           genotype: input.genotype?.trim() || "WT",
+          project: input.project ?? null,
           note: input.note ?? null,
         },
       });
@@ -235,6 +236,7 @@ export async function createAnimalCagesBatch(input: AnimalCageBatchCreateInput, 
         strain: input.strain ?? null,
         sex: input.sex,
         genotype: input.genotype?.trim() || "WT",
+        project: input.project ?? null,
         note: input.note ?? null,
       }));
       await tx.animalCage.createMany({ data: cages });
@@ -283,6 +285,7 @@ export async function updateAnimalCage(cageId: string, input: AnimalCageUpdateIn
       strain: input.strain,
       sex: input.sex,
       genotype: input.genotype === null ? "WT" : input.genotype,
+      project: input.project,
       note: input.note,
     },
     include: { mice: activeMouseInclude },

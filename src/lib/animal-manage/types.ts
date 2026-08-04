@@ -35,6 +35,7 @@ const cageCardFields = {
   strain: nullableTrimmedString(200),
   sex: z.enum(animalSexValues).default("UNKNOWN"),
   genotype: nullableTrimmedString(500),
+  project: nullableTrimmedString(200),
   note: nullableTrimmedString(2_000),
 };
 

@@ -500,7 +500,8 @@
 }
 
 .cageName,
-.cageGenotype {
+.cageGenotype,
+.cageProject {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -520,6 +521,14 @@
   font-family: var(--font-mono);
   font-size: 0.61rem;
   line-height: 1.35;
+}
+
+.cageProject {
+  margin-top: 0.12rem;
+  color: #5c8078;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .cellBottomline {

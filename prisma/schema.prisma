@@ -647,6 +647,7 @@ model AnimalCage {
   strain            String?
   sex               AnimalSex         @default(UNKNOWN)
   genotype          String            @default("WT")
+  project           String?
   note              String?
   closedAt          DateTime?
   createdAt         DateTime          @default(now())

@@ -453,6 +453,7 @@ export type AnimalBatchCageCreateRecord = {
   strain: string;
   sex: AnimalSex;
   genotype: string;
+  project?: string | null;
   mouseCount: number;
   note?: string | null;
 };
@@ -481,6 +482,7 @@ export function AnimalBatchCageCreateForm({
   const [strain, setStrain] = useState("");
   const [sex, setSex] = useState<AnimalSex>("UNKNOWN");
   const [genotype, setGenotype] = useState("WT");
+  const [project, setProject] = useState("");
   const [mouseCount, setMouseCount] = useState("0");
   const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
@@ -528,6 +530,7 @@ export function AnimalBatchCageCreateForm({
       strain: strain.trim(),
       sex,
       genotype: genotype.trim() || "WT",
+      project: cleanOptional(project),
       mouseCount: count,
       note: cleanOptional(note),
     });
@@ -596,6 +599,10 @@ export function AnimalBatchCageCreateForm({
         <label className={styles.field}>
           <span>基因型</span>
           <input value={genotype} placeholder="留空即野生型（WT）" onChange={(event) => setGenotype(event.target.value)} />
+        </label>
+        <label className={styles.field}>
+          <span>所属课题</span>
+          <input value={project} placeholder="例如 PD-1 阻断实验" onChange={(event) => setProject(event.target.value)} />
         </label>
         <label className={styles.field}>
           <span>每笼初始小鼠数量 <em>*</em></span>

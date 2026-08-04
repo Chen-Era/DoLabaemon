@@ -54,6 +54,7 @@ test("batch cage creation accepts distinct Excel positions and rejects duplicate
     initialAgeWeeks: 6,
     strain: "C57BL/6J",
     sex: "FEMALE",
+    project: "肿瘤模型",
     mouseCount: 5,
   };
   assert.equal(animalCageBatchCreateSchema.safeParse(payload).success, true);

@@ -30,12 +30,17 @@ test("demo animal records retain per-mouse operations after a cage becomes empty
     initialAgeWeeks: 6,
     strain: "C57BL/6J",
     sex: "MIXED",
+    project: "肿瘤模型",
     mouseCount: 2,
   }, "demo-user");
 
   assert.equal(cage.positionName, "Z26");
   assert.equal(cage.mouseCount, 2);
   assert.equal(cage.genotype, "WT", "an unspecified genotype defaults to wild type");
+  assert.equal(cage.project, "肿瘤模型", "the project is retained when a cage card is created");
+
+  const updatedCage = demoStore.demoUpdateAnimalCage(cage.id, { project: "免疫治疗" });
+  assert.equal(updatedCage.project, "免疫治疗", "the project can be updated with the cage card");
 
   const batchCages = demoStore.demoCreateAnimalCagesBatch({
     labId: "demo-lab",
@@ -45,10 +50,12 @@ test("demo animal records retain per-mouse operations after a cage becomes empty
     initialAgeWeeks: 6,
     strain: "C57BL/6J",
     sex: "FEMALE",
+    project: "批量课题",
     mouseCount: 5,
   }, "demo-user");
   assert.equal(batchCages.length, 2);
   assert.ok(batchCages.every((item) => item.mouseCount === 5), "initial per-cage counts are persisted as mouse records");
+  assert.ok(batchCages.every((item) => item.project === "批量课题"), "the batch project is retained on every cage card");
 
   const admission = demoStore.demoBatchAdmitAnimalCages({
     labId: "demo-lab",

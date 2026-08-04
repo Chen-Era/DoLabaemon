@@ -19,6 +19,7 @@ export type AnimalCage = {
   strain?: string | null;
   sex?: AnimalCageSex | null;
   genotype?: string | null;
+  project?: string | null;
   status?: AnimalCageStatus | null;
   note?: string | null;
 };
@@ -445,7 +446,7 @@ export function AnimalRackBoard({
                   const capacity = cage?.capacity;
                   const displayName = cage?.strain || "未设置笼牌";
                   const cageLabel = cage
-                    ? `${position}，${displayName}，${cage.mouseCount} 只，${sexMeta[sex].label}，${statusMeta[status].label}`
+                    ? `${position}，${displayName}，${cage.project ? `课题：${cage.project}，` : ""}${cage.mouseCount} 只，${sexMeta[sex].label}，${statusMeta[status].label}`
                     : `${position}，空笼位`;
                   return (
                     <button
@@ -466,6 +467,7 @@ export function AnimalRackBoard({
                         <>
                           <span className={styles.cageName} title={displayName}>{displayName}</span>
                           <span className={styles.cageGenotype} title={cage.genotype || "野生型（WT）"}>{cage.genotype || "野生型（WT）"}</span>
+                          {cage.project ? <span className={styles.cageProject} title={`所属课题：${cage.project}`}>{cage.project}</span> : null}
                           <span className={styles.cellBottomline}>
                             <span className={styles.mouseCount}>
                               <strong>{cage.mouseCount}</strong>
@@ -520,6 +522,7 @@ export function AnimalRackBoard({
                   <div><dt>进驻日期</dt><dd>{formatDate(selectedCage.receivedAt)}</dd></div>
                   <div><dt>当前周龄</dt><dd>{currentAge(selectedCage)}</dd></div>
                   <div><dt>性别</dt><dd>{sexMeta[sexFor(selectedCage)].symbol} {sexMeta[sexFor(selectedCage)].label}</dd></div>
+                  <div><dt>所属课题</dt><dd>{selectedCage.project || "未设置"}</dd></div>
                   <div><dt>笼牌编号</dt><dd>{selectedCage.id}</dd></div>
                 </dl>
 

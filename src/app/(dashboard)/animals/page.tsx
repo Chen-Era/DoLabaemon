@@ -46,6 +46,7 @@ type ApiCage = {
   strain?: string | null;
   sex: AnimalSex;
   genotype?: string | null;
+  project?: string | null;
   note?: string | null;
   mouseCount?: number;
   mice?: ApiMouse[];
@@ -105,6 +106,7 @@ function toBoardRack(rack: ApiRack): BoardRack {
       strain: cage.strain,
       sex: toBoardSex(cage.sex),
       genotype: cage.genotype || "WT",
+      project: cage.project ?? undefined,
       status: "normal",
       note: cage.note,
     };
@@ -129,6 +131,7 @@ function toCageTag(cage: ApiCage): AnimalCageTag {
     strain: cage.strain ?? "",
     sex: cage.sex,
     genotype: cage.genotype || "WT",
+    project: cage.project,
     note: cage.note,
   };
 }
@@ -383,6 +386,7 @@ export default function AnimalsPage() {
             strain: result.cage.strain || null,
             sex: result.cage.sex,
             genotype: result.cage.genotype?.trim() || "WT",
+            project: result.cage.project || null,
             note: result.cage.note || null,
             mouseCount: result.cage.mouseCount,
           }),
@@ -399,6 +403,7 @@ export default function AnimalsPage() {
             strain: result.cage.strain || null,
             sex: result.cage.sex,
             genotype: result.cage.genotype?.trim() || "WT",
+            project: result.cage.project || null,
             note: result.cage.note || null,
           }),
         });
@@ -484,6 +489,7 @@ export default function AnimalsPage() {
           strain: record.strain,
           sex: record.sex,
           genotype: record.genotype || "WT",
+          project: record.project ?? null,
           note: record.note ?? null,
           mouseCount: record.mouseCount,
         }),

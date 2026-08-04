@@ -214,6 +214,7 @@ type DemoAnimalCage = {
   strain: string | null;
   sex: "MALE" | "FEMALE" | "MIXED" | "UNKNOWN";
   genotype: string | null;
+  project: string | null;
   note: string | null;
   closedAt: string | null;
   createdAt: string;
@@ -1157,7 +1158,7 @@ export function demoCreateAnimalCage(input: AnimalCageCreateInput, createdById: 
   const cage: DemoAnimalCage = {
     id: uid("animal-cage"), rackId: input.rackId, rowIndex: input.rowIndex, columnIndex: input.columnIndex, activeSlotKey,
     status: "ACTIVE", movedInAt, initialAgeWeeks: input.initialAgeWeeks, strain: input.strain ?? null, sex: input.sex,
-    genotype: input.genotype?.trim() || "WT", note: input.note ?? null, closedAt: null, createdAt: now, updatedAt: now,
+    genotype: input.genotype?.trim() || "WT", project: input.project ?? null, note: input.note ?? null, closedAt: null, createdAt: now, updatedAt: now,
   };
   store.animalCages.push(cage);
   const mice = Array.from({ length: input.mouseCount }, (_, index): DemoAnimalMouse => ({
@@ -1200,6 +1201,7 @@ export function demoCreateAnimalCagesBatch(input: AnimalCageBatchCreateInput, cr
     strain: input.strain ?? null,
     sex: input.sex,
     genotype: input.genotype?.trim() || "WT",
+    project: input.project ?? null,
     note: input.note ?? null,
     closedAt: null,
     createdAt: now,
@@ -1247,6 +1249,7 @@ export function demoUpdateAnimalCage(cageId: string, input: AnimalCageUpdateInpu
   if (input.strain !== undefined) cage.strain = input.strain;
   if (input.sex !== undefined) cage.sex = input.sex;
   if (input.genotype !== undefined) cage.genotype = input.genotype?.trim() || "WT";
+  if (input.project !== undefined) cage.project = input.project;
   if (input.note !== undefined) cage.note = input.note;
   cage.updatedAt = new Date().toISOString();
   writeStore(store);
