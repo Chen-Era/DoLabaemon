@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AnimalBatchAdmissionForm,
+  AnimalBatchCageCreateForm,
   AnimalBatchOperationForm,
   AnimalCageEditor,
   AnimalOperationTimeline,
@@ -10,6 +11,7 @@ import {
   type AnimalCageOption,
   type AnimalCageTag,
   type AnimalBatchAdmissionRecord,
+  type AnimalBatchCageCreateRecord,
   type AnimalOperationRecord,
   type AnimalSex,
 } from "@/components/animal/animal-cage-workflows";
@@ -84,6 +86,12 @@ function indicesFor(position: string) {
   const match = /^([A-Z])(\d{1,2})$/.exec(position);
   if (!match) return null;
   return { columnIndex: match[1].charCodeAt(0) - 64, rowIndex: Number(match[2]) };
+}
+
+function positionsForRack(rack: BoardRack) {
+  return Array.from({ length: rack.rows }, (_, rowOffset) => (
+    Array.from({ length: rack.columns }, (_, columnOffset) => `${String.fromCharCode(65 + columnOffset)}${rowOffset + 1}`)
+  )).flat();
 }
 
 function toBoardRack(rack: ApiRack): BoardRack {
@@ -172,6 +180,8 @@ export default function AnimalsPage() {
   const [savingOperation, setSavingOperation] = useState(false);
   const [admissionContext, setAdmissionContext] = useState<AnimalBulkRecordContext | null>(null);
   const [savingAdmission, setSavingAdmission] = useState(false);
+  const [cageBatchContext, setCageBatchContext] = useState<AnimalBulkRecordContext | null>(null);
+  const [savingCageBatch, setSavingCageBatch] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const creatingRackIdsRef = useRef(new Set<string>());
 
@@ -424,6 +434,44 @@ export default function AnimalsPage() {
     }
   }
 
+  async function saveCageBatch(record: AnimalBatchCageCreateRecord) {
+    if (!cageBatchContext) return;
+    const positions = record.positions.map(indicesFor);
+    if (positions.some((position) => !position)) {
+      setError("存在无效的笼位坐标，请重新选择。");
+      return;
+    }
+    setSavingCageBatch(true);
+    try {
+      const { response, data } = await requestJson<{ error?: string; items?: ApiCage[] }>("/api/animals/cages/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          labId,
+          rackId: cageBatchContext.rack.id,
+          positions,
+          movedInAt: record.entryDate,
+          initialAgeWeeks: record.entryAgeWeeks,
+          strain: record.strain,
+          sex: record.sex,
+          genotype: record.genotype || "WT",
+          note: record.note ?? null,
+          mouseCount: record.mouseCount,
+        }),
+      });
+      if (!response.ok) throw new Error(data?.error ?? "批量创建笼牌失败");
+      const createdCount = data?.items?.length ?? record.positions.length;
+      setCageBatchContext(null);
+      setError(null);
+      setStatusMessage(`已创建 ${createdCount} 张笼牌，并登记 ${createdCount * record.mouseCount} 只初始小鼠。`);
+      await loadRacks(labId, { keepBoard: true });
+    } catch (batchError) {
+      setError(batchError instanceof Error ? batchError.message : "批量创建笼牌失败，请稍后重试。");
+    } finally {
+      setSavingCageBatch(false);
+    }
+  }
+
   async function saveBulkOperation(record: AnimalOperationRecord) {
     setSavingOperation(true);
     try {
@@ -476,6 +524,12 @@ export default function AnimalsPage() {
   const selectedAdmissionCageIds = admissionContext
     ? admissionContext.positions.map((position) => admissionContext.rack.cages[position]?.id).filter((id): id is string => Boolean(id))
     : [];
+  const batchCageRack = cageBatchContext
+    ? boardRacks.find((rack) => rack.id === cageBatchContext.rack.id) ?? cageBatchContext.rack
+    : null;
+  const availableBatchCagePositions = batchCageRack
+    ? positionsForRack(batchCageRack).filter((position) => !batchCageRack.cages[position])
+    : [];
 
   return (
     <div className={styles.page}>
@@ -515,6 +569,7 @@ export default function AnimalsPage() {
           onCageOpen={(context) => void openCage(context)}
           onBulkRecord={setBulkContext}
           onBulkAdmission={setAdmissionContext}
+          onBulkCageCreate={setCageBatchContext}
         />
       )}
 
@@ -538,6 +593,28 @@ export default function AnimalsPage() {
                   <AnimalOperationTimeline records={selectedOperationRecords} emptyText="这个笼位还没有可显示的操作记录。" />
                 </section>
               </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {cageBatchContext && batchCageRack ? (
+        <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !savingCageBatch) setCageBatchContext(null);
+        }}>
+          <section className={styles.modal} role="dialog" aria-modal="true" aria-label="批量创建笼牌">
+            <header className={styles.modalHeader}>
+              <p><strong>{batchCageRack.name}</strong> · 选择空笼位后可一次创建相同笼牌</p>
+              <button type="button" className={styles.modalClose} onClick={() => setCageBatchContext(null)} disabled={savingCageBatch} aria-label="关闭批量创建笼牌">×</button>
+            </header>
+            <div className={styles.modalBody}>
+              <AnimalBatchCageCreateForm
+                rackName={batchCageRack.name}
+                availablePositions={availableBatchCagePositions}
+                initialSelectedPositions={cageBatchContext.positions}
+                busy={savingCageBatch}
+                onSubmit={saveCageBatch}
+              />
             </div>
           </section>
         </div>

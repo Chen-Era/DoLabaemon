@@ -413,6 +413,176 @@ export function AnimalCageEditor({ cage, asOfDate = localDateString(), submitLab
   );
 }
 
+export type AnimalBatchCageCreateRecord = {
+  positions: string[];
+  entryDate: string;
+  entryAgeWeeks: number;
+  strain: string;
+  sex: AnimalSex;
+  genotype: string;
+  mouseCount: number;
+  note?: string | null;
+};
+
+export type AnimalBatchCageCreateFormProps = {
+  rackName: string;
+  availablePositions: string[];
+  initialSelectedPositions?: string[];
+  asOfDate?: string;
+  busy?: boolean;
+  onSubmit: (record: AnimalBatchCageCreateRecord) => void | Promise<void>;
+};
+
+/** Creates a matching cage card in several empty Excel-style positions at once. */
+export function AnimalBatchCageCreateForm({
+  rackName,
+  availablePositions,
+  initialSelectedPositions = [],
+  asOfDate = localDateString(),
+  busy = false,
+  onSubmit,
+}: AnimalBatchCageCreateFormProps) {
+  const [selectedPositions, setSelectedPositions] = useState<string[]>(() => initialSelectedPositions.filter((position) => availablePositions.includes(position)));
+  const [entryDate, setEntryDate] = useState(asOfDate);
+  const [entryAgeWeeks, setEntryAgeWeeks] = useState("0");
+  const [strain, setStrain] = useState("");
+  const [sex, setSex] = useState<AnimalSex>("UNKNOWN");
+  const [genotype, setGenotype] = useState("WT");
+  const [mouseCount, setMouseCount] = useState("0");
+  const [note, setNote] = useState("");
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const visiblePositions = useMemo(() => {
+    const term = query.trim().toUpperCase();
+    return term ? availablePositions.filter((position) => position.includes(term)) : availablePositions;
+  }, [availablePositions, query]);
+  const count = Number(mouseCount);
+  const totalMice = Number.isInteger(count) && count >= 0 ? selectedPositions.length * count : 0;
+
+  function togglePosition(position: string) {
+    setSelectedPositions((current) => current.includes(position) ? current.filter((item) => item !== position) : [...current, position]);
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const ageWeeks = Number(entryAgeWeeks);
+    if (!selectedPositions.length) {
+      setError("请至少选择一个空笼位。");
+      return;
+    }
+    if (!normalizedDate(entryDate) || dateIsAfter(entryDate, asOfDate)) {
+      setError("请选择今天或之前的进驻日期。");
+      return;
+    }
+    if (!Number.isFinite(ageWeeks) || ageWeeks < 0 || ageWeeks > 260) {
+      setError("进驻时周龄需为 0–260 周之间的数字。");
+      return;
+    }
+    if (!strain.trim()) {
+      setError("请填写品系，便于在笼架中快速识别。");
+      return;
+    }
+    if (!Number.isInteger(count) || count < 0 || count > 500) {
+      setError("每个笼牌的初始数量须为 0–500 只。");
+      return;
+    }
+    await onSubmit({
+      positions: selectedPositions,
+      entryDate,
+      entryAgeWeeks: ageWeeks,
+      strain: strain.trim(),
+      sex,
+      genotype: genotype.trim() || "WT",
+      mouseCount: count,
+      note: cleanOptional(note),
+    });
+  }
+
+  return (
+    <form className={styles.batchForm} onSubmit={submit} noValidate>
+      <div className={styles.editorHeading}>
+        <div>
+          <p className={styles.eyebrow}>笼架 · {rackName}</p>
+          <h2>批量创建笼牌</h2>
+          <p>同一批次会在所选空笼位创建相同笼牌，并为每笼生成初始小鼠记录。</p>
+        </div>
+      </div>
+
+      <fieldset className={styles.targetPanel}>
+        <legend>选择空笼位</legend>
+        <div className={styles.cagePicker}>
+          <div className={styles.cagePickerHeader}>
+            <label className={styles.searchField}>
+              <span className="sr-only">筛选空笼位</span>
+              <input value={query} placeholder="筛选笼位，例如 A1 或 12" onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <button type="button" className="button-ghost" onClick={() => setSelectedPositions(visiblePositions)} disabled={!visiblePositions.length}>全选筛选结果</button>
+            <button type="button" className="button-ghost" onClick={() => setSelectedPositions([])} disabled={!selectedPositions.length}>清空</button>
+          </div>
+          <div className={styles.cageOptionList} aria-label="选择要创建笼牌的空笼位">
+            {visiblePositions.map((position) => {
+              const checked = selectedPositions.includes(position);
+              return (
+                <label className={`${styles.cageOption} ${checked ? styles.cageOptionChecked : ""}`} key={position}>
+                  <input type="checkbox" checked={checked} onChange={() => togglePosition(position)} />
+                  <span><strong>{position}</strong><small>空笼位</small></span>
+                </label>
+              );
+            })}
+            {!visiblePositions.length ? <p className={styles.emptyPicker}>没有符合条件的空笼位。</p> : null}
+          </div>
+        </div>
+        <p className={styles.targetSummary}><span>将创建</span><strong>{selectedPositions.length ? `${selectedPositions.join("、")} · ${selectedPositions.length} 张笼牌` : "尚未选择笼位"}</strong></p>
+      </fieldset>
+
+      <div className={styles.formGrid}>
+        <label className={styles.field}>
+          <span>进驻日期 <em>*</em></span>
+          <input type="date" value={entryDate} max={asOfDate} onChange={(event) => setEntryDate(event.target.value)} required />
+          <small>周龄会从此日期开始自动累加。</small>
+        </label>
+        <label className={styles.field}>
+          <span>进驻时周龄（周）<em>*</em></span>
+          <input type="number" min="0" max="260" step="0.1" inputMode="decimal" value={entryAgeWeeks} onChange={(event) => setEntryAgeWeeks(event.target.value)} required />
+        </label>
+        <label className={styles.field}>
+          <span>品系 <em>*</em></span>
+          <input value={strain} placeholder="例如 C57BL/6J" onChange={(event) => setStrain(event.target.value)} required />
+        </label>
+        <label className={styles.field}>
+          <span>性别 <em>*</em></span>
+          <select value={sex} onChange={(event) => setSex(event.target.value as AnimalSex)}>
+            <option value="UNKNOWN">未标注</option>
+            <option value="MALE">雄</option>
+            <option value="FEMALE">雌</option>
+            <option value="MIXED">雌雄混合</option>
+          </select>
+        </label>
+        <label className={styles.field}>
+          <span>基因型</span>
+          <input value={genotype} placeholder="留空即野生型（WT）" onChange={(event) => setGenotype(event.target.value)} />
+        </label>
+        <label className={styles.field}>
+          <span>每笼初始小鼠数量 <em>*</em></span>
+          <input type="number" min="0" max="500" step="1" inputMode="numeric" value={mouseCount} onChange={(event) => setMouseCount(event.target.value)} required />
+          <small>本批将创建共 {totalMice} 只小鼠记录。</small>
+        </label>
+      </div>
+
+      <label className={`${styles.field} ${styles.fullWidth}`}>
+        <span>备注</span>
+        <textarea rows={3} value={note} placeholder="可记录来源、禁配信息或其他注意事项" onChange={(event) => setNote(event.target.value)} />
+      </label>
+      {error ? <p className={styles.errorMessage} role="alert">{error}</p> : null}
+      <div className={styles.formActions}>
+        <button className="button-primary" type="submit" disabled={busy}>{busy ? "创建中…" : `创建 ${selectedPositions.length} 张笼牌`}</button>
+      </div>
+    </form>
+  );
+}
+
 export type AnimalBatchOperationFormProps = {
   cages: AnimalCageOption[];
   racks?: AnimalRackOption[];

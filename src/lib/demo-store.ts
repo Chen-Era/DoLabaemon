@@ -27,6 +27,7 @@ import {
   calculateCurrentAgeWeeks,
   cagePositionName,
   makeActiveSlotKey,
+  type AnimalCageBatchCreateInput,
   type AnimalCageCreateInput,
   type AnimalCageUpdateInput,
   type AnimalBatchAdmissionInput,
@@ -1169,6 +1170,70 @@ export function demoCreateAnimalCage(input: AnimalCageCreateInput, createdById: 
   })));
   writeStore(store);
   return demoAnimalCage(store, cage);
+}
+
+export function demoCreateAnimalCagesBatch(input: AnimalCageBatchCreateInput, createdById: string) {
+  const store = readStore();
+  const rack = store.animalRacks.find((item) => item.id === input.rackId && item.labId === input.labId);
+  if (!rack) throw new Error("ANIMAL_RACK_NOT_FOUND");
+  if (input.positions.some((position) => position.rowIndex > rack.rows || position.columnIndex > rack.columns)) {
+    throw new Error("CAGE_POSITION_OUTSIDE_RACK");
+  }
+  const slotKeys = input.positions.map((position) => makeActiveSlotKey(input.rackId, position.columnIndex, position.rowIndex));
+  if (store.animalCages.some((cage) => cage.activeSlotKey && slotKeys.includes(cage.activeSlotKey))) {
+    throw new Error("CAGE_POSITION_OCCUPIED");
+  }
+
+  const now = new Date().toISOString();
+  const movedInAt = demoAnimalDate(input.movedInAt);
+  const batchId = uid("animal-batch");
+  const cages = input.positions.map((position): DemoAnimalCage => ({
+    id: uid("animal-cage"),
+    rackId: input.rackId,
+    rowIndex: position.rowIndex,
+    columnIndex: position.columnIndex,
+    activeSlotKey: makeActiveSlotKey(input.rackId, position.columnIndex, position.rowIndex),
+    status: "ACTIVE",
+    movedInAt,
+    initialAgeWeeks: input.initialAgeWeeks,
+    strain: input.strain ?? null,
+    sex: input.sex,
+    genotype: input.genotype?.trim() || "WT",
+    note: input.note ?? null,
+    closedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  const mice = cages.flatMap((cage) => Array.from({ length: input.mouseCount }, (): DemoAnimalMouse => ({
+    id: uid("animal-mouse"),
+    labId: input.labId,
+    cageId: cage.id,
+    identifier: null,
+    status: "ACTIVE",
+    movedInAt,
+    movedOutAt: null,
+    leaveReason: null,
+    note: null,
+    createdAt: now,
+    updatedAt: now,
+  })));
+  store.animalCages.push(...cages);
+  store.animalMice.push(...mice);
+  store.animalOperations.push(...mice.map((mouse): DemoAnimalOperation => ({
+    id: uid("animal-operation"),
+    labId: input.labId,
+    mouseId: mouse.id,
+    cageId: mouse.cageId,
+    operationType: "入驻",
+    operationAt: movedInAt,
+    note: null,
+    sourceScope: "CAGE",
+    batchId,
+    createdById,
+    createdAt: now,
+  })));
+  writeStore(store);
+  return cages.map((cage) => demoAnimalCage(store, cage));
 }
 
 export function demoUpdateAnimalCage(cageId: string, input: AnimalCageUpdateInput) {

@@ -103,6 +103,24 @@ export const animalCageCreateSchema = z.object({
   }
 });
 
+/** Creates identical cage cards in several empty positions of one rack. */
+export const animalCageBatchCreateSchema = z.object({
+  labId: z.string().trim().min(1),
+  rackId: z.string().trim().min(1),
+  positions: z.array(z.object(positionFields)).min(1).max(MAX_RACK_ROWS * MAX_RACK_COLUMNS),
+  ...cageCardFields,
+  mouseCount: z.number().int().min(0).max(MAX_CAGE_MOUSE_COUNT),
+}).superRefine((value, ctx) => {
+  const seen = new Set<string>();
+  value.positions.forEach((position, index) => {
+    const key = `${position.columnIndex}:${position.rowIndex}`;
+    if (seen.has(key)) {
+      ctx.addIssue({ code: "custom", path: ["positions", index], message: "DUPLICATE_CAGE_POSITION" });
+    }
+    seen.add(key);
+  });
+});
+
 export const animalCageUpdateSchema = z
   .object(cageCardFields)
   .partial()
@@ -183,6 +201,7 @@ export const animalOperationCreateSchema = z.discriminatedUnion("sourceScope", [
 export type AnimalRackCreateInput = z.infer<typeof animalRackCreateSchema>;
 export type AnimalRackUpdateInput = z.infer<typeof animalRackUpdateSchema>;
 export type AnimalCageCreateInput = z.infer<typeof animalCageCreateSchema>;
+export type AnimalCageBatchCreateInput = z.infer<typeof animalCageBatchCreateSchema>;
 export type AnimalCageUpdateInput = z.infer<typeof animalCageUpdateSchema>;
 export type AnimalResidentUpdateInput = z.infer<typeof animalResidentUpdateSchema>;
 export type AnimalBatchAdmissionInput = z.infer<typeof animalBatchAdmissionSchema>;

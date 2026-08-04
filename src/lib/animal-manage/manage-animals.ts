@@ -5,6 +5,7 @@ import {
   calculateCurrentAgeWeeks,
   cagePositionName,
   makeActiveSlotKey,
+  type AnimalCageBatchCreateInput,
   type AnimalCageCreateInput,
   type AnimalCageUpdateInput,
   type AnimalBatchAdmissionInput,
@@ -173,28 +174,93 @@ export async function createAnimalCage(input: AnimalCageCreateInput, createdById
           sex: input.sex,
           genotype: input.genotype?.trim() || "WT",
           note: input.note ?? null,
-          mice: {
-            create: Array.from({ length: input.mouseCount }, (_, index) => ({
-              labId: input.labId,
-              identifier: input.mouseIdentifiers?.[index] ?? null,
-              movedInAt,
-            })),
-          },
         },
-        include: { mice: activeMouseInclude },
       });
-      await tx.animalOperation.createMany({
-        data: cage.mice.map((mouse) => ({
-          labId: input.labId,
-          mouseId: mouse.id,
-          cageId: cage.id,
-          operationType: "入驻",
-          operationAt: movedInAt,
-          sourceScope: "SYSTEM",
-          createdById,
-        })),
-      });
-      return serializeCage(cage);
+      const mice = Array.from({ length: input.mouseCount }, (_, index) => ({
+        id: randomUUID(),
+        labId: input.labId,
+        cageId: cage.id,
+        identifier: input.mouseIdentifiers?.[index] ?? null,
+        movedInAt,
+      }));
+      if (mice.length) {
+        await tx.animalMouse.createMany({ data: mice });
+        await tx.animalOperation.createMany({
+          data: mice.map((mouse) => ({
+            labId: input.labId,
+            mouseId: mouse.id,
+            cageId: cage.id,
+            operationType: "入驻",
+            operationAt: movedInAt,
+            sourceScope: "SYSTEM",
+            createdById,
+          })),
+        });
+      }
+      const created = await tx.animalCage.findUniqueOrThrow({ where: { id: cage.id }, include: { mice: activeMouseInclude } });
+      return serializeCage(created);
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error("CAGE_POSITION_OCCUPIED");
+    throw error;
+  }
+}
+
+/** Creates several cage cards and their initial resident records in one atomic transaction. */
+export async function createAnimalCagesBatch(input: AnimalCageBatchCreateInput, createdById: string) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const rack = await tx.animalRack.findUnique({ where: { id: input.rackId }, select: { labId: true, rows: true, columns: true } });
+      if (!rack || rack.labId !== input.labId) throw new Error("ANIMAL_RACK_NOT_FOUND");
+      if (input.positions.some((position) => position.rowIndex > rack.rows || position.columnIndex > rack.columns)) {
+        throw new Error("CAGE_POSITION_OUTSIDE_RACK");
+      }
+
+      const slotKeys = input.positions.map((position) => makeActiveSlotKey(input.rackId, position.columnIndex, position.rowIndex));
+      const occupied = await tx.animalCage.findFirst({ where: { activeSlotKey: { in: slotKeys } }, select: { id: true } });
+      if (occupied) throw new Error("CAGE_POSITION_OCCUPIED");
+
+      const movedInAt = dateFromInput(input.movedInAt);
+      const cages = input.positions.map((position) => ({
+        id: randomUUID(),
+        rackId: input.rackId,
+        rowIndex: position.rowIndex,
+        columnIndex: position.columnIndex,
+        activeSlotKey: makeActiveSlotKey(input.rackId, position.columnIndex, position.rowIndex),
+        movedInAt,
+        initialAgeWeeks: input.initialAgeWeeks,
+        strain: input.strain ?? null,
+        sex: input.sex,
+        genotype: input.genotype?.trim() || "WT",
+        note: input.note ?? null,
+      }));
+      await tx.animalCage.createMany({ data: cages });
+
+      const mice = cages.flatMap((cage) => Array.from({ length: input.mouseCount }, () => ({
+        id: randomUUID(),
+        labId: input.labId,
+        cageId: cage.id,
+        movedInAt,
+      })));
+      if (mice.length) {
+        const batchId = randomUUID();
+        await tx.animalMouse.createMany({ data: mice });
+        await tx.animalOperation.createMany({
+          data: mice.map((mouse) => ({
+            labId: input.labId,
+            mouseId: mouse.id,
+            cageId: mouse.cageId,
+            operationType: "入驻",
+            operationAt: movedInAt,
+            sourceScope: "CAGE",
+            batchId,
+            createdById,
+          })),
+        });
+      }
+      const created = await tx.animalCage.findMany({ where: { id: { in: cages.map((cage) => cage.id) } }, include: { mice: activeMouseInclude } });
+      const createdByCageId = new Map(created.map((cage) => [cage.id, serializeCage(cage)]));
+      return cages.map((cage) => createdByCageId.get(cage.id)!);
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) throw new Error("CAGE_POSITION_OCCUPIED");

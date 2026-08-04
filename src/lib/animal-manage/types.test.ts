@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   animalBatchAdmissionSchema,
+  animalCageBatchCreateSchema,
   animalOperationCreateSchema,
   animalRackCreateSchema,
   cagePositionName,
@@ -41,6 +42,21 @@ test("batch admission validates both cage selections and whole racks", () => {
     assert.equal(animalBatchAdmissionSchema.safeParse(payload).success, true);
   }
   assert.equal(animalBatchAdmissionSchema.safeParse({ labId: "lab", sourceScope: "CAGE", cageIds: ["c1"], count: 0 }).success, false);
+});
+
+test("batch cage creation accepts distinct Excel positions and rejects duplicates", () => {
+  const payload = {
+    labId: "lab",
+    rackId: "rack",
+    positions: [{ rowIndex: 1, columnIndex: 1 }, { rowIndex: 2, columnIndex: 1 }],
+    movedInAt: "2026-08-04",
+    initialAgeWeeks: 6,
+    strain: "C57BL/6J",
+    sex: "FEMALE",
+    mouseCount: 5,
+  };
+  assert.equal(animalCageBatchCreateSchema.safeParse(payload).success, true);
+  assert.equal(animalCageBatchCreateSchema.safeParse({ ...payload, positions: [payload.positions[0], payload.positions[0]] }).success, false);
 });
 
 test("current age accumulates from the entry date and never runs backwards", () => {

@@ -47,6 +47,7 @@ type AnimalRackBoardProps = {
   onCageOpen?: (context: { rack: AnimalRack; position: string; cage?: AnimalCage }) => void;
   onBulkRecord?: (context: AnimalBulkRecordContext) => void;
   onBulkAdmission?: (context: AnimalBulkRecordContext) => void;
+  onBulkCageCreate?: (context: AnimalBulkRecordContext) => void;
 };
 
 const MAX_RACK_SIDE = 26;
@@ -160,6 +161,7 @@ export function AnimalRackBoard({
   onCageOpen,
   onBulkRecord,
   onBulkAdmission,
+  onBulkCageCreate,
 }: AnimalRackBoardProps) {
   const [localRacks, setLocalRacks] = useState<AnimalRack[]>(() => initialRacks ?? demoRacks);
   const racks = controlledRacks ?? localRacks;
@@ -252,6 +254,16 @@ export function AnimalRackBoard({
     onBulkAdmission?.({ rack: activeRack, positions: Object.keys(activeRack.cages) });
   }
 
+  function startBulkCageCreate() {
+    if (!activeRack || !selectedPositions.length) return;
+    onBulkCageCreate?.({ rack: activeRack, positions: selectedPositions });
+  }
+
+  function startRackCageCreate() {
+    if (!activeRack) return;
+    onBulkCageCreate?.({ rack: activeRack, positions: [] });
+  }
+
   if (!activeRack) {
     return (
       <section className={`${styles.emptyState}${className ? ` ${className}` : ""}`} aria-label="实验动物笼架">
@@ -280,6 +292,11 @@ export function AnimalRackBoard({
         </div>
 
         <div className={styles.topActions}>
+          {onBulkCageCreate ? (
+            <button type="button" className={styles.secondaryButton} onClick={startRackCageCreate} disabled={Object.keys(activeRack.cages).length >= activeRack.rows * activeRack.columns}>
+              <span aria-hidden="true">▦</span> 批量建笼牌
+            </button>
+          ) : null}
           {onBulkAdmission ? (
             <button type="button" className={styles.secondaryButton} onClick={startRackAdmission} disabled={!Object.keys(activeRack.cages).length}>
               <span aria-hidden="true">＋</span> 批量入驻
@@ -397,6 +414,9 @@ export function AnimalRackBoard({
               <span><strong>{selectedPositions.length}</strong> 个笼位已选择</span>
               <div>
                 <button type="button" className={styles.textButton} onClick={selectAllOccupied}>选择所有已用笼位</button>
+                <button type="button" className={styles.admissionButton} disabled={!selectedPositions.length} onClick={startBulkCageCreate}>
+                  批量建笼牌
+                </button>
                 <button type="button" className={styles.admissionButton} disabled={!selectedPositions.length} onClick={startBulkAdmission}>
                   批量入驻
                 </button>

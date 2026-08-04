@@ -37,6 +37,19 @@ test("demo animal records retain per-mouse operations after a cage becomes empty
   assert.equal(cage.mouseCount, 2);
   assert.equal(cage.genotype, "WT", "an unspecified genotype defaults to wild type");
 
+  const batchCages = demoStore.demoCreateAnimalCagesBatch({
+    labId: "demo-lab",
+    rackId: rack.id,
+    positions: [{ rowIndex: 1, columnIndex: 1 }, { rowIndex: 1, columnIndex: 2 }],
+    movedInAt: "2026-08-01",
+    initialAgeWeeks: 6,
+    strain: "C57BL/6J",
+    sex: "FEMALE",
+    mouseCount: 5,
+  }, "demo-user");
+  assert.equal(batchCages.length, 2);
+  assert.ok(batchCages.every((item) => item.mouseCount === 5), "initial per-cage counts are persisted as mouse records");
+
   const admission = demoStore.demoBatchAdmitAnimalCages({
     labId: "demo-lab",
     sourceScope: "CAGE",
@@ -65,7 +78,7 @@ test("demo animal records retain per-mouse operations after a cage becomes empty
   }, "demo-user");
 
   const detail = demoStore.demoGetAnimalRack(rack.id);
-  const persistedCage = detail?.cages[0];
+  const persistedCage = detail?.cages.find((item) => item.id === cage.id);
   assert.equal(persistedCage?.mouseCount, 0);
   assert.equal(persistedCage?.mice.length, 5, "detail keeps former mice for audit history");
   assert.ok(persistedCage?.mice.every((mouse) => mouse.operations.some((item) => item.operationType === "给药")));
