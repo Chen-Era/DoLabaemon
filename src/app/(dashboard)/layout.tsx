@@ -13,6 +13,7 @@ import {
   MenuIcon,
   SidebarAddReagentIcon,
   SidebarExperimentCheckIcon,
+  SidebarAnimalsIcon,
   SidebarKnowledgeIcon,
   SidebarLabsIcon,
   SidebarReagentsIcon,
@@ -37,6 +38,7 @@ const navGroups: NavGroup[] = [
       { href: "/labs", label: "实验室", icon: SidebarLabsIcon },
       { href: "/reagents", label: "试剂清单", icon: SidebarReagentsIcon },
       { href: "/reagents/new", label: "录入试剂", icon: SidebarAddReagentIcon },
+      { href: "/animals", label: "实验动物", icon: SidebarAnimalsIcon },
       { href: "/experiment-check", label: "实验检查", icon: SidebarExperimentCheckIcon },
     ],
   },
@@ -54,6 +56,7 @@ const allNavItems = navGroups.flatMap((group) => group.items);
 
 const pageMeta = [
   { href: "/reagents/new", title: "录入试剂" },
+  { href: "/animals", title: "实验动物" },
   { href: "/experiment-check", title: "实验检查" },
   { href: "/knowledge", title: "实验知识库" },
   { href: "/mcp", title: "MCP 接入" },
@@ -70,6 +73,8 @@ function navigationLabel(href: string | undefined) {
       return "Reagent list";
     case "/reagents/new":
       return "Add reagent";
+    case "/animals":
+      return "Animal management";
     case "/experiment-check":
       return "Experiment check";
     case "/knowledge":

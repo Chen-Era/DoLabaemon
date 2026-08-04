@@ -88,6 +88,30 @@ enum TechniqueVerificationMode {
   MANUAL_CONFIRMATION
 }
 
+enum AnimalSex {
+  MALE
+  FEMALE
+  MIXED
+  UNKNOWN
+}
+
+enum AnimalCageStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum AnimalMouseStatus {
+  ACTIVE
+  LEFT
+}
+
+enum AnimalOperationScope {
+  MOUSE
+  CAGE
+  RACK
+  SYSTEM
+}
+
 model User {
   id                 String                        @id @default(cuid())
   email              String                        @unique
@@ -103,6 +127,7 @@ model User {
   techniqueReviews   ExperimentTechniqueDraft[]    @relation("TechniqueDraftReviewer")
   techniqueRevisions ExperimentTechniqueRevision[] @relation("TechniqueRevisionPublisher")
   uploadedReagents   Reagent[]                     @relation("ReagentUploader")
+  animalOperations   AnimalOperation[]             @relation("AnimalOperationCreator")
 }
 
 model UserLlmConfig {
@@ -157,6 +182,9 @@ model Lab {
   knowledgeLogs      KnowledgeMutationLog[]
   techniqueDrafts    ExperimentTechniqueDraft[]
   techniqueRevisions ExperimentTechniqueRevision[]
+  animalRacks        AnimalRack[]
+  animalMice         AnimalMouse[]
+  animalOperations   AnimalOperation[]
 }
 
 model LabLlmConfig {
@@ -584,4 +612,96 @@ model ExperimentTechniqueDraft {
 
   @@index([labId, status, updatedAt])
   @@index([baseCode])
+}
+
+/// A user-defined physical cage rack.  `rows` and `columns` are deliberately
+/// capped in the application layer at 26 so every slot can be named like an
+/// Excel cell (A1 through Z26).
+model AnimalRack {
+  id        String       @id @default(cuid())
+  labId     String
+  name      String
+  rows      Int          @default(8)
+  columns   Int          @default(8)
+  note      String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  lab       Lab          @relation(fields: [labId], references: [id], onDelete: Cascade)
+  cages     AnimalCage[]
+
+  @@index([labId, updatedAt])
+}
+
+/// A cage card occupies one rack coordinate for one continuous residency
+/// period.  When it is closed, `activeSlotKey` becomes null, allowing a new
+/// cage card to be created in the same coordinate while retaining history.
+model AnimalCage {
+  id                String            @id @default(cuid())
+  rackId            String
+  rowIndex          Int
+  columnIndex       Int
+  activeSlotKey     String?           @unique
+  status            AnimalCageStatus  @default(ACTIVE)
+  movedInAt         DateTime
+  initialAgeWeeks   Float
+  strain            String?
+  sex               AnimalSex         @default(UNKNOWN)
+  genotype          String            @default("WT")
+  note              String?
+  closedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  rack              AnimalRack        @relation(fields: [rackId], references: [id], onDelete: Cascade)
+  mice              AnimalMouse[]
+  operations        AnimalOperation[]
+
+  @@index([rackId, status, rowIndex, columnIndex])
+}
+
+/// An individual mouse.  Cage-card fields describe its incoming cohort while
+/// this record retains the individual identifier, leave time, and operation
+/// history required for auditing.
+model AnimalMouse {
+  id            String            @id @default(cuid())
+  labId         String
+  cageId        String
+  identifier    String?
+  status        AnimalMouseStatus @default(ACTIVE)
+  movedInAt     DateTime
+  movedOutAt    DateTime?
+  leaveReason   String?
+  note          String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  lab           Lab               @relation(fields: [labId], references: [id], onDelete: Cascade)
+  cage          AnimalCage        @relation(fields: [cageId], references: [id], onDelete: Cascade)
+  operations    AnimalOperation[]
+
+  @@index([labId, status, cageId])
+  @@index([cageId, status])
+}
+
+/// Each operation is stored against a mouse even when it was entered in bulk
+/// from a cage or whole rack.  `sourceScope` and `batchId` preserve how the
+/// record was entered and make batches easy to display or undo in the UI.
+model AnimalOperation {
+  id              String               @id @default(cuid())
+  labId           String
+  mouseId         String
+  cageId          String
+  operationType   String
+  operationAt     DateTime
+  note            String?
+  sourceScope     AnimalOperationScope @default(MOUSE)
+  batchId         String?
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  lab             Lab                  @relation(fields: [labId], references: [id], onDelete: Cascade)
+  mouse           AnimalMouse          @relation(fields: [mouseId], references: [id], onDelete: Cascade)
+  cage            AnimalCage           @relation(fields: [cageId], references: [id], onDelete: Cascade)
+  createdBy       User?                @relation("AnimalOperationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([mouseId, operationAt])
+  @@index([labId, batchId])
+  @@index([cageId, operationAt])
 }

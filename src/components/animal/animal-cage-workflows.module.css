@@ -1,0 +1,645 @@
+.cageLabel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(135deg, rgba(15, 130, 121, 0.08), transparent 55%),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 0.7rem;
+  color: var(--text);
+}
+
+.cageLabelEmpty {
+  background: var(--surface-tint);
+  color: var(--text-muted);
+}
+
+.cageLabelHeader,
+.cageMainLine,
+.cageFacts,
+.formActions,
+.editorHeading,
+.countFields,
+.cagePickerHeader,
+.timelineHeader {
+  display: flex;
+  align-items: center;
+}
+
+.cageLabelHeader {
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.positionChip,
+.countChip,
+.operatorChip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.positionChip {
+  background: var(--navy);
+  color: #ffffff;
+  padding: 0.34rem 0.48rem;
+}
+
+.countChip {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  padding: 0.34rem 0.48rem;
+}
+
+.countChipEmpty {
+  background: var(--bg-muted);
+  color: var(--text-muted);
+}
+
+.cageMainLine {
+  margin-top: 0.7rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cageMainLine strong {
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sexText {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cageGenotype,
+.cageProject {
+  overflow: hidden;
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cageFacts {
+  align-items: stretch;
+  gap: 0;
+  margin: 0.7rem 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 0.58rem;
+}
+
+.cageFacts div {
+  min-width: 0;
+  flex: 1;
+}
+
+.cageFacts div + div {
+  border-left: 1px solid var(--line);
+  padding-left: 0.62rem;
+}
+
+.cageFacts dt {
+  color: var(--text-faint);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cageFacts dd {
+  overflow: hidden;
+  margin: 0.22rem 0 0;
+  color: var(--text);
+  font-size: 0.73rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cageProject {
+  margin-top: 0.5rem;
+  border-radius: 0.3rem;
+  background: var(--bg-muted);
+  padding: 0.18rem 0.35rem;
+}
+
+.editor,
+.batchForm {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.editorHeading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.editorHeading h2 {
+  margin: 0.25rem 0 0;
+  color: var(--text);
+  font-size: 1.15rem;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.editorHeading p:not(.eyebrow) {
+  max-width: 36rem;
+  margin: 0.32rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.ageCallout {
+  min-width: 7.2rem;
+  border: 1px solid rgba(15, 130, 121, 0.18);
+  border-radius: 0.55rem;
+  background: var(--accent-soft);
+  padding: 0.48rem 0.65rem;
+}
+
+.ageCallout span,
+.countResult span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ageCallout strong {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.field {
+  display: block;
+  min-width: 0;
+}
+
+.field > span {
+  display: block;
+  margin-bottom: 0.38rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.field em {
+  color: var(--danger);
+  font-style: normal;
+}
+
+.field input,
+.field select,
+.field textarea,
+.searchField input {
+  width: 100%;
+  min-height: 2.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  transition: border-color var(--ease-out), box-shadow var(--ease-out), background-color var(--ease-out);
+}
+
+.field textarea {
+  min-height: auto;
+  resize: vertical;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover,
+.searchField input:hover {
+  border-color: #aebfce;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.searchField input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 130, 121, 0.13);
+}
+
+.field small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.fullWidth {
+  margin-top: 0.9rem;
+}
+
+.countPanel,
+.targetPanel {
+  min-width: 0;
+  margin: 1.15rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface-tint);
+  padding: 0.95rem;
+}
+
+.countPanel legend,
+.targetPanel legend {
+  padding: 0 0.25rem;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.countPanel > p {
+  margin: -0.05rem 0 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--bg-muted);
+  padding: 0.2rem;
+}
+
+.segmentedControl label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.3rem;
+  color: var(--text-muted);
+  padding: 0.36rem 0.56rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.25;
+  transition: background-color var(--ease-out), color var(--ease-out), box-shadow var(--ease-out);
+}
+
+.segmentedControl label input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.segmentedControl label.segmentActive {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--accent-strong);
+}
+
+.countFields {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.countFields .field {
+  width: min(100%, 13rem);
+  flex: 1 1 10rem;
+}
+
+.countResult {
+  display: flex;
+  align-items: baseline;
+  gap: 0.38rem;
+  margin-top: 0.75rem;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 0.75rem;
+}
+
+.countResult strong {
+  color: var(--accent-strong);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.countResult small {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+}
+
+.errorMessage {
+  margin: 1rem 0 0;
+  border: 1px solid rgba(177, 59, 79, 0.2);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 0.58rem 0.68rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.formActions {
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+}
+
+.targetPanel > .field {
+  max-width: 22rem;
+  margin-top: 0.9rem;
+}
+
+.cagePicker {
+  margin-top: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.cagePickerHeader {
+  gap: 0.45rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.48rem;
+}
+
+.searchField {
+  min-width: 0;
+  flex: 1;
+}
+
+.searchField input {
+  min-height: 2.15rem;
+}
+
+.cagePickerHeader button {
+  flex: 0 0 auto;
+  padding: 0.43rem 0.46rem;
+  font-size: 0.72rem;
+}
+
+.cageOptionList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-height: 12.5rem;
+  overflow-y: auto;
+  padding: 0.4rem;
+}
+
+.cageOption {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.45rem;
+  border-radius: 0.35rem;
+  padding: 0.45rem;
+  cursor: pointer;
+}
+
+.cageOption:hover,
+.cageOptionChecked {
+  background: var(--accent-soft);
+}
+
+.cageOption input {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0.16rem 0 0;
+  accent-color: var(--accent);
+}
+
+.cageOption span {
+  min-width: 0;
+}
+
+.cageOption strong,
+.cageOption small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cageOption strong {
+  color: var(--text);
+  font-size: 0.77rem;
+  line-height: 1.25;
+}
+
+.cageOption small {
+  margin-top: 0.08rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.emptyPicker,
+.emptyTimeline {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.emptyPicker {
+  grid-column: 1 / -1;
+  padding: 0.7rem;
+  text-align: center;
+}
+
+.targetSummary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.77rem;
+  line-height: 1.4;
+}
+
+.targetSummary strong {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline {
+  position: relative;
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline::before {
+  position: absolute;
+  top: 0.85rem;
+  bottom: 0.85rem;
+  left: 0.37rem;
+  width: 1px;
+  background: var(--line-strong);
+  content: "";
+}
+
+.timeline > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.timelineMarker {
+  z-index: 1;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.9rem;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(15, 130, 121, 0.25);
+}
+
+.timelineCard {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.72rem 0.8rem;
+}
+
+.timelineHeader {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.timelineHeader time {
+  color: var(--text-faint);
+  font-size: 0.71rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.timelineHeader h3 {
+  margin: 0.16rem 0 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.operatorChip {
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  padding: 0.28rem 0.43rem;
+}
+
+.timelineTarget,
+.timelineNote {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.timelineTarget {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.timelineNote {
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+}
+
+@media (max-width: 42rem) {
+  .editorHeading {
+    display: block;
+  }
+
+  .ageCallout {
+    display: inline-block;
+    margin-top: 0.75rem;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cageOptionList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 30rem) {
+  .cagePickerHeader {
+    flex-wrap: wrap;
+  }
+
+  .searchField {
+    flex-basis: 100%;
+  }
+
+  .cageOptionList {
+    grid-template-columns: 1fr;
+  }
+
+  .targetSummary {
+    display: block;
+  }
+
+  .targetSummary strong {
+    display: block;
+    margin-top: 0.16rem;
+  }
+}

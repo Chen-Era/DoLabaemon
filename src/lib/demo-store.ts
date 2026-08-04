@@ -23,6 +23,18 @@ import { normalizeVendor } from "@/lib/vendor-normalization";
 import reagentKnowledgeCatalog from "@/lib/reagent-knowledge/catalog.json";
 import experimentKnowledgeCatalog from "@/lib/experiment-knowledge/catalog.json";
 import { canGrantMemberRole, canUpdateMemberRole } from "@/lib/member-role-permissions";
+import {
+  calculateCurrentAgeWeeks,
+  cagePositionName,
+  makeActiveSlotKey,
+  type AnimalCageCreateInput,
+  type AnimalCageUpdateInput,
+  type AnimalBatchAdmissionInput,
+  type AnimalOperationCreateInput,
+  type AnimalRackCreateInput,
+  type AnimalRackUpdateInput,
+  type AnimalResidentUpdateInput,
+} from "@/lib/animal-manage/types";
 
 type Role = "PI" | "ADMIN" | "MEMBER";
 type JoinRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -177,6 +189,63 @@ export type DemoTechniqueRevision = {
   createdAt: string;
 };
 
+type DemoAnimalRack = {
+  id: string;
+  labId: string;
+  name: string;
+  rows: number;
+  columns: number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DemoAnimalCage = {
+  id: string;
+  rackId: string;
+  rowIndex: number;
+  columnIndex: number;
+  activeSlotKey: string | null;
+  status: "ACTIVE" | "CLOSED";
+  movedInAt: string;
+  initialAgeWeeks: number;
+  strain: string | null;
+  sex: "MALE" | "FEMALE" | "MIXED" | "UNKNOWN";
+  genotype: string | null;
+  note: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DemoAnimalMouse = {
+  id: string;
+  labId: string;
+  cageId: string;
+  identifier: string | null;
+  status: "ACTIVE" | "LEFT";
+  movedInAt: string;
+  movedOutAt: string | null;
+  leaveReason: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DemoAnimalOperation = {
+  id: string;
+  labId: string;
+  mouseId: string;
+  cageId: string;
+  operationType: string;
+  operationAt: string;
+  note: string | null;
+  sourceScope: "MOUSE" | "CAGE" | "RACK" | "SYSTEM";
+  batchId: string | null;
+  createdById: string | null;
+  createdAt: string;
+};
+
 type DemoStoreShape = {
   users: DemoUser[];
   labs: DemoLab[];
@@ -195,6 +264,10 @@ type DemoStoreShape = {
   techniqueDrafts: DemoTechniqueDraft[];
   techniqueOverrides: ExperimentTechnique[];
   techniqueRevisions: DemoTechniqueRevision[];
+  animalRacks: DemoAnimalRack[];
+  animalCages: DemoAnimalCage[];
+  animalMice: DemoAnimalMouse[];
+  animalOperations: DemoAnimalOperation[];
 };
 
 const configuredDemoStorePath = process.env.LAB_REAGENT_DEMO_STORE_PATH?.trim();
@@ -258,6 +331,10 @@ function createDefaultStore(): DemoStoreShape {
     techniqueDrafts: [],
     techniqueOverrides: [],
     techniqueRevisions: [],
+    animalRacks: [],
+    animalCages: [],
+    animalMice: [],
+    animalOperations: [],
   };
 }
 
@@ -291,6 +368,10 @@ function readStore(): DemoStoreShape {
     techniqueDrafts: Array.isArray(parsed.techniqueDrafts) ? parsed.techniqueDrafts : [],
     techniqueOverrides: Array.isArray(parsed.techniqueOverrides) ? parsed.techniqueOverrides : [],
     techniqueRevisions: Array.isArray(parsed.techniqueRevisions) ? parsed.techniqueRevisions : [],
+    animalRacks: Array.isArray(parsed.animalRacks) ? parsed.animalRacks : [],
+    animalCages: Array.isArray(parsed.animalCages) ? parsed.animalCages : [],
+    animalMice: Array.isArray(parsed.animalMice) ? parsed.animalMice : [],
+    animalOperations: Array.isArray(parsed.animalOperations) ? parsed.animalOperations : [],
   };
 }
 
@@ -933,6 +1014,15 @@ export function demoDeleteLab(input: { userId: string; labId: string }) {
   store.aiPolicies = store.aiPolicies.filter((item) => item.labId !== labId);
   store.knowledgeMutationLogs = store.knowledgeMutationLogs.filter((item) => item.labId !== labId);
   store.techniqueDrafts = store.techniqueDrafts.filter((item) => item.labId !== labId);
+  const rackIds = new Set(store.animalRacks.filter((item) => item.labId === labId).map((item) => item.id));
+  const cageIds = new Set(store.animalCages.filter((item) => rackIds.has(item.rackId)).map((item) => item.id));
+  const mouseIds = new Set(store.animalMice.filter((item) => item.labId === labId).map((item) => item.id));
+  store.animalRacks = store.animalRacks.filter((item) => item.labId !== labId);
+  store.animalCages = store.animalCages.filter((item) => !cageIds.has(item.id));
+  store.animalMice = store.animalMice.filter((item) => item.labId !== labId);
+  store.animalOperations = store.animalOperations.filter(
+    (item) => item.labId !== labId && !cageIds.has(item.cageId) && !mouseIds.has(item.mouseId),
+  );
   writeStore(store);
   return { deletedLabId: labId };
 }
@@ -954,6 +1044,274 @@ export function demoListReagents(labId: string) {
       uploadedByName: reagent.uploadedByName ?? LEGACY_REAGENT_UPLOADER_NAME,
       uploadedAt: reagent.uploadedAt ?? reagent.createdAt,
     }));
+}
+
+function demoAnimalDate(value?: string | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) throw new Error("INVALID_DATE");
+  return date.toISOString();
+}
+
+function demoAnimalCage(store: DemoStoreShape, cage: DemoAnimalCage, includeFormerMice = false) {
+  const mice = store.animalMice
+    .filter((mouse) => mouse.cageId === cage.id && (includeFormerMice || mouse.status === "ACTIVE"))
+    .sort((left, right) => left.movedInAt.localeCompare(right.movedInAt))
+    .map((mouse) => ({
+      ...mouse,
+      operations: store.animalOperations
+        .filter((operation) => operation.mouseId === mouse.id)
+        .sort((left, right) => right.operationAt.localeCompare(left.operationAt)),
+    }));
+  return {
+    ...cage,
+    positionName: cagePositionName(cage.columnIndex, cage.rowIndex),
+    currentAgeWeeks: calculateCurrentAgeWeeks(cage.initialAgeWeeks, cage.movedInAt),
+    mouseCount: store.animalMice.filter((mouse) => mouse.cageId === cage.id && mouse.status === "ACTIVE").length,
+    mice,
+  };
+}
+
+function demoAnimalRack(store: DemoStoreShape, rack: DemoAnimalRack, includeFormerMice = false) {
+  return {
+    ...rack,
+    cages: store.animalCages
+      .filter((cage) => cage.rackId === rack.id && cage.status === "ACTIVE")
+      .sort((left, right) => left.rowIndex - right.rowIndex || left.columnIndex - right.columnIndex)
+      .map((cage) => demoAnimalCage(store, cage, includeFormerMice)),
+  };
+}
+
+export function demoGetAnimalRackAccessContext(rackId: string) {
+  const rack = readStore().animalRacks.find((item) => item.id === rackId);
+  return rack ? { id: rack.id, labId: rack.labId } : null;
+}
+
+export function demoGetAnimalCageAccessContext(cageId: string) {
+  const store = readStore();
+  const cage = store.animalCages.find((item) => item.id === cageId);
+  const rack = cage ? store.animalRacks.find((item) => item.id === cage.rackId) : null;
+  return cage && rack ? { id: cage.id, labId: rack.labId } : null;
+}
+
+export function demoListAnimalRacks(labId: string) {
+  const store = readStore();
+  return store.animalRacks
+    .filter((rack) => rack.labId === labId)
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
+    .map((rack) => demoAnimalRack(store, rack));
+}
+
+export function demoGetAnimalRack(rackId: string) {
+  const store = readStore();
+  const rack = store.animalRacks.find((item) => item.id === rackId);
+  return rack ? demoAnimalRack(store, rack, true) : null;
+}
+
+export function demoCreateAnimalRack(input: AnimalRackCreateInput) {
+  const store = readStore();
+  const now = new Date().toISOString();
+  const rack: DemoAnimalRack = {
+    id: uid("animal-rack"),
+    labId: input.labId,
+    name: input.name,
+    rows: input.rows,
+    columns: input.columns,
+    note: input.note ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  store.animalRacks.push(rack);
+  writeStore(store);
+  return demoAnimalRack(store, rack);
+}
+
+export function demoUpdateAnimalRack(rackId: string, input: AnimalRackUpdateInput) {
+  const store = readStore();
+  const rack = store.animalRacks.find((item) => item.id === rackId);
+  if (!rack) throw new Error("ANIMAL_RACK_NOT_FOUND");
+  const rows = input.rows ?? rack.rows;
+  const columns = input.columns ?? rack.columns;
+  if (store.animalCages.some((cage) => cage.rackId === rackId && cage.status === "ACTIVE" && (cage.rowIndex > rows || cage.columnIndex > columns))) {
+    throw new Error("RACK_RESIZE_CONFLICT");
+  }
+  if (input.name !== undefined) rack.name = input.name;
+  if (input.rows !== undefined) rack.rows = input.rows;
+  if (input.columns !== undefined) rack.columns = input.columns;
+  if (input.note !== undefined) rack.note = input.note;
+  rack.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return demoAnimalRack(store, rack);
+}
+
+export function demoCreateAnimalCage(input: AnimalCageCreateInput, createdById: string) {
+  const store = readStore();
+  const rack = store.animalRacks.find((item) => item.id === input.rackId && item.labId === input.labId);
+  if (!rack) throw new Error("ANIMAL_RACK_NOT_FOUND");
+  if (input.rowIndex > rack.rows || input.columnIndex > rack.columns) throw new Error("CAGE_POSITION_OUTSIDE_RACK");
+  const activeSlotKey = makeActiveSlotKey(input.rackId, input.columnIndex, input.rowIndex);
+  if (store.animalCages.some((item) => item.activeSlotKey === activeSlotKey)) throw new Error("CAGE_POSITION_OCCUPIED");
+  const now = new Date().toISOString();
+  const movedInAt = demoAnimalDate(input.movedInAt);
+  const cage: DemoAnimalCage = {
+    id: uid("animal-cage"), rackId: input.rackId, rowIndex: input.rowIndex, columnIndex: input.columnIndex, activeSlotKey,
+    status: "ACTIVE", movedInAt, initialAgeWeeks: input.initialAgeWeeks, strain: input.strain ?? null, sex: input.sex,
+    genotype: input.genotype?.trim() || "WT", note: input.note ?? null, closedAt: null, createdAt: now, updatedAt: now,
+  };
+  store.animalCages.push(cage);
+  const mice = Array.from({ length: input.mouseCount }, (_, index): DemoAnimalMouse => ({
+    id: uid("animal-mouse"), labId: input.labId, cageId: cage.id, identifier: input.mouseIdentifiers?.[index] ?? null,
+    status: "ACTIVE", movedInAt, movedOutAt: null, leaveReason: null, note: null, createdAt: now, updatedAt: now,
+  }));
+  store.animalMice.push(...mice);
+  store.animalOperations.push(...mice.map((mouse): DemoAnimalOperation => ({
+    id: uid("animal-operation"), labId: input.labId, mouseId: mouse.id, cageId: cage.id, operationType: "入驻", operationAt: movedInAt,
+    note: null, sourceScope: "SYSTEM", batchId: null, createdById, createdAt: now,
+  })));
+  writeStore(store);
+  return demoAnimalCage(store, cage);
+}
+
+export function demoUpdateAnimalCage(cageId: string, input: AnimalCageUpdateInput) {
+  const store = readStore();
+  const cage = store.animalCages.find((item) => item.id === cageId);
+  if (!cage) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+  if (cage.status !== "ACTIVE") throw new Error("ANIMAL_CAGE_CLOSED");
+  if (input.movedInAt !== undefined) cage.movedInAt = demoAnimalDate(input.movedInAt);
+  if (input.initialAgeWeeks !== undefined) cage.initialAgeWeeks = input.initialAgeWeeks;
+  if (input.strain !== undefined) cage.strain = input.strain;
+  if (input.sex !== undefined) cage.sex = input.sex;
+  if (input.genotype !== undefined) cage.genotype = input.genotype?.trim() || "WT";
+  if (input.note !== undefined) cage.note = input.note;
+  cage.updatedAt = new Date().toISOString();
+  writeStore(store);
+  return demoAnimalCage(store, cage);
+}
+
+export function demoUpdateAnimalCageResidents(cageId: string, input: AnimalResidentUpdateInput, createdById: string) {
+  const store = readStore();
+  const cage = store.animalCages.find((item) => item.id === cageId);
+  const rack = cage ? store.animalRacks.find((item) => item.id === cage.rackId) : null;
+  if (!cage || !rack) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+  if (cage.status !== "ACTIVE") throw new Error("ANIMAL_CAGE_CLOSED");
+  const now = new Date().toISOString();
+  const activeMice = store.animalMice.filter((mouse) => mouse.cageId === cageId && mouse.status === "ACTIVE");
+  if (input.action === "ADMIT") {
+    const movedInAt = demoAnimalDate(input.movedAt);
+    const mice = Array.from({ length: input.count }, (_, index): DemoAnimalMouse => ({
+      id: uid("animal-mouse"), labId: rack.labId, cageId, identifier: input.identifiers?.[index] ?? null, status: "ACTIVE",
+      movedInAt, movedOutAt: null, leaveReason: null, note: input.note ?? null, createdAt: now, updatedAt: now,
+    }));
+    store.animalMice.push(...mice);
+    store.animalOperations.push(...mice.map((mouse): DemoAnimalOperation => ({
+      id: uid("animal-operation"), labId: rack.labId, mouseId: mouse.id, cageId, operationType: "入驻", operationAt: movedInAt,
+      note: input.note ?? null, sourceScope: "SYSTEM", batchId: null, createdById, createdAt: now,
+    })));
+    writeStore(store);
+    return { cage: demoAnimalCage(store, cage), admittedMouseIds: mice.map((mouse) => mouse.id), departedMouseIds: [] };
+  }
+  const selected = input.mouseIds?.length
+    ? activeMice.filter((mouse) => input.mouseIds!.includes(mouse.id))
+    : activeMice.slice(0, input.count);
+  const requestedCount = input.mouseIds?.length ?? input.count ?? 0;
+  if (selected.length !== requestedCount) throw new Error("ANIMAL_MOUSE_NOT_FOUND");
+  const movedOutAt = demoAnimalDate(input.movedAt);
+  for (const mouse of selected) {
+    mouse.status = "LEFT"; mouse.movedOutAt = movedOutAt; mouse.leaveReason = input.leaveReason ?? null; mouse.updatedAt = now;
+    store.animalOperations.push({
+      id: uid("animal-operation"), labId: rack.labId, mouseId: mouse.id, cageId, operationType: "离笼", operationAt: movedOutAt,
+      note: input.leaveReason ?? null, sourceScope: "SYSTEM", batchId: null, createdById, createdAt: now,
+    });
+  }
+  writeStore(store);
+  return { cage: demoAnimalCage(store, cage), admittedMouseIds: [], departedMouseIds: selected.map((mouse) => mouse.id) };
+}
+
+/** Demo-mode counterpart of a multi-cage admission, preserving one shared batch id for audit. */
+export function demoBatchAdmitAnimalCages(input: AnimalBatchAdmissionInput, createdById: string) {
+  const store = readStore();
+  let cages: DemoAnimalCage[] = [];
+  if (input.sourceScope === "CAGE") {
+    const cageIds = [...new Set(input.cageIds)];
+    cages = store.animalCages.filter((cage) => (
+      cageIds.includes(cage.id)
+      && cage.status === "ACTIVE"
+      && store.animalRacks.some((rack) => rack.id === cage.rackId && rack.labId === input.labId)
+    ));
+    if (cages.length !== cageIds.length) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+  } else {
+    const rack = store.animalRacks.find((item) => item.id === input.rackId && item.labId === input.labId);
+    if (!rack) throw new Error("ANIMAL_RACK_NOT_FOUND");
+    cages = store.animalCages.filter((cage) => cage.rackId === rack.id && cage.status === "ACTIVE");
+  }
+  if (!cages.length) throw new Error("NO_ACTIVE_CAGES");
+
+  const now = new Date().toISOString();
+  const movedInAt = demoAnimalDate(input.movedAt);
+  const batchId = uid("animal-batch");
+  const mice = cages.flatMap((cage) => Array.from({ length: input.count }, (): DemoAnimalMouse => ({
+    id: uid("animal-mouse"),
+    labId: input.labId,
+    cageId: cage.id,
+    identifier: null,
+    status: "ACTIVE",
+    movedInAt,
+    movedOutAt: null,
+    leaveReason: null,
+    note: input.note ?? null,
+    createdAt: now,
+    updatedAt: now,
+  })));
+  store.animalMice.push(...mice);
+  store.animalOperations.push(...mice.map((mouse): DemoAnimalOperation => ({
+    id: uid("animal-operation"),
+    labId: input.labId,
+    mouseId: mouse.id,
+    cageId: mouse.cageId,
+    operationType: "入驻",
+    operationAt: movedInAt,
+    note: input.note ?? null,
+    sourceScope: input.sourceScope,
+    batchId,
+    createdById,
+    createdAt: now,
+  })));
+  writeStore(store);
+  return {
+    batchId,
+    affectedCageCount: cages.length,
+    admittedCount: mice.length,
+    cageIds: cages.map((cage) => cage.id),
+  };
+}
+
+export function demoCreateAnimalOperations(input: AnimalOperationCreateInput, createdById: string) {
+  const store = readStore();
+  let mice: DemoAnimalMouse[] = [];
+  if (input.sourceScope === "MOUSE") {
+    const ids = [...new Set(input.mouseIds)];
+    mice = store.animalMice.filter((mouse) => mouse.labId === input.labId && ids.includes(mouse.id));
+    if (mice.length !== ids.length) throw new Error("ANIMAL_MOUSE_NOT_FOUND");
+  } else if (input.sourceScope === "CAGE") {
+    const ids = [...new Set(input.cageIds)];
+    const cages = store.animalCages.filter((cage) => ids.includes(cage.id) && cage.status === "ACTIVE" && store.animalRacks.some((rack) => rack.id === cage.rackId && rack.labId === input.labId));
+    if (cages.length !== ids.length) throw new Error("ANIMAL_CAGE_NOT_FOUND");
+    mice = store.animalMice.filter((mouse) => mouse.status === "ACTIVE" && ids.includes(mouse.cageId));
+  } else {
+    const rack = store.animalRacks.find((item) => item.id === input.rackId && item.labId === input.labId);
+    if (!rack) throw new Error("ANIMAL_RACK_NOT_FOUND");
+    const cageIds = new Set(store.animalCages.filter((cage) => cage.rackId === rack.id && cage.status === "ACTIVE").map((cage) => cage.id));
+    mice = store.animalMice.filter((mouse) => mouse.labId === input.labId && mouse.status === "ACTIVE" && cageIds.has(mouse.cageId));
+  }
+  if (!mice.length) throw new Error("NO_ACTIVE_MICE");
+  const batchId = uid("animal-batch");
+  const operationAt = demoAnimalDate(input.operationAt);
+  const now = new Date().toISOString();
+  store.animalOperations.push(...mice.map((mouse): DemoAnimalOperation => ({
+    id: uid("animal-operation"), labId: input.labId, mouseId: mouse.id, cageId: mouse.cageId, operationType: input.operationType,
+    operationAt, note: input.note ?? null, sourceScope: input.sourceScope, batchId, createdById, createdAt: now,
+  })));
+  writeStore(store);
+  return { batchId, createdCount: mice.length, mouseIds: mice.map((mouse) => mouse.id) };
 }
 
 function demoUploader(store: DemoStoreShape, uploader?: ReagentUploader): ReagentUploader {

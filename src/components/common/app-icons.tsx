@@ -117,6 +117,19 @@ export function SidebarReagentsIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function SidebarAnimalsIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M7.2 10.4c-1.8-1.7-3-4.3-2.2-6.7 2.2.6 3.8 2.2 4.7 4.2" />
+      <path d="M14.8 8.1c.8-2.1 2.5-3.8 4.7-4.4.8 2.5-.5 5.1-2.3 6.8" />
+      <path d="M6.4 12.4c0-3.2 2.5-5.7 5.6-5.7s5.6 2.5 5.6 5.7v2.1c0 3.2-2.5 5.8-5.6 5.8s-5.6-2.6-5.6-5.8v-2.1Z" />
+      <circle cx="9.7" cy="13.3" r=".7" fill="currentColor" stroke="none" />
+      <circle cx="14.3" cy="13.3" r=".7" fill="currentColor" stroke="none" />
+      <path d="M10.4 16.1c1 .8 2.2.8 3.2 0" />
+    </BaseIcon>
+  );
+}
+
 export function SidebarAddReagentIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <BaseIcon className={className}>
